@@ -1,4 +1,7 @@
+import { useState, useEffect } from 'react'
 import { AppProvider, useApp } from './context'
+import { auth } from './firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import RightPanel from './components/RightPanel'
@@ -153,6 +156,27 @@ function ViewRouter() {
 }
 
 export default function App() {
+  const [firebaseReady, setFirebaseReady] = useState(false)
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseReady(true)
+    })
+    return () => unsubscribe()
+  }, [])
+
+  if (!firebaseReady) {
+    return (
+      <div style={{ display: 'flex', minHeight: '100dvh', alignItems: 'center', justifyContent: 'center', background: '#0e0e10' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 900, color: '#00f0ff', letterSpacing: 3, marginBottom: 12 }}>CA</div>
+          <div className="skeleton" style={{ width: 180, height: 6, margin: '0 auto 12px', borderRadius: 3 }}></div>
+          <div style={{ fontSize: 12, color: '#555', fontFamily: 'var(--font-body)' }}>Checking session...</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <AppProvider>
       <AuthGuard>

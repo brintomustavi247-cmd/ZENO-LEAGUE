@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyADV3HOJODpgYyZfJmof16DM6T9IJ6GgBI",
@@ -12,5 +12,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+const auth = getAuth(app);
+
+// ✅ SESSION PERSISTENCE — Keeps user logged in after page refresh
+setPersistence(auth, browserLocalPersistence);
+
+export { auth };
 export default app;

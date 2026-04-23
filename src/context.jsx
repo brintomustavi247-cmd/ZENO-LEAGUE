@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
+import { auth, onAuthStateChanged } from '../firebase'
 
 const AppContext = createContext(null)
 
@@ -13,11 +14,14 @@ function saveToLS(data) {
 
 const getTimeStr = (msOffset) => new Date(Date.now() + msOffset).toISOString().slice(0, 16).replace('T', ' ')
 
+// ===== OWNER PHONE — kept in sync with Login.jsx =====
+const OWNER_PHONE = '+8801871035221'
+
 // ===== USER DATABASE — with phone, email, teamName =====
 const INITIAL_USERS = [
   { id:'u1', username:'player1', password:'1234', role:'user', name:'ShadowKiller', ign:'SK•DRAGON', displayName:'ShadowKiller', avatar:null, balance:1250, kills:342, wins:28, matchesPlayed:95, earnings:8750, online:true, banned:false, status:'active', forcePasswordChange:false, phone:'01700000001', email:'shadow@clutcharena.bd', teamName:'', createdAt:'2025-10-15 10:00' },
   { id:'u2', username:'player2', password:'1234', role:'user', name:'DragonBlaze', ign:'DB•FIRE', displayName:'DragonBlaze', avatar:null, balance:890, kills:278, wins:22, matchesPlayed:80, earnings:6200, online:true, banned:false, status:'active', forcePasswordChange:false, phone:'01800000002', email:'dragon@clutcharena.bd', teamName:'', createdAt:'2025-10-20 14:00' },
-  { id:'u3', username:'player3', password:'1234', role:'user', name:'NightFuryBD', ign:'NF•STORM', displayName:'NightFuryBD', avatar:null, balance:2100, kills:456, wins:35, matchesPlayed:110, earnings:12300, online:true, banned:false, status:'active', forcePasswordChange:false, phone:'01900000003', email:'nightfury@clutcharena.bd', teamName:'', createdAt:'2025-11-01 09:00' },
+  { id:'u3', username:'player3', password:'1234', role:'user', name:'NightFuryBD', ign:'NF•STORM', displayName:'NightFuryBD', avatar:null, balance:2100, kills:456, wins:22, matchesPlayed:110, earnings:12300, online:true, banned:false, status:'active', forcePasswordChange:false, phone:'01900000003', email:'nightfury@clutcharena.bd', teamName:'', createdAt:'2025-11-01 09:00' },
   { id:'u4', username:'player4', password:'1234', role:'user', name:'StormBreaker', ign:'SB•THUNDER', displayName:'StormBreaker', avatar:null, balance:340, kills:89, wins:8, matchesPlayed:30, earnings:1800, online:false, banned:false, status:'active', forcePasswordChange:false, phone:'01600000004', email:'storm@clutcharena.bd', teamName:'', createdAt:'2025-11-05 18:00' },
   { id:'u5', username:'player5', password:'1234', role:'user', name:'PhantomX', ign:'PX•GHOST', displayName:'PhantomX', avatar:null, balance:4500, kills:612, wins:48, matchesPlayed:150, earnings:22400, online:true, banned:false, status:'active', forcePasswordChange:false, phone:'01500000005', email:'phantom@clutcharena.bd', teamName:'', createdAt:'2025-10-10 08:00' },
   { id:'u6', username:'player6', password:'1234', role:'user', name:'SilentWolf', ign:'SW•HUNT', displayName:'SilentWolf', avatar:null, balance:120, kills:45, wins:3, matchesPlayed:15, earnings:500, online:false, banned:false, status:'active', forcePasswordChange:false, phone:'01400000006', email:'silent@clutcharena.bd', teamName:'', createdAt:'2025-11-10 12:00' },
@@ -37,11 +41,11 @@ const INITIAL_MATCHES = [
   { id:'m1', title:'Bermuda Rush Solo', mode:'Solo', map:'Bermuda', gameType:'BR', entryFee:30, maxSlots:50, joinedCount:50, perKill:10, include4th:true, include5th:true, startTime:getTimeStr(-300000), roomId:'BRS15050A', roomPassword:'br2025x', status:'live', result:null, createdAt:getTimeStr(-86400000), participants:[], image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80' },
   { id:'m5', title:'Purgatory Night Squad', mode:'Squad', map:'Purgatory', gameType:'BR', entryFee:150, maxSlots:12, joinedCount:12, perKill:20, include4th:true, include5th:true, startTime:getTimeStr(-600000), roomId:'PNS12150P', roomPassword:'squad25', status:'live', result:null, createdAt:getTimeStr(-43200000), participants:[], image:'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80' },
   { id:'m2', title:'Purgatory Duo Clash', mode:'Duo', map:'Purgatory', gameType:'BR', entryFee:40, maxSlots:25, joinedCount:18, perKill:15, include4th:false, include5th:false, startTime:getTimeStr(1500000), roomId:'', roomPassword:'', status:'upcoming', result:null, createdAt:getTimeStr(-7200000), participants:[], image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80' },
-  { id:'m3', title:'Kalahari Clash 4v4', mode:'Clash Squad', map:'Kalahari', gameType:'CS', entryFee:50, maxSlots:12, joinedCount:8, perKill:0, include4th:false, include5th:false, startTime:getTimeStr(5400000), roomId:'', roomPassword:'', status:'upcoming', result:null, createdAt:getTimeStr(-3600000), participants:[], image:'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80' },
+  { id:'m3', title:'Kalahari Clash 4v4', mode:'Clash Squad', map:'Kalahari', gameType:'CS', entryFee:50, maxSlots:12, joinedCount:8, perKill:0, include4th:false, include5th:false, startTime:getTimeStr(5400000), roomId:'', roomPassword:'', status:'upcoming', result:null, createdAt:getTimeStr(-3600000), participants:[], image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80' },
   { id:'m4', title:'Alpine Squad Showdown', mode:'Squad', map:'Alpine', gameType:'BR', entryFee:150, maxSlots:12, joinedCount:5, perKill:20, include4th:true, include5th:true, startTime:getTimeStr(10800000), roomId:'', roomPassword:'', status:'upcoming', result:null, createdAt:getTimeStr(-1800000), participants:[], image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80' },
-  { id:'m7', title:'Bermuda Dawn Solo', mode:'Solo', map:'Bermuda', gameType:'BR', entryFee:15, maxSlots:50, joinedCount:32, perKill:5, include4th:false, include5th:false, startTime:getTimeStr(2700000), roomId:'', roomPassword:'', status:'upcoming', result:null, createdAt:getTimeStr(-900000), participants:[], image:'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80' },
+  { id:'m7', title:'Bermuda Dawn Solo', mode:'Solo', map:'Bermuda', gameType:'BR', entryFee:15, maxSlots:50, joinedCount:32, perKill:5, include4th:false, include5th:false, startTime:getTimeStr(2700000), roomId:'', roomPassword:'', status:'upcoming', result:null, createdAt:getTimeStr(-900000), participants:[], image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80' },
   { id:'m6', title:'Bermuda Classic Solo', mode:'Solo', map:'Bermuda', gameType:'BR', entryFee:20, maxSlots:50, joinedCount:50, perKill:10, include4th:true, include5th:false, startTime:getTimeStr(-10800000), roomId:'BCS20500Z', roomPassword:'classic1', status:'completed', result:{ submittedAt:getTimeStr(-9000000), method:'manual', screenshotUrl:null, players:[ { position:1, ign:'DragonBlaze', kills:8, prize:150 }, { position:2, ign:'ShadowKiller', kills:6, prize:80 }, { position:3, ign:'NightFuryBD', kills:5, prize:50 }, { position:4, ign:'StormBreaker', kills:4, prize:30 }, ] }, createdAt:getTimeStr(-86400000), participants:[], image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80' },
-  { id:'m10', title:'Purgatory Clash Arena', mode:'Clash Squad', map:'Purgatory', gameType:'CS', entryFee:100, maxSlots:12, joinedCount:12, perKill:0, include4th:false, include5th:false, startTime:getTimeStr(-30000000), roomId:'PCA12100P', roomPassword:'clash99', status:'completed', result:{ submittedAt:getTimeStr(-27000000), method:'screenshot', screenshotUrl:null, players:[ { position:1, ign:'Alpha Squad', teamName:'Alpha Squad', kills:18, points:42, prize:600 }, { position:2, ign:'Beta Warriors', teamName:'Beta Warriors', kills:12, points:30, prize:360 }, ] }, createdAt:getTimeStr(-172800000), participants:[], image:'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80' },
+  { id:'m10', title:'Purgatory Clash Arena', mode:'Clash Squad', map:'Purgatory', gameType:'CS', entryFee:100, maxSlots:12, joinedCount:12, perKill:0, include4th:false, include5th:false, startTime:getTimeStr(-30000000), roomId:'PCA12100P', roomPassword:'clash99', status:'completed', result:{ submittedAt:getTimeStr(-27000000), method:'screenshot', screenshotUrl:null, players:[ { position:1, ign:'Alpha Squad', teamName:'Alpha Squad', kills:18, points:42, prize:600 }, { position:2, ign:'Beta Warriors', teamName:'Beta Warriors', kills:12, points:30, prize:360 }, ] }, createdAt:getTimeStr(-172800000), participants:[], image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80' },
   { id:'m11', title:'Kalahari Duo Night', mode:'Duo', map:'Kalahari', gameType:'BR', entryFee:80, maxSlots:25, joinedCount:25, perKill:15, include4th:false, include5th:false, startTime:getTimeStr(-25200000), roomId:'KDN25080K', roomPassword:'dn2025', status:'completed', result:{ submittedAt:getTimeStr(-23400000), method:'manual', screenshotUrl:null, players:[ { position:1, ign:'PhantomX', teamName:'Ghost Riders', kills:9, points:25, prize:500 }, { position:2, ign:'ShadowKiller', teamName:'Dragon Duo', kills:7, points:19, prize:300 }, { position:3, ign:'BlazeKing', teamName:'Fire Hawks', kills:5, points:15, prize:180 }, ] }, createdAt:getTimeStr(-259200000), participants:[], image:'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80' },
 ]
 
@@ -97,16 +101,16 @@ function parseHash() {
 const saved = loadFromLS()
 
 const initialState = {
-  isLoggedIn: false,
-  currentUser: null,
-  users: INITIAL_USERS,
-  matches: INITIAL_MATCHES,
-  notifications: INITIAL_NOTIFICATIONS,
-  transactions: INITIAL_TRANSACTIONS,
-  standings: INITIAL_STANDINGS,
-  adminPayments: INITIAL_ADMIN_PAYMENTS,
-  pendingWithdrawals: INITIAL_PENDING_WITHDRAWALS,
-  activityLog: [],
+  isLoggedIn: saved?.isLoggedIn || false,
+  currentUser: saved?.currentUser || null,
+  users: saved?.users || INITIAL_USERS,
+  matches: saved?.matches || INITIAL_MATCHES,
+  notifications: saved?.notifications || INITIAL_NOTIFICATIONS,
+  transactions: saved?.transactions || INITIAL_TRANSACTIONS,
+  standings: saved?.standings || INITIAL_STANDINGS,
+  adminPayments: saved?.adminPayments || INITIAL_ADMIN_PAYMENTS,
+  pendingWithdrawals: saved?.pendingWithdrawals || INITIAL_PENDING_WITHDRAWALS,
+  activityLog: saved?.activityLog || [],
   currentView: 'login',
   viewParam: null,
   matchFilter: 'all',
@@ -182,8 +186,77 @@ function reducer(state, action) {
     }
 
     // ══════════════════════════════════════════
-    //  RESET PASSWORD (forgot password flow)
+    //  🔥 NEW: FIREBASE AUTH — Real Google/Phone login
+    // ════════════════════════════════════════
+    case 'FIREBASE_LOGIN': {
+      const firebaseUser = action.payload
+      if (!firebaseUser) {
+        // Firebase logged out — if this was a Firebase user, log them out
+        if (state.currentUser?.firebaseUid) {
+          return { ...state, isLoggedIn: false, currentUser: null, currentView: 'login', viewParam: null, modal: null }
+        }
+        // Not a Firebase user — do nothing (local mock login)
+        return state
+      }
+
+      // Check if this Firebase user already exists in our database
+      let existingUser = state.users.find(u => u.firebaseUid === firebaseUser.uid)
+
+      if (existingUser) {
+        // Existing user — log them in
+        return {
+          ...state,
+          isLoggedIn: true,
+          currentUser: existingUser,
+          currentView: existingUser.role === 'owner' ? 'admin-overview' : 'dashboard',
+          loading: false,
+          modal: null,
+        }
+      }
+
+      // New Firebase user — create them in our database
+      const phone = firebaseUser.phoneNumber?.replace('+880', '0') || ''
+      const newUser = {
+        id: firebaseUser.uid,
+        username: firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user_' + firebaseUser.uid.slice(0, 8),
+        password: 'firebase_' + Date.now(),
+        role: phone === OWNER_PHONE ? 'owner' : 'user',
+        name: firebaseUser.displayName || 'Firebase User',
+        displayName: firebaseUser.displayName || 'Firebase User',
+        ign: '',
+        avatar: firebaseUser.photoURL || null,
+        balance: 0, kills: 0, wins: 0, matchesPlayed: 0, earnings: 0,
+        online: true, banned: false, status: 'active',
+        forcePasswordChange: false, permissions: [],
+        phone: phone,
+        email: firebaseUser.email || '',
+        firebaseUid: firebaseUser.uid,
+        createdAt: getTimeStr(0),
+      }
+
+      return {
+        ...state,
+        isLoggedIn: true,
+        currentUser: newUser,
+        users: [newUser, ...state.users],
+        currentView: newUser.role === 'owner' ? 'admin-overview' : 'dashboard',
+        loading: false,
+        modal: null,
+      }
+    }
+
     // ══════════════════════════════════════════
+    //  🔥 Firebase session expired / signed out remotely
+    // ══════════════════════════════════════════
+    case 'FIREBASE_LOGOUT':
+      if (state.currentUser?.firebaseUid) {
+        return { ...state, isLoggedIn: false, currentUser: null, currentView: 'login', viewParam: null, modal: null, toasts: [], sidebarOpen: false }
+      }
+      return state
+
+    // ══════════════════════════════════════════
+    //  RESET PASSWORD (forgot password flow)
+    // ════════════════════════════════════════
     case 'RESET_PASSWORD': {
       const { phone, email, newPassword } = action.payload
       const idx = state.users.findIndex(u => {
@@ -252,26 +325,14 @@ function reducer(state, action) {
       const eco = calculateMatchEconomics(fd.entryFee, fd.maxSlots, fd.gameType, fd.include4th, fd.include5th)
       const newMatch = {
         id: 'm' + Date.now(),
-        title: fd.title,
-        mode: fd.mode,
-        map: fd.map,
-        gameType: fd.gameType,
-        entryFee: Number(fd.entryFee),
-        maxSlots: Number(fd.maxSlots),
-        joinedCount: 0,
-        perKill: Number(fd.perKill) || 0,
-        include4th: !!fd.include4th,
-        include5th: !!fd.include5th,
-        status: 'upcoming',
-        startTime: fd.startTime || '',
-        roomId: '',
-        roomPassword: '',
-        image: fd.image || '',
-        participants: [],
-        prizePool: eco.prizePool,
-        prizes: eco.prizes,
-        createdBy: state.currentUser?.id,
-        createdAt: getTimeStr(0),
+        title: fd.title, mode: fd.mode, map: fd.map, gameType: fd.gameType,
+        entryFee: Number(fd.entryFee), maxSlots: Number(fd.maxSlots),
+        joinedCount: 0, perKill: Number(fd.perKill) || 0,
+        include4th: !!fd.include4th, include5th: !!fd.include5th,
+        status: 'upcoming', startTime: fd.startTime || '',
+        roomId: '', roomPassword: '', image: fd.image || '',
+        participants: [], prizePool: eco.prizePool, prizes: eco.prizes,
+        createdBy: state.currentUser?.id, createdAt: getTimeStr(0),
       }
       return { ...state, matches: [newMatch, ...state.matches] }
     }
@@ -282,9 +343,9 @@ function reducer(state, action) {
     case 'DELETE_MATCH':
       return { ...state, matches: state.matches.filter(m => m.id !== action.payload) }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  MATCH: JOIN — stores teamName on user
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'JOIN_MATCH': {
       const { matchId, teamName } = action.payload
       const match = state.matches.find(m => m.id === matchId)
@@ -297,7 +358,6 @@ function reducer(state, action) {
         ...state.currentUser,
         balance: state.currentUser.balance - cost,
         matchesPlayed: state.currentUser.matchesPlayed + 1,
-        // Store team name on user for this match context
         teamName: teamName || state.currentUser.teamName || '',
       }
 
@@ -352,10 +412,10 @@ function reducer(state, action) {
     case 'BATCH_MATCH_UPDATE':
       return { ...state, matches: action.payload }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  WALLET
-    // ══════════════════════════════════════════
-    case 'ADD_MONEY':
+    // ════════════════════════════════════════
+    case 'ADD_MONEY': {
       return {
         ...state,
         currentUser: { ...state.currentUser, balance: state.currentUser.balance + action.payload.amount },
@@ -364,6 +424,7 @@ function reducer(state, action) {
           desc: `Added via ${action.payload.method}`, date: getTimeStr(0), status: 'completed'
         }, ...state.transactions],
       }
+    }
 
     case 'WITHDRAW': {
       if (state.currentUser.balance < action.payload.amount) return state
@@ -371,11 +432,8 @@ function reducer(state, action) {
         id: 'w' + Date.now(),
         userId: state.currentUser.id,
         username: state.currentUser.name || state.currentUser.displayName,
-        amount: action.payload.amount,
-        method: action.payload.method,
-        account: action.payload.account,
-        createdAt: getTimeStr(0),
-        status: 'pending',
+        amount: action.payload.amount, method: action.payload.method, account: action.payload.account,
+        createdAt: getTimeStr(0), status: 'pending',
       }
       return {
         ...state,
@@ -387,18 +445,17 @@ function reducer(state, action) {
         pendingWithdrawals: [wd, ...state.pendingWithdrawals],
       }
     }
-
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  NOTIFICATIONS
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'MARK_NOTIFICATIONS_READ':
       return { ...state, notifications: state.notifications.map(n => ({ ...n, read: true })) }
     case 'MARK_NOTIFICATION_READ':
       return { ...state, notifications: state.notifications.map(n => n.id === action.payload ? { ...n, read: true } : n) }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  ADMIN: USER MANAGEMENT
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'TOGGLE_BAN': {
       const userId = action.payload
       const user = state.users.find(u => u.id === userId)
@@ -445,7 +502,7 @@ function reducer(state, action) {
 
     case 'ADJUST_BALANCE': {
       const { userId, action: act, amount } = action.payload
-      let updatedUsers = state.users.map(u =>
+      const updatedUsers = state.users.map(u =>
         u.id === userId
           ? { ...u, balance: act === 'add' ? u.balance + amount : Math.max(0, u.balance - amount) }
           : u
@@ -462,9 +519,9 @@ function reducer(state, action) {
       return { ...state, users: updatedUsers, currentUser: updatedCurrentUser }
     }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  ADMIN: PERMISSIONS
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'ASSIGN_PERMISSIONS': {
       const { userId, permissions } = action.payload
       return {
@@ -478,9 +535,9 @@ function reducer(state, action) {
       }
     }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  ADMIN: WITHDRAWAL APPROVAL
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'APPROVE_WITHDRAW':
       return {
         ...state,
@@ -489,7 +546,6 @@ function reducer(state, action) {
           tx.id === action.payload ? { ...tx, status: 'completed' } : tx
         ),
       }
-
     case 'REJECT_WITHDRAW':
       return {
         ...state,
@@ -499,15 +555,15 @@ function reducer(state, action) {
         ),
       }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  ADMIN: PAYMENT NUMBERS
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'UPDATE_ADMIN_PAYMENTS':
       return { ...state, adminPayments: { ...state.adminPayments, ...action.payload } }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  ACTIVITY LOG
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'LOG_ACTION': {
       const entry = {
         id: 'log_' + Date.now(),
@@ -524,16 +580,15 @@ function reducer(state, action) {
         activityLog: [entry, ...state.activityLog].slice(0, 200),
       }
     }
-
-    // ══════════════════════════════════════════
+    // ══════════════════════════════════════
     //  LANGUAGE
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'SET_LANGUAGE':
       return { ...state, language: action.payload }
 
-    // ══════════════════════════════════════════
+    // ══════════════════════════════════════
     //  UI
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'TOGGLE_RIGHT_PANEL':
       return { ...state, rightPanelOpen: !state.rightPanelOpen }
     case 'SHOW_MODAL':
@@ -543,9 +598,9 @@ function reducer(state, action) {
     case 'SET_LOADING':
       return { ...state, loading: action.payload }
 
-    // ══════════════════════════════════════════
+    // ══════════════════════════════════════
     //  TOASTS
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'SHOW_TOAST':
       return { ...state, toasts: [...state.toasts, action.payload] }
     case 'TOAST_REMOVING':
@@ -567,6 +622,18 @@ export function AppProvider({ children }) {
   const isOwner = state.currentUser?.role === 'owner'
 
   const t = useCallback((key) => key, [state.language])
+
+  // 🔥 Firebase Auth Listener — bridges Firebase → Reducer
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        dispatch({ type: 'FIREBASE_LOGIN', payload: firebaseUser })
+      } else {
+        dispatch({ type: 'FIREBASE_LOGOUT' })
+      }
+    })
+    return () => unsubscribe()
+  }, [dispatch])
 
   // 1-second tick
   useEffect(() => {
