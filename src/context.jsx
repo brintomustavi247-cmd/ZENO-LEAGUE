@@ -625,13 +625,18 @@ export function AppProvider({ children }) {
   const t = useCallback((key) => key, [state.language])
 
   // 🔥 Firebase Auth Listener — bridges Firebase → Reducer
+  const isFirstAuthCheck = useRef(true)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         dispatch({ type: 'FIREBASE_LOGIN', payload: firebaseUser })
-      } else {
+      } else if (!isFirstAuthCheck.current) {
+        // On first load (refresh), ignore Firebase null — trust localStorage.
+        // Firebase's IndexedDB might be cleared by the browser, but localStorage is intact.
+        // Only force logout if Firebase returns null AFTER the first check (real sign-out).
         dispatch({ type: 'FIREBASE_LOGOUT' })
       }
+      isFirstAuthCheck.current = false
     })
     return () => unsubscribe()
   }, [dispatch])
