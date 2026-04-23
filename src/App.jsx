@@ -33,7 +33,23 @@ function LoadingSkeleton() {
 }
 
 function AuthGuard({ children }) {
-  const { state } = useApp()
+  const { state, dispatch } = useApp()
+
+  // 🔥 UNBREAKABLE FALLBACK: If Firebase null wipes the session, immediately restore it from localStorage
+  useEffect(() => {
+    if (!state.isLoggedIn) {
+      try {
+        const raw = localStorage.getItem('clutch_arena_bd')
+        if (raw) {
+          const data = JSON.parse(raw)
+          if (data.isLoggedIn && data.currentUser) {
+            dispatch({ type: 'LOGIN', payload: data.currentUser })
+          }
+        }
+      } catch (e) {}
+    }
+  }, [state.isLoggedIn, dispatch])
+
   if (!state.isLoggedIn) {
     const mode = state.currentView === 'admin-login' ? 'admin' : 'user'
     return <Login mode={mode} />
@@ -170,7 +186,7 @@ export default function App() {
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 900, color: '#00f0ff', letterSpacing: 3, marginBottom: 12 }}>CA</div>
           <div className="skeleton" style={{ width: 180, height: 6, margin: '0 auto 12px', borderRadius: 3 }}></div>
-          <div style={{ fontSize: 12, color: '#555', fontFamily: 'var(--font-body)' }}>Checking session...</div>
+          <div style={{ fontSize: 12, color: '#555', fontFamily: 'var(--font-body)' }}>Checking session... v2</div>
         </div>
       </div>
     )
