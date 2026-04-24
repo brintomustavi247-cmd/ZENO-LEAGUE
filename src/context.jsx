@@ -127,17 +127,6 @@ const initialState = {
 
 // ===== REDUCER =====
 function reducer(state, action) {
-  // 🛡️ ANTI-FLICKER SHIELD: Block ANY automatic logout for 5 seconds after refresh
-  const timeSinceLoad = Date.now() - (window.__APP_LOAD_TIME__ || 0);
-  if (timeSinceLoad < 5000) {
-    const testResult = _reducerLogic(state, action);
-    if (!testResult.isLoggedIn && state.isLoggedIn) return state; // BLOCKED!
-    return testResult;
-  }
-  return _reducerLogic(state, action);
-}
-
-function _reducerLogic(state, action) {
   switch (action.type) {
 
     case 'TICK':
@@ -162,7 +151,6 @@ function _reducerLogic(state, action) {
       const user = state.users.find(u => {
         if (u.role !== 'user') return false
         if (u.password !== password) return false
-        // Match by username OR phone
         if (username && u.username === username) return true
         if (phone && u.phone === phone) return true
         return false
@@ -198,24 +186,20 @@ function _reducerLogic(state, action) {
     }
 
     // ══════════════════════════════════════════
-    //  🔥 NEW: FIREBASE AUTH — Real Google/Phone login
+    //  🔥 FIREBASE AUTH
     // ════════════════════════════════════════
     case 'FIREBASE_LOGIN': {
       const firebaseUser = action.payload
       if (!firebaseUser) {
-        // Firebase logged out — if this was a Firebase user, log them out
         if (state.currentUser?.firebaseUid) {
           return { ...state, isLoggedIn: false, currentUser: null, currentView: 'login', viewParam: null, modal: null }
         }
-        // Not a Firebase user — do nothing (local mock login)
         return state
       }
 
-      // Check if this Firebase user already exists in our database
       let existingUser = state.users.find(u => u.firebaseUid === firebaseUser.uid)
 
       if (existingUser) {
-        // Existing user — log them in (don't touch currentView if already logged in)
         return {
           ...state,
           isLoggedIn: true,
@@ -226,7 +210,6 @@ function _reducerLogic(state, action) {
         }
       }
 
-      // New Firebase user — create them in our database
       const phone = firebaseUser.phoneNumber?.replace('+880', '0') || ''
       const newUser = {
         id: firebaseUser.uid,
@@ -257,9 +240,6 @@ function _reducerLogic(state, action) {
       }
     }
 
-    // ══════════════════════════════════════════
-    //  🔥 Firebase session expired / signed out remotely
-    // ══════════════════════════════════════════
     case 'FIREBASE_LOGOUT':
       if (state.currentUser?.firebaseUid) {
         return { ...state, isLoggedIn: false, currentUser: null, currentView: 'login', viewParam: null, modal: null, toasts: [], sidebarOpen: false }
@@ -267,7 +247,7 @@ function _reducerLogic(state, action) {
       return state
 
     // ══════════════════════════════════════════
-    //  RESET PASSWORD (forgot password flow)
+    //  RESET PASSWORD
     // ════════════════════════════════════════
     case 'RESET_PASSWORD': {
       const { phone, email, newPassword } = action.payload
@@ -356,7 +336,7 @@ function _reducerLogic(state, action) {
       return { ...state, matches: state.matches.filter(m => m.id !== action.payload) }
 
     // ════════════════════════════════════════
-    //  MATCH: JOIN — stores teamName on user
+    //  MATCH: JOIN
     // ════════════════════════════════════════
     case 'JOIN_MATCH': {
       const { matchId, teamName } = action.payload
@@ -390,9 +370,6 @@ function _reducerLogic(state, action) {
       }
     }
 
-    // ══════════════════════════════════════════
-    //  MATCH: ROOM CREDENTIALS
-    // ══════════════════════════════════════════
     case 'SET_ROOM_CREDENTIALS':
       return {
         ...state,
@@ -401,9 +378,6 @@ function _reducerLogic(state, action) {
           : m),
       }
 
-    // ══════════════════════════════════════════
-    //  MATCH: SUBMIT RESULT
-    // ══════════════════════════════════════════
     case 'SUBMIT_RESULT':
       return {
         ...state,
@@ -457,17 +431,12 @@ function _reducerLogic(state, action) {
         pendingWithdrawals: [wd, ...state.pendingWithdrawals],
       }
     }
-    // ════════════════════════════════════════
-    //  NOTIFICATIONS
-    // ════════════════════════════════════════
+
     case 'MARK_NOTIFICATIONS_READ':
       return { ...state, notifications: state.notifications.map(n => ({ ...n, read: true })) }
     case 'MARK_NOTIFICATION_READ':
       return { ...state, notifications: state.notifications.map(n => n.id === action.payload ? { ...n, read: true } : n) }
 
-    // ════════════════════════════════════════
-    //  ADMIN: USER MANAGEMENT
-    // ════════════════════════════════════════
     case 'TOGGLE_BAN': {
       const userId = action.payload
       const user = state.users.find(u => u.id === userId)
@@ -531,9 +500,6 @@ function _reducerLogic(state, action) {
       return { ...state, users: updatedUsers, currentUser: updatedCurrentUser }
     }
 
-    // ════════════════════════════════════════
-    //  ADMIN: PERMISSIONS
-    // ════════════════════════════════════════
     case 'ASSIGN_PERMISSIONS': {
       const { userId, permissions } = action.payload
       return {
@@ -547,9 +513,6 @@ function _reducerLogic(state, action) {
       }
     }
 
-    // ════════════════════════════════════════
-    //  ADMIN: WITHDRAWAL APPROVAL
-    // ════════════════════════════════════════
     case 'APPROVE_WITHDRAW':
       return {
         ...state,
@@ -567,15 +530,9 @@ function _reducerLogic(state, action) {
         ),
       }
 
-    // ════════════════════════════════════════
-    //  ADMIN: PAYMENT NUMBERS
-    // ════════════════════════════════════════
     case 'UPDATE_ADMIN_PAYMENTS':
       return { ...state, adminPayments: { ...state.adminPayments, ...action.payload } }
 
-    // ════════════════════════════════════════
-    //  ACTIVITY LOG
-    // ════════════════════════════════════════
     case 'LOG_ACTION': {
       const entry = {
         id: 'log_' + Date.now(),
@@ -592,15 +549,10 @@ function _reducerLogic(state, action) {
         activityLog: [entry, ...state.activityLog].slice(0, 200),
       }
     }
-    // ══════════════════════════════════════
-    //  LANGUAGE
-    // ════════════════════════════════════════
+
     case 'SET_LANGUAGE':
       return { ...state, language: action.payload }
 
-    // ══════════════════════════════════════
-    //  UI
-    // ════════════════════════════════════════
     case 'TOGGLE_RIGHT_PANEL':
       return { ...state, rightPanelOpen: !state.rightPanelOpen }
     case 'SHOW_MODAL':
@@ -610,9 +562,6 @@ function _reducerLogic(state, action) {
     case 'SET_LOADING':
       return { ...state, loading: action.payload }
 
-    // ══════════════════════════════════════
-    //  TOASTS
-    // ════════════════════════════════════════
     case 'SHOW_TOAST':
       return { ...state, toasts: [...state.toasts, action.payload] }
     case 'TOAST_REMOVING':
@@ -635,19 +584,16 @@ export function AppProvider({ children }) {
 
   const t = useCallback((key) => key, [state.language])
 
-    // 🔥 Firebase Auth Listener — ONLY handles sign-in
-  // We do NOT let Firebase's null (from cleared IndexedDB) override a valid localStorage session.
-  // Logout only happens from explicit user action (clicking logout button → dispatches LOGOUT).
+  // Firebase Auth Listener — ONLY handles sign-in, never logs out
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         dispatch({ type: 'FIREBASE_LOGIN', payload: firebaseUser })
       }
-      // firebaseUser === null → DO NOTHING
-      // The user stays logged in via localStorage until they explicitly click Logout
     })
     return () => unsubscribe()
   }, [dispatch])
+
   // 1-second tick
   useEffect(() => {
     const i = setInterval(() => dispatch({ type: 'TICK' }), 1000)
@@ -663,7 +609,7 @@ export function AppProvider({ children }) {
     }
     const { view, param } = parseHash()
     if ((view === 'login' || view === 'admin-login') && saved?.isLoggedIn) {
-      // skip — don't override restored dashboard/admin view with #login hash
+      // skip
     } else {
       dispatch({ type: 'NAVIGATE', payload: { view, param } })
     }
