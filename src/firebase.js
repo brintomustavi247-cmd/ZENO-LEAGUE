@@ -14,17 +14,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// ✅ KEY FIX: Export a promise that resolves ONLY AFTER persistence is ready
-// This prevents onAuthStateChanged from firing before localStorage is checked
+// ✅ Wait for persistence before doing anything
 export const firebaseReady = setPersistence(auth, browserLocalPersistence)
-  .then(() => {
-    console.log('[Firebase] Persistence set to LOCAL — session will survive refresh');
-    return true;
-  })
-  .catch((err) => {
-    console.error('[Firebase] Persistence failed:', err);
-    return true; // still continue even if it fails
-  });
+  .then(() => true)
+  .catch(() => true);
 
 export { auth, onAuthStateChanged };
 export default app;
