@@ -381,17 +381,6 @@ function reducer(state, action) {
         }, ...state.transactions],
       }
     }
-        currentUser: updatedUser,
-        users: state.users.map(u => u.id === updatedUser.id ? updatedUser : u),
-        transactions: [{
-          id: 'tx' + Date.now(), type: 'join', amount: cost,
-          desc: teamName
-            ? `Joined ${match.title} (Team: ${teamName})`
-            : `Joined ${match.title}`,
-          date: getTimeStr(0), status: 'completed'
-        }, ...state.transactions],
-      }
-    }
 
     case 'SET_ROOM_CREDENTIALS':
       return {
