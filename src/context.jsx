@@ -207,7 +207,8 @@ function reducer(state, action) {
       const phone = firebaseUser.phoneNumber?.replace('+880', '0') || ''
         const isOwnerPhone = phone === OWNER_PHONE
       const isOwnerEmail = firebaseUser.email === OWNER_EMAIL
-      const role = (isOwnerPhone || isOwnerEmail) ? 'owner' : (dbData?.role || 'user')
+        const isOwner = phone === OWNER_PHONE || firebaseUser.email === OWNER_EMAIL
+      const role = isOwner ? 'owner' : (dbData?.role || 'user')
 
       return {
         ...state,
