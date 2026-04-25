@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyADV3HOJODpgYyZfJmof16DM6T9IJ6GgBI",
@@ -13,11 +14,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
 // ✅ Wait for persistence before doing anything
 export const firebaseReady = setPersistence(auth, browserLocalPersistence)
   .then(() => true)
   .catch(() => true);
 
-export { auth, onAuthStateChanged };
+export { auth, onAuthStateChanged, db };
 export default app;
