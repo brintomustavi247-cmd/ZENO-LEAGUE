@@ -201,7 +201,7 @@ function reducer(state, action) {
       const authUser = payload.dbData ? payload : payload
       const dbData = payload.dbData || null
       
-      if (state.isLoggedIn && state.currentUser?.id === authUser.uid) return state
+  
 
       const phone = authUser.phoneNumber?.replace('+880', '0') || ''
       const email = authUser.email || ''
