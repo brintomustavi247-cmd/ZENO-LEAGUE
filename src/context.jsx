@@ -189,7 +189,7 @@ function reducer(state, action) {
     // ══════════════════════════════════════════
     //  🔥 FIREBASE AUTH
     // ════════════════════════════════════════
-      case 'FIREBASE_LOGIN': {
+         case 'FIREBASE_LOGIN': {
       const payload = action.payload
       if (!payload) {
         if (state.currentUser?.firebaseUid) {
@@ -198,33 +198,32 @@ function reducer(state, action) {
         return state
       }
 
-      const firebaseUser = payload.dbData ? payload : payload
+      const authUser = payload.dbData ? payload : payload
       const dbData = payload.dbData || null
       
-      // If already logged in and it's the same user, do nothing
-      if (state.isLoggedIn && state.currentUser?.id === firebaseUser.uid) return state
+      if (state.isLoggedIn && state.currentUser?.id === authUser.uid) return state
 
-      const phone = firebaseUser.phoneNumber?.replace('+880', '0') || ''
-        const isOwnerPhone = phone === OWNER_PHONE
-      const isOwnerEmail = firebaseUser.email === OWNER_EMAIL
-        const isOwner = phone === OWNER_PHONE || firebaseUser.email === OWNER_EMAIL
+      const phone = authUser.phoneNumber?.replace('+880', '0') || ''
+      const email = authUser.email || ''
+      
+      // OWNER CHECK: Phone or Email overrides everything
+      const isOwner = (phone === OWNER_PHONE) || (email === OWNER_EMAIL)
       const role = isOwner ? 'owner' : (dbData?.role || 'user')
 
       return {
         ...state,
         isLoggedIn: true,
         currentUser: {
-          id: firebaseUser.uid,
-          username: dbData?.username || firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user_' + firebaseUser.uid.slice(0, 8),
-          name: dbData?.name || firebaseUser.displayName || 'Firebase User',
-          displayName: dbData?.displayName || firebaseUser.displayName || 'Firebase User',
+          id: authUser.uid,
+          username: dbData?.username || authUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user_' + authUser.uid.slice(0, 8),
+          name: dbData?.name || authUser.displayName || 'Firebase User',
+          displayName: dbData?.displayName || authUser.displayName || 'Firebase User',
           ign: dbData?.ign || state.currentUser?.ign || '',
-          avatar: dbData?.avatar || firebaseUser.photoURL || null,
+          avatar: dbData?.avatar || authUser.photoURL || null,
           role: role,
           phone: dbData?.phone || phone,
-          email: dbData?.email || firebaseUser.email || '',
-          firebaseUid: firebaseUser.uid,
-          // ⚡ CLOUD PRIORITY: Use Firestore data first, fallback to localStorage
+          email: dbData?.email || email,
+          firebaseUid: authUser.uid,
           balance: dbData?.balance ?? state.currentUser?.balance ?? 0,
           kills: dbData?.kills ?? state.currentUser?.kills ?? 0,
           wins: dbData?.wins ?? state.currentUser?.wins ?? 0,
