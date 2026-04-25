@@ -1,4 +1,4 @@
-import { fetchUser, createUser, fetchMatches } from './db'
+import { fetchUser, createUser, fetchMatches, createMatchInDb } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
 import { auth } from './firebase'
@@ -329,8 +329,7 @@ function reducer(state, action) {
         createdBy: state.currentUser?.id, createdAt: new Date().toISOString(),
       }
       
-      // 🚀 CLOUD SYNC: Save to Firestore (Don't await, let it save in background)
-      const { createMatchInDb } = require('./db')
+      // 🚀 CLOUD SYNC: Save to Firestore in background
       createMatchInDb(newMatchId, newMatch).catch(err => console.error("Cloud save failed:", err))
 
       return { ...state, matches: [newMatch, ...state.matches] }
