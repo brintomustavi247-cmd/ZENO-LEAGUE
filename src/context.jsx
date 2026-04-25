@@ -1,8 +1,8 @@
+import { fetchUser, createUser, fetchMatches } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
-import { auth } from '../firebase'
+import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
-
 const AppContext = createContext(null)
 
 const LS_KEY = 'clutch_arena_bd'
@@ -17,6 +17,7 @@ const getTimeStr = (msOffset) => new Date(Date.now() + msOffset).toISOString().s
 
 // ===== OWNER PHONE — kept in sync with Login.jsx =====
 const OWNER_PHONE = '+8801871035221'
+const OWNER_EMAIL = 'brintomustavi247@gmail.com'
 
 // ===== USER DATABASE — with phone, email, teamName =====
 const INITIAL_USERS = [
@@ -188,53 +189,53 @@ function reducer(state, action) {
     // ══════════════════════════════════════════
     //  🔥 FIREBASE AUTH
     // ════════════════════════════════════════
-    case 'FIREBASE_LOGIN': {
-      const firebaseUser = action.payload
-      if (!firebaseUser) {
+      case 'FIREBASE_LOGIN': {
+      const payload = action.payload
+      if (!payload) {
         if (state.currentUser?.firebaseUid) {
           return { ...state, isLoggedIn: false, currentUser: null, currentView: 'login', viewParam: null, modal: null }
         }
         return state
       }
 
-      let existingUser = state.users.find(u => u.firebaseUid === firebaseUser.uid)
-
-      if (existingUser) {
-        return {
-          ...state,
-          isLoggedIn: true,
-          currentUser: existingUser,
-          currentView: state.isLoggedIn ? state.currentView : (existingUser.role === 'owner' ? 'admin-overview' : 'dashboard'),
-          loading: false,
-          modal: null,
-        }
-      }
+      const firebaseUser = payload.dbData ? payload : payload
+      const dbData = payload.dbData || null
+      
+      // If already logged in and it's the same user, do nothing
+      if (state.isLoggedIn && state.currentUser?.id === firebaseUser.uid) return state
 
       const phone = firebaseUser.phoneNumber?.replace('+880', '0') || ''
-      const newUser = {
-        id: firebaseUser.uid,
-        username: firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user_' + firebaseUser.uid.slice(0, 8),
-        password: 'firebase_' + Date.now(),
-        role: phone === OWNER_PHONE ? 'owner' : 'user',
-        name: firebaseUser.displayName || 'Firebase User',
-        displayName: firebaseUser.displayName || 'Firebase User',
-        ign: '',
-        avatar: firebaseUser.photoURL || null,
-        balance: 0, kills: 0, wins: 0, matchesPlayed: 0, earnings: 0,
-        online: true, banned: false, status: 'active',
-        forcePasswordChange: false, permissions: [],
-        phone: phone,
-        email: firebaseUser.email || '',
-        firebaseUid: firebaseUser.uid,
-        createdAt: getTimeStr(0),
-      }
+        const isOwnerPhone = phone === OWNER_PHONE
+      const isOwnerEmail = firebaseUser.email === OWNER_EMAIL
+      const role = (isOwnerPhone || isOwnerEmail) ? 'owner' : (dbData?.role || 'user')
 
       return {
         ...state,
         isLoggedIn: true,
-        currentUser: newUser,
-        users: [newUser, ...state.users],
-        currentView: newUser.role === 'owner' ? 'admin-overview' : 'dashboard',
+        currentUser: {
+          id: firebaseUser.uid,
+          username: dbData?.username || firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user_' + firebaseUser.uid.slice(0, 8),
+          name: dbData?.name || firebaseUser.displayName || 'Firebase User',
+          displayName: dbData?.displayName || firebaseUser.displayName || 'Firebase User',
+          ign: dbData?.ign || state.currentUser?.ign || '',
+          avatar: dbData?.avatar || firebaseUser.photoURL || null,
+          role: role,
+          phone: dbData?.phone || phone,
+          email: dbData?.email || firebaseUser.email || '',
+          firebaseUid: firebaseUser.uid,
+          // ⚡ CLOUD PRIORITY: Use Firestore data first, fallback to localStorage
+          balance: dbData?.balance ?? state.currentUser?.balance ?? 0,
+          kills: dbData?.kills ?? state.currentUser?.kills ?? 0,
+          wins: dbData?.wins ?? state.currentUser?.wins ?? 0,
+          matchesPlayed: dbData?.matchesPlayed ?? state.currentUser?.matchesPlayed ?? 0,
+          earnings: dbData?.earnings ?? state.currentUser?.earnings ?? 0,
+          banned: dbData?.banned || false,
+          status: dbData?.status || 'active',
+          permissions: dbData?.permissions || state.currentUser?.permissions || [],
+          teamName: dbData?.teamName || state.currentUser?.teamName || '',
+          createdAt: dbData?.createdAt || state.currentUser?.createdAt || new Date().toISOString()
+        },
+        currentView: state.isLoggedIn ? state.currentView : (role === 'owner' ? 'admin-overview' : 'dashboard'),
         loading: false,
         modal: null,
       }
@@ -315,8 +316,9 @@ function reducer(state, action) {
     case 'CREATE_MATCH': {
       const fd = action.payload
       const eco = calculateMatchEconomics(fd.entryFee, fd.maxSlots, fd.gameType, fd.include4th, fd.include5th)
+      const newMatchId = 'm' + Date.now()
       const newMatch = {
-        id: 'm' + Date.now(),
+        id: newMatchId,
         title: fd.title, mode: fd.mode, map: fd.map, gameType: fd.gameType,
         entryFee: Number(fd.entryFee), maxSlots: Number(fd.maxSlots),
         joinedCount: 0, perKill: Number(fd.perKill) || 0,
@@ -324,8 +326,13 @@ function reducer(state, action) {
         status: 'upcoming', startTime: fd.startTime || '',
         roomId: '', roomPassword: '', image: fd.image || '',
         participants: [], prizePool: eco.prizePool, prizes: eco.prizes,
-        createdBy: state.currentUser?.id, createdAt: getTimeStr(0),
+        createdBy: state.currentUser?.id, createdAt: new Date().toISOString(),
       }
+      
+      // 🚀 CLOUD SYNC: Save to Firestore (Don't await, let it save in background)
+      const { createMatchInDb } = require('./db')
+      createMatchInDb(newMatchId, newMatch).catch(err => console.error("Cloud save failed:", err))
+
       return { ...state, matches: [newMatch, ...state.matches] }
     }
 
@@ -584,16 +591,50 @@ export function AppProvider({ children }) {
 
   const t = useCallback((key) => key, [state.language])
 
-  // Firebase Auth Listener — ONLY handles sign-in, never logs out
+  // Firebase Auth Listener — Syncs with Firestore
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        dispatch({ type: 'FIREBASE_LOGIN', payload: firebaseUser })
+        // 1. Check if user exists in Firestore
+        let dbUser = await fetchUser(firebaseUser.uid)
+        
+        if (!dbUser) {
+          // 2. First time login! Create them in Firestore
+          const phone = firebaseUser.phoneNumber?.replace('+880', '0') || ''
+          const newUser = {
+            username: firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user_' + firebaseUser.uid.slice(0, 8),
+            name: firebaseUser.displayName || 'Firebase User',
+            displayName: firebaseUser.displayName || 'Firebase User',
+            ign: '',
+                      role: (phone === OWNER_PHONE || firebaseUser.email === OWNER_EMAIL) ? 'owner' : 'user',
+            phone: phone,
+            email: firebaseUser.email || '',
+            firebaseUid: firebaseUser.uid,
+          }
+          await createUser(firebaseUser.uid, newUser)
+          dbUser = newUser
+        }
+
+        // 3. Log them in with Firestore data
+        dispatch({ type: 'FIREBASE_LOGIN', payload: { ...firebaseUser, dbData: dbUser } })
       }
     })
     return () => unsubscribe()
   }, [dispatch])
-
+  // 🚀 CLOUD SYNC: Fetch matches from Firestore on startup
+  useEffect(() => {
+    async function loadCloudMatches() {
+      try {
+        const cloudMatches = await fetchMatches()
+        if (cloudMatches.length > 0) {
+          dispatch({ type: 'BATCH_MATCH_UPDATE', payload: cloudMatches })
+        }
+      } catch (err) {
+        console.error("Failed to load matches from cloud:", err)
+      }
+    }
+    loadCloudMatches()
+  }, [])
   // 1-second tick
   useEffect(() => {
     const i = setInterval(() => dispatch({ type: 'TICK' }), 1000)
