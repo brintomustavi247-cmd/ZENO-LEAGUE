@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../context'
 import { formatTK, formatTKShort, calculateMatchEconomics, calculateResultPrize, calculateAllResultPrizes, getRoomUnlockCountdown, maxSlotsForMode, showToast } from '../utils'
 import { approveAddMoneyRequest, rejectAddMoneyRequest } from '../db'
@@ -93,10 +93,19 @@ function AdminOverview() {
   const liveCount = matches.filter(m => m.status === 'live').length
   const upcomingCount = matches.filter(m => m.status === 'upcoming').length
 
+  // ═══ PHASE 1.3: Entry fee escrow tracking — refund + distributed stats ═══
+  const totalRefunded = matches.reduce((s, m) => s + (m.escrow?.refunded || 0), 0)
+  const totalDistributed = matches.reduce((s, m) => s + (m.escrow?.distributed || 0), 0)
+  const activeEscrow = Math.max(0, totalCollection - totalRefunded - totalDistributed)
+
   const stats = [
     { label: 'Total Collection', value: formatTK(totalCollection), icon: 'fa-solid fa-sack-dollar', color: '#fbbf24' },
     { label: 'Admin Profit (20%)', value: formatTK(adminProfit), icon: 'fa-solid fa-chart-line', color: '#22c55e' },
     { label: 'Prize Distributed', value: formatTK(totalPrizes), icon: 'fa-solid fa-trophy', color: '#a78bfa' },
+    // ═══ PHASE 1.3: New escrow stats ═══
+    { label: 'Total Refunded', value: formatTK(totalRefunded), icon: 'fa-solid fa-rotate-left', color: '#f87171', sub: 'From cancellations' },
+    { label: 'Active Escrow', value: formatTK(activeEscrow), icon: 'fa-solid fa-vault', color: '#00f0ff', sub: 'Held in system' },
+    // ═══ END PHASE 1.3 ═══
     { label: 'Live Matches', value: liveCount, icon: 'fa-solid fa-tower-broadcast', color: '#ef4444' },
     { label: 'Upcoming', value: upcomingCount, icon: 'fa-solid fa-clock', color: '#6c8cff' },
     { label: 'Total Users', value: users.filter(u => u.role === 'user').length, icon: 'fa-solid fa-users', color: '#00f0ff', sub: `${users.filter(u => !u.banned).length} active` },
@@ -141,14 +150,24 @@ function AdminCreateMatch() {
   const [form, setForm] = useState({
     title: '', gameType: 'BR', mode: 'Solo', map: 'Bermuda',
     entryFee: 30, maxSlots: 50, perKill: 10,
-    include4th: true, include5th: true, startTime: ''
+    include4th: true, include5th: true, startTime: '',
+    // ═══ PHASE 1.5: Minimum player threshold field ═══
+    minPlayers: 10,
+    // ═══ END PHASE 1.5 ═══
   })
 
   const update = (k, v) => {
     const next = { ...form, [k]: v }
-    if (k === 'gameType' && v === 'CS') { next.mode = 'Clash Squad'; next.maxSlots = 12 }
-    if (k === 'gameType' && v === 'BR') { next.mode = 'Solo'; next.maxSlots = 50 }
-    if (k === 'mode') { next.maxSlots = maxSlotsForMode(v) }
+    if (k === 'gameType' && v === 'CS') { next.mode = 'Clash Squad'; next.maxSlots = 12; next.minPlayers = 4 }
+    if (k === 'gameType' && v === 'BR') { next.mode = 'Solo'; next.maxSlots = 50; next.minPlayers = 10 }
+    // ═══ PHASE 1.5: Auto-adjust min players for duo/squad ═══
+    if (k === 'mode') {
+      next.maxSlots = maxSlotsForMode(v)
+      if (v === 'Duo') next.minPlayers = Math.min(next.minPlayers || 10, 10)
+      if (v === 'Squad') next.minPlayers = Math.min(next.minPlayers || 10, 10)
+      if (v === 'Solo') next.minPlayers = Math.min(next.minPlayers || 10, 20)
+    }
+    // ═══ END PHASE 1.5 ═══
     setForm(next)
   }
   const toggle = (k) => setForm(p => ({ ...p, [k]: !p[k] }))
@@ -156,13 +175,33 @@ function AdminCreateMatch() {
   const eco = calculateMatchEconomics(Number(form.entryFee) || 0, Number(form.maxSlots) || 0, form.gameType, form.include4th, form.include5th)
   const availableModes = FF_GAME_TYPES.find(g => g.value === form.gameType)?.modes || []
 
+  // ═══ PHASE 1.3: Escrow calculations for live preview ═══
+  const minEscrow = (Number(form.entryFee) || 0) * (Number(form.minPlayers) || 10)
+  const maxEscrow = (Number(form.entryFee) || 0) * (Number(form.maxSlots) || 50)
+  const estMaxKillPayout = (Number(form.perKill) || 0) * (Number(form.maxSlots) || 50) * (isTeamMode(form.mode) ? 4 : 1)
+  const totalPrizeOutflow = eco.prizePool + estMaxKillPayout
+  const escrowSafe = maxEscrow >= totalPrizeOutflow
+  // ═══ END PHASE 1.3 ═══
+
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!form.title.trim()) return showToast(dispatch, 'Enter match title!', 'error')
     if (!form.entryFee || form.entryFee <= 0) return showToast(dispatch, 'Enter valid entry fee!', 'error')
+    // ═══ PHASE 1.3: Validate escrow math before creating ═══
+    if (Number(form.entryFee) > 0 && totalPrizeOutflow > maxEscrow) {
+      return showToast(dispatch, `Prize outflow (${formatTK(totalPrizeOutflow)}) exceeds max escrow (${formatTK(maxEscrow)}). Reduce prizes or increase slots.`, 'error')
+    }
+    // ═══ PHASE 1.5: Validate minPlayers <= maxSlots ═══
+    if (Number(form.minPlayers) > Number(form.maxSlots)) {
+      return showToast(dispatch, 'Min players cannot exceed total slots!', 'error')
+    }
+    if (Number(form.minPlayers) < 2) {
+      return showToast(dispatch, 'Min players must be at least 2!', 'error')
+    }
+    // ═══ END PHASE 1.3 + 1.5 ═══
     dispatch({ type: 'CREATE_MATCH', payload: form })
     adminAction(dispatch, 'Created match', form.title, 'Match created successfully!', 'success')
-    setForm({ title: '', gameType: 'BR', mode: 'Solo', map: 'Bermuda', entryFee: 30, maxSlots: 50, perKill: 10, include4th: true, include5th: true, startTime: '' })
+    setForm({ title: '', gameType: 'BR', mode: 'Solo', map: 'Bermuda', entryFee: 30, maxSlots: 50, perKill: 10, include4th: true, include5th: true, startTime: '', minPlayers: 10 })
   }
 
   return (
@@ -210,6 +249,7 @@ function AdminCreateMatch() {
               <input style={S.input} type="number" min="2" value={form.maxSlots} onChange={e => update('maxSlots', e.target.value)} />
             </div>
           </div>
+          {/* ═══ PHASE 1.5: Min Players input field ═══ */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div>
               <label style={S.label}>Per Kill Reward (TK)</label>
@@ -217,9 +257,15 @@ function AdminCreateMatch() {
                 {KILL_REWARDS.map(k => <option key={k} value={k}>{k} TK</option>)}
               </select>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted, #666)', paddingBottom: 10 }}>Auto slots: {maxSlotsForMode(form.mode)}</span>
+            <div>
+              <label style={S.label}>Min Players to Start</label>
+              <input style={S.input} type="number" min="2" max={form.maxSlots} value={form.minPlayers} onChange={e => update('minPlayers', Number(e.target.value))} />
+              <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', marginTop: 3 }}>Room won't unlock below this count</div>
             </div>
+          </div>
+          {/* ═══ END PHASE 1.5 ═══ */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: 16 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted, #666)' }}>Auto slots for {form.mode}: {maxSlotsForMode(form.mode)}</span>
           </div>
           {form.gameType === 'BR' && (
             <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
@@ -254,6 +300,37 @@ function AdminCreateMatch() {
               <span style={{ fontSize: 13, color: 'var(--text-muted, #777)', fontFamily: 'var(--font-heading)', fontWeight: 600 }}>Prize Pool</span>
               <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, color: '#fbbf24', textShadow: '0 0 16px rgba(251,191,36,0.2)' }}>{formatTK(eco.prizePool)}</span>
             </div>
+
+            {/* ═══ PHASE 1.3: Escrow breakdown in live preview ═══ */}
+            <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: escrowSafe ? 'rgba(34,197,94,0.04)' : 'rgba(239,68,68,0.06)', border: `1px solid ${escrowSafe ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.15)'}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <i className={`fa-solid ${escrowSafe ? 'fa-shield-check' : 'fa-triangle-exclamation'}`} style={{ fontSize: 12, color: escrowSafe ? '#22c55e' : '#ef4444' }}></i>
+                <span style={{ fontFamily: 'var(--font-heading)', fontSize: 11, fontWeight: 700, color: escrowSafe ? '#22c55e' : '#ef4444', letterSpacing: 0.5, textTransform: 'uppercase' }}>Escrow Analysis</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #777)' }}>Min Threshold Escrow ({form.minPlayers} players)</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, color: '#fbbf24' }}>{formatTK(minEscrow)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #777)' }}>Max Escrow (full {form.maxSlots} slots)</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, color: '#00f0ff' }}>{formatTK(maxEscrow)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #777)' }}>Est. Max Kill Payout</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, color: '#a78bfa' }}>{formatTK(estMaxKillPayout)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted, #777)', fontWeight: 600 }}>Total Outflow (prizes + kills)</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 800, color: escrowSafe ? '#22c55e' : '#ef4444' }}>{formatTK(totalPrizeOutflow)}</span>
+              </div>
+              {!escrowSafe && (
+                <div style={{ fontSize: 10, color: '#ef4444', marginTop: 6, lineHeight: 1.4 }}>
+                  ⚠ Shortfall of {formatTK(totalPrizeOutflow - maxEscrow)} — increase slots or reduce prizes
+                </div>
+              )}
+            </div>
+            {/* ═══ END PHASE 1.3 ═══ */}
+
             <div style={{ marginTop: 14 }}>
               <span style={{ fontSize: 10, color: 'var(--text-muted, #666)', fontFamily: 'var(--font-heading)', letterSpacing: 1, textTransform: 'uppercase' }}>Prize Breakdown</span>
               <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -288,6 +365,9 @@ function AdminRooms() {
   const { matches } = state
   const mobile = useIsMobile()
   const [roomData, setRoomData] = useState({})
+  // ═══ PHASE 1.4: Cancel match confirmation state ═══
+  const [confirmCancelId, setConfirmCancelId] = useState(null)
+  // ═══ END PHASE 1.4 ═══
 
   useEffect(() => {
     const initial = {}
@@ -305,6 +385,37 @@ function AdminRooms() {
     dispatch({ type: 'SET_ROOM_CREDENTIALS', payload: { matchId: id, roomId: data.roomId, roomPassword: data.roomPassword } })
     adminAction(dispatch, 'Set room credentials', matchTitle, 'Room credentials saved!', 'success')
   }
+
+  // ═══ PHASE 1.4: Cancel match + full refund handler ═══
+  const handleCancelMatch = (matchId) => {
+    const match = matches.find(m => m.id === matchId)
+    if (!match) return
+    const joinCount = match.joinedCount || 0
+    const refundTotal = joinCount * (match.entryFee || 0)
+
+    dispatch({ type: 'CANCEL_MATCH', payload: matchId })
+    adminAction(dispatch, 'Cancelled match', match.title, `Match cancelled. ${joinCount} refunds (${formatTK(refundTotal)}) processed.`, 'error')
+    setConfirmCancelId(null)
+  }
+  // ═══ END PHASE 1.4 ═══
+
+  // ═══ PHASE 1.5: Threshold check helper ═══
+  const getThresholdInfo = (m) => {
+    const joined = m.joinedCount || 0
+    const min = m.minPlayers || 10
+    const meets = joined >= min
+    return { joined, min, meets, deficit: Math.max(0, min - joined) }
+  }
+  // ═══ END PHASE 1.5 ═══
+
+  // ═══ PHASE 1.3: Escrow info helper ═══
+  const getMatchEscrow = (m) => {
+    const collected = (m.joinedCount || 0) * (m.entryFee || 0)
+    const refunded = m.escrow?.refunded || 0
+    const distributed = m.escrow?.distributed || 0
+    return { collected, refunded, distributed, held: Math.max(0, collected - refunded - distributed) }
+  }
+  // ═══ END PHASE 1.3 ═══
 
   const activeMatches = matches.filter(m => m.status !== 'completed')
 
@@ -326,8 +437,20 @@ function AdminRooms() {
             const countdown = getRoomUnlockCountdown(m)
             const isUnlocked = countdown === 'UNLOCKED'
             const rd = roomData[m.id] || {}
+            // ═══ PHASE 1.5: Threshold info ═══
+            const threshold = getThresholdInfo(m)
+            // ═══ PHASE 1.3: Escrow info ═══
+            const escrow = getMatchEscrow(m)
+            // ═══ PHASE 1.4: Cancel confirm state ═══
+            const isConfirming = confirmCancelId === m.id
+            // ═══ END PHASE 1.3 + 1.4 + 1.5 ═══
             return (
-              <div key={m.id} style={S.mCard}>
+              <div key={m.id} style={{
+                ...S.mCard,
+                // ═══ PHASE 1.5: Red border if below threshold ═══
+                borderLeft: !threshold.meets ? '3px solid #f87171' : '3px solid rgba(255,255,255,0.06)',
+                // ═══ END PHASE 1.5 ═══
+              }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: '#fff', fontSize: 13, wordBreak: 'break-word' }}>{m.title}</div>
@@ -338,6 +461,33 @@ function AdminRooms() {
                     {m.status.toUpperCase()}
                   </span>
                 </div>
+
+                {/* ═══ PHASE 1.5: Player threshold indicator (mobile) ═══ */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  <div style={{ flex: 1, padding: '8px 10px', borderRadius: 8, background: threshold.meets ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.08)', border: `1px solid ${threshold.meets ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.15)'}` }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Players</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800, color: threshold.meets ? '#22c55e' : '#f87171', marginTop: 2 }}>
+                      {threshold.joined}<span style={{ fontSize: 10, color: 'var(--text-muted, #555)', fontWeight: 400 }}>/ {threshold.min} min</span>
+                    </div>
+                  </div>
+                  {/* ═══ PHASE 1.3: Escrow display (mobile) ═══ */}
+                  <div style={{ flex: 1, padding: '8px 10px', borderRadius: 8, background: 'rgba(0,240,255,0.04)', border: '1px solid rgba(0,240,255,0.1)' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Escrow</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 800, color: '#00f0ff', marginTop: 2 }}>
+                      {formatTK(escrow.collected)}
+                    </div>
+                  </div>
+                  {/* ═══ END PHASE 1.3 + 1.5 ═══ */}
+                </div>
+                {/* ═══ PHASE 1.5: Threshold warning (mobile) ═══ */}
+                {!threshold.meets && m.status !== 'completed' && (
+                  <div style={{ padding: '8px 10px', borderRadius: 8, marginBottom: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 11, color: '#f87171', flexShrink: 0 }}></i>
+                    <span style={{ fontSize: 11, color: '#f87171', fontWeight: 600 }}>Need {threshold.deficit} more player{threshold.deficit > 1 ? 's' : ''} to unlock room</span>
+                  </div>
+                )}
+                {/* ═══ END PHASE 1.5 ═══ */}
+
                 <div style={{ marginBottom: 10 }}>
                   <label style={S.label}>Room ID</label>
                   <input style={{ ...S.input, padding: '8px 10px', fontSize: 12, fontFamily: 'var(--font-display)', letterSpacing: 1 }} value={rd.roomId || ''} placeholder="Type Room ID" onChange={e => updateRoomField(m.id, 'roomId', e.target.value)} />
@@ -349,11 +499,33 @@ function AdminRooms() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 700, color: isUnlocked ? '#22c55e' : '#fbbf24' }}>
-                      {isUnlocked ? 'UNLOCKED' : (countdown || '—').replace('Unlocks in ', '')}
+                      {/* ═══ PHASE 1.5: Show BLOCKED if below threshold even when time-unlocked ═══ */}
+                      {isUnlocked && !threshold.meets ? 'BLOCKED' : isUnlocked ? 'UNLOCKED' : (countdown || '—').replace('Unlocks in ', '')}
                     </div>
-                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', marginTop: 1 }}>10 min before start</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', marginTop: 1 }}>
+                      {isUnlocked && !threshold.meets ? `Need ${threshold.deficit} more players` : '10 min before start'}
+                    </div>
+                    {/* ═══ END PHASE 1.5 ═══ */}
                   </div>
-                  <button style={S.btnSuccess} onClick={() => saveRoom(m.id, m.title)}><i className="fa-solid fa-save"></i> Save</button>
+                  {/* ═══ PHASE 1.4: Cancel / Save buttons (mobile) ═══ */}
+                  {isConfirming ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button style={{ ...S.btnGhost, fontSize: 10, padding: '6px 10px' }} onClick={() => setConfirmCancelId(null)}>No</button>
+                      <button style={{ ...S.btnDanger, fontSize: 10, padding: '6px 10px' }} onClick={() => handleCancelMatch(m.id)}>
+                        <i className="fa-solid fa-check"></i> Yes, Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {m.status === 'upcoming' && (
+                        <button style={{ ...S.btnDanger, fontSize: 10, padding: '6px 10px' }} onClick={() => setConfirmCancelId(m.id)}>
+                          <i className="fa-solid fa-xmark"></i> Cancel
+                        </button>
+                      )}
+                      <button style={S.btnSuccess} onClick={() => saveRoom(m.id, m.title)}><i className="fa-solid fa-save"></i> Save</button>
+                    </div>
+                  )}
+                  {/* ═══ END PHASE 1.4 ═══ */}
                 </div>
               </div>
             )
@@ -375,7 +547,13 @@ function AdminRooms() {
         <table style={S.table}>
           <thead>
             <tr>
-              <th style={S.th}>Match</th><th style={S.th}>Start Time</th><th style={S.th}>Room ID</th><th style={S.th}>Password</th><th style={S.th}>Visibility</th><th style={S.th}>Status</th><th style={S.th}></th>
+              <th style={S.th}>Match</th><th style={S.th}>Start Time</th>
+              {/* ═══ PHASE 1.5: Players column ═══ */}
+              <th style={S.th}>Players</th>
+              {/* ═══ PHASE 1.3: Escrow column ═══ */}
+              <th style={S.th}>Escrow</th>
+              {/* ═══ END PHASE 1.3 + 1.5 ═══ */}
+              <th style={S.th}>Room ID</th><th style={S.th}>Password</th><th style={S.th}>Visibility</th><th style={S.th}>Status</th><th style={S.th}></th>
             </tr>
           </thead>
           <tbody>
@@ -383,6 +561,11 @@ function AdminRooms() {
               const countdown = getRoomUnlockCountdown(m)
               const isUnlocked = countdown === 'UNLOCKED'
               const rd = roomData[m.id] || {}
+              // ═══ PHASE 1.5 + 1.3 + 1.4 ═══
+              const threshold = getThresholdInfo(m)
+              const escrow = getMatchEscrow(m)
+              const isConfirming = confirmCancelId === m.id
+              // ═══ END PHASE 1.5 + 1.3 + 1.4 ═══
               return (
                 <tr key={m.id}>
                   <td style={S.td}>
@@ -392,6 +575,23 @@ function AdminRooms() {
                   <td style={{ ...S.td, fontSize: 11, color: 'var(--text-muted, #777)' }}>
                     {m.startTime ? new Date(m.startTime.replace(' ', 'T')).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
                   </td>
+                  {/* ═══ PHASE 1.5: Players + threshold column (desktop) ═══ */}
+                  <td style={S.td}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: threshold.meets ? '#22c55e' : '#f87171' }}>
+                      {threshold.joined}<span style={{ fontSize: 10, color: 'var(--text-muted, #555)', fontWeight: 400 }}>/ {threshold.min}</span>
+                    </div>
+                    {!threshold.meets && (
+                      <div style={{ fontSize: 9, color: '#f87171', marginTop: 1 }}>⚠ Need {threshold.deficit} more</div>
+                    )}
+                  </td>
+                  {/* ═══ PHASE 1.3: Escrow column (desktop) ═══ */}
+                  <td style={S.td}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, color: '#00f0ff' }}>{formatTK(escrow.collected)}</div>
+                    {escrow.refunded > 0 && (
+                      <div style={{ fontSize: 9, color: '#f87171', marginTop: 1 }}>−{formatTK(escrow.refunded)} ref.</div>
+                    )}
+                  </td>
+                  {/* ═══ END PHASE 1.3 + 1.5 ═══ */}
                   <td style={S.td}>
                     <input style={{ ...S.input, padding: '7px 10px', fontSize: 12, fontFamily: 'var(--font-display)', letterSpacing: 1 }} value={rd.roomId || ''} placeholder="Type Room ID" onChange={e => updateRoomField(m.id, 'roomId', e.target.value)} />
                   </td>
@@ -399,10 +599,14 @@ function AdminRooms() {
                     <input style={{ ...S.input, padding: '7px 10px', fontSize: 12, fontFamily: 'var(--font-display)', letterSpacing: 1 }} value={rd.roomPassword || ''} placeholder="Type Password" onChange={e => updateRoomField(m.id, 'roomPassword', e.target.value)} />
                   </td>
                   <td style={S.td}>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 700, color: isUnlocked ? '#22c55e' : '#fbbf24' }}>
-                      {isUnlocked ? 'UNLOCKED' : (countdown || '—').replace('Unlocks in ', '')}
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 700, color: isUnlocked && !threshold.meets ? '#f87171' : isUnlocked ? '#22c55e' : '#fbbf24' }}>
+                      {/* ═══ PHASE 1.5: BLOCKED state ═══ */}
+                      {isUnlocked && !threshold.meets ? 'BLOCKED' : isUnlocked ? 'UNLOCKED' : (countdown || '—').replace('Unlocks in ', '')}
                     </div>
-                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', marginTop: 2 }}>10 min before start</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', marginTop: 2 }}>
+                      {isUnlocked && !threshold.meets ? `Need ${threshold.deficit} more players` : '10 min before start'}
+                    </div>
+                    {/* ═══ END PHASE 1.5 ═══ */}
                   </td>
                   <td style={S.td}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-heading)', background: m.status === 'live' ? 'rgba(239,68,68,0.12)' : 'rgba(108,140,255,0.12)', color: m.status === 'live' ? '#ef4444' : '#6c8cff' }}>
@@ -410,7 +614,27 @@ function AdminRooms() {
                       {m.status.toUpperCase()}
                     </span>
                   </td>
-                  <td style={S.td}><button style={S.btnSuccess} onClick={() => saveRoom(m.id, m.title)}><i className="fa-solid fa-save"></i> Save</button></td>
+                  <td style={S.td}>
+                    {/* ═══ PHASE 1.4: Cancel + Save buttons (desktop) ═══ */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {isConfirming ? (
+                        <>
+                          <button style={{ ...S.btnGhost, fontSize: 10 }} onClick={() => setConfirmCancelId(null)}>No</button>
+                          <button style={{ ...S.btnDanger, fontSize: 10 }} onClick={() => handleCancelMatch(m.id)}>Yes, Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          {m.status === 'upcoming' && (
+                            <button style={{ ...S.btnDanger, fontSize: 10 }} onClick={() => setConfirmCancelId(m.id)}>
+                              <i className="fa-solid fa-xmark"></i> Cancel
+                            </button>
+                          )}
+                          <button style={S.btnSuccess} onClick={() => saveRoom(m.id, m.title)}><i className="fa-solid fa-save"></i> Save</button>
+                        </>
+                      )}
+                    </div>
+                    {/* ═══ END PHASE 1.4 ═══ */}
+                  </td>
                 </tr>
               )
             })}
@@ -438,6 +662,25 @@ function AdminResults() {
   const selected = matches.find(m => m.id === selectedId)
   const teamMode = selected ? isTeamMode(selected.mode) : false
 
+  // ═══ PHASE 1.6: Team Name → User ID mapping from joined list ═══
+  const teamMapping = useMemo(() => {
+    if (!selected || !teamMode || !selected.joined?.length) return null
+    const map = {}
+    selected.joined.forEach(j => {
+      const team = j.teamName || 'No Team Name'
+      if (!map[team]) map[team] = []
+      map[team].push(j)
+    })
+    return Object.keys(map).length > 0 ? map : null
+  }, [selected, teamMode])
+
+  // Check if an entered team name matches a joined team (for highlighting)
+  const findTeamMembers = (teamName) => {
+    if (!teamMapping || !teamName) return null
+    return teamMapping[teamName] || null
+  }
+  // ═══ END PHASE 1.6 ═══
+
   const eco = selected ? calculateMatchEconomics(selected.entryFee, selected.maxSlots, selected.gameType, selected.include4th, selected.include5th) : null
   const resultsWithPrizes = selected ? calculateAllResultPrizes(players, selected.perKill || 0, eco.prizes, selected.gameType) : []
 
@@ -454,7 +697,16 @@ function AdminResults() {
     if (method === 'manual') {
       const valid = players.filter(p => p.ign.trim())
       if (valid.length === 0) return showToast(dispatch, `Add at least one ${teamMode ? 'team' : 'player'}!`, 'error')
-      dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'manual', players: valid } })
+      // ═══ PHASE 1.6: Attach matched user IDs to result players ═══
+      const enriched = valid.map(p => {
+        const members = findTeamMembers(p.ign.trim())
+        return {
+          ...p,
+          matchedUserIds: members ? members.map(m => m.userId).filter(Boolean) : [],
+        }
+      })
+      dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'manual', players: enriched } })
+      // ═══ END PHASE 1.6 ═══
     } else {
       dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'screenshot', players: [], screenshotUrl: null } })
     }
@@ -526,6 +778,35 @@ function AdminResults() {
         </div>
       )}
 
+      {/* ═══ PHASE 1.6: Team Name → User ID Mapping Display ═══ */}
+      {teamMapping && method === 'manual' && (
+        <div style={{ ...S.card, marginBottom: 16, borderLeft: '3px solid #a78bfa' }}>
+          <div style={{ ...S.cardHeader, background: 'rgba(167,139,250,0.04)' }}>
+            <div style={S.cardHeaderIcon('#a78bfa')}><i className="fa-solid fa-link" style={{ fontSize: 14, color: '#a78bfa' }}></i></div>
+            <h3 style={S.cardHeaderTitle}>Team Name → User Mapping</h3>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted, #555)' }}>{Object.keys(teamMapping).length} teams • {(selected.joined || []).length} players</span>
+          </div>
+          <div style={{ padding: 14, display: 'grid', gridTemplateColumns: mobile ? '1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+            {Object.entries(teamMapping).map(([team, members]) => (
+              <div key={team} style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.1)' }}>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 12, fontWeight: 700, color: '#a78bfa', marginBottom: 4 }}>
+                  🛡️ {team} <span style={{ fontSize: 10, color: 'var(--text-muted, #666)', fontWeight: 400 }}>({members.length})</span>
+                </div>
+                {members.map(mb => (
+                  <div key={mb.userId} style={{ fontSize: 11, color: 'var(--text-muted, #888)', paddingLeft: 10, lineHeight: 1.6 }}>
+                    • {mb.ign || mb.username || 'Unknown'} <span style={{ color: '#555', fontSize: 10 }}>(ID: {String(mb.userId || '').slice(0, 8)}…)</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '6px 14px 10px', fontSize: 10, color: 'var(--text-muted, #555)', fontStyle: 'italic' }}>
+            💡 Copy team names exactly into the result form below. Matched user IDs will auto-attach for prize distribution.
+          </div>
+        </div>
+      )}
+      {/* ═══ END PHASE 1.6 ═══ */}
+
       <div style={{ display: 'grid', gridTemplateColumns: (method === 'manual' && !mobile) ? '1fr 1fr' : '1fr', gap: 20 }}>
         {method === 'manual' && (
           <div style={{ ...S.card, padding: mobile ? 16 : 20 }}>
@@ -541,16 +822,41 @@ function AdminResults() {
               <span style={{ ...S.label, marginBottom: 0, textAlign: 'center' }}>Pos</span>
               <span></span>
             </div>
-            {players.map((p, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 50px 50px 30px' : '1fr 60px 60px 32px', gap: 6, marginBottom: 8, alignItems: 'center' }}>
-                <input style={{ ...S.input, padding: '8px 10px', fontSize: 12 }} placeholder={teamMode ? 'Team Name' : 'IGN'} value={p.ign} onChange={e => updatePlayer(i, 'ign', e.target.value)} />
-                <input style={{ ...S.input, padding: '8px 6px', fontSize: 12, textAlign: 'center' }} type="number" min="0" value={teamMode ? (p.points || 0) : p.kills} onChange={e => updatePlayer(i, teamMode ? 'points' : 'kills', Number(e.target.value))} />
-                <select style={{ ...S.select, padding: '8px 4px', fontSize: 12 }} value={p.position} onChange={e => updatePlayer(i, 'position', Number(e.target.value))}>
-                  {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}{n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}</option>)}
-                </select>
-                <button type="button" onClick={() => removePlayer(i)} style={{ width: 30, height: 30, borderRadius: 6, border: 'none', background: 'rgba(239,68,68,0.1)', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}><i className="fa-solid fa-xmark"></i></button>
-              </div>
-            ))}
+            {players.map((p, i) => {
+              // ═══ PHASE 1.6: Highlight if team name matches a joined team ═══
+              const matchedMembers = teamMode ? findTeamMembers(p.ign.trim()) : null
+              // ═══ END PHASE 1.6 ═══
+              return (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 50px 50px 30px' : '1fr 60px 60px 32px', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      style={{
+                        ...S.input, padding: '8px 10px', fontSize: 12,
+                        // ═══ PHASE 1.6: Green border when team name matches ═══
+                        borderColor: matchedMembers ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.08)',
+                        background: matchedMembers ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.04)',
+                        // ═══ END PHASE 1.6 ═══
+                      }}
+                      placeholder={teamMode ? 'Team Name' : 'IGN'}
+                      value={p.ign}
+                      onChange={e => updatePlayer(i, 'ign', e.target.value)}
+                    />
+                    {/* ═══ PHASE 1.6: Match indicator badge ═══ */}
+                    {matchedMembers && (
+                      <div style={{ position: 'absolute', top: -6, right: -4, padding: '1px 6px', borderRadius: 4, fontSize: 8, fontWeight: 700, fontFamily: 'var(--font-display)', background: '#22c55e', color: '#fff', lineHeight: 1.4 }}>
+                        ✓ {matchedMembers.length}
+                      </div>
+                    )}
+                    {/* ═══ END PHASE 1.6 ═══ */}
+                  </div>
+                  <input style={{ ...S.input, padding: '8px 6px', fontSize: 12, textAlign: 'center' }} type="number" min="0" value={teamMode ? (p.points || 0) : p.kills} onChange={e => updatePlayer(i, teamMode ? 'points' : 'kills', Number(e.target.value))} />
+                  <select style={{ ...S.select, padding: '8px 4px', fontSize: 12 }} value={p.position} onChange={e => updatePlayer(i, 'position', Number(e.target.value))}>
+                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}{n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}</option>)}
+                  </select>
+                  <button type="button" onClick={() => removePlayer(i)} style={{ width: 30, height: 30, borderRadius: 6, border: 'none', background: 'rgba(239,68,68,0.1)', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}><i className="fa-solid fa-xmark"></i></button>
+                </div>
+              )
+            })}
             <button type="button" style={{ ...S.btnPrimary, marginTop: 12 }} onClick={handleSubmit}><i className="fa-solid fa-check-double"></i> Submit Results</button>
           </div>
         )}
@@ -585,6 +891,14 @@ function AdminResults() {
                 <span style={{ fontSize: 12, color: 'var(--text-muted, #777)' }}>Per Kill</span>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: '#22c55e' }}>{formatTK(selected.perKill || 0)}</span>
               </div>
+              {/* ═══ PHASE 1.6: Show matched user count in preview ═══ */}
+              {teamMode && teamMapping && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted, #777)' }}>Teams Mapped</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: '#a78bfa' }}>{Object.keys(teamMapping).length}</span>
+                </div>
+              )}
+              {/* ═══ END PHASE 1.6 ═══ */}
               {method === 'manual' && (
                 <div style={{ marginTop: 14 }}>
                   <span style={{ ...S.label, marginBottom: 8, display: 'block' }}>Auto Calculated Prizes</span>
@@ -597,6 +911,11 @@ function AdminResults() {
                             ? `⭐ ${r.points || 0} pts — Pos: ${formatTK(r.positionPrize)}${r.killPrize > 0 ? ` + Kill: ${formatTK(r.killPrize)}` : ''}`
                             : `${r.kills} kills — Pos: ${formatTK(r.positionPrize)} + Kill: ${formatTK(r.killPrize)}`
                           }
+                          {/* ═══ PHASE 1.6: Show matched user IDs in prize preview ═══ */}
+                          {r.matchedUserIds?.length > 0 && (
+                            <span style={{ marginLeft: 6, color: '#22c55e' }}>✓ {r.matchedUserIds.length} user{r.matchedUserIds.length > 1 ? 's' : ''} matched</span>
+                          )}
+                          {/* ═══ END PHASE 1.6 ═══ */}
                         </div>
                       </div>
                       <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 800, color: '#fbbf24' }}>{formatTK(r.totalPrize)}</span>
@@ -658,56 +977,74 @@ function AdminUsers() {
   const { users } = state
   const mobile = useIsMobile()
 
+  // ═══ PHASE 1.9: Identify current admin user to block self-balance-adjust ═══
+  const currentUserId = state.currentUser?.id || state.currentUserId
+  // ═══ END PHASE 1.9 ═══
+
   if (mobile) {
     return (
       <div style={S.panel}>
         <h1 style={S.title}><i className="fa-solid fa-users-gear" style={{ marginRight: 10, color: '#00f0ff' }}></i>User Management</h1>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {users.map(u => (
-            <div key={u.id} style={S.mCard}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: u.role === 'owner' ? 'rgba(251,191,36,0.15)' : u.role === 'admin' ? 'rgba(239,68,68,0.15)' : 'rgba(108,140,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
-                  {(u.name || u.displayName || u.username || '?').charAt(0)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: '#fff', fontSize: 13, wordBreak: 'break-word' }}>
-                    {u.name || u.displayName || u.username}
-                    <span style={{ marginLeft: 6, fontSize: 8, padding: '2px 6px', borderRadius: 4, fontWeight: 700, background: u.role === 'owner' ? 'rgba(251,191,36,0.12)' : u.role === 'admin' ? 'rgba(239,68,68,0.1)' : 'rgba(108,140,255,0.08)', color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
-                      {u.role === 'owner' ? 'OWNER' : u.role === 'admin' ? 'ADMIN' : 'USER'}
-                    </span>
+          {users.map(u => {
+            // ═══ PHASE 1.9: Self-check flag ═══
+            const isSelf = u.id === currentUserId
+            // ═══ END PHASE 1.9 ═══
+            return (
+              <div key={u.id} style={S.mCard}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: u.role === 'owner' ? 'rgba(251,191,36,0.15)' : u.role === 'admin' ? 'rgba(239,68,68,0.15)' : 'rgba(108,140,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
+                    {(u.name || u.displayName || u.username || '?').charAt(0)}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted, #666)' }}>@{u.username} • IGN: {u.ign || '—'}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: '#fff', fontSize: 13, wordBreak: 'break-word' }}>
+                      {u.name || u.displayName || u.username}
+                      {isSelf && <span style={{ marginLeft: 6, fontSize: 8, padding: '2px 6px', borderRadius: 4, fontWeight: 700, background: 'rgba(0,240,255,0.1)', color: '#00f0ff' }}>YOU</span>}
+                      <span style={{ marginLeft: 6, fontSize: 8, padding: '2px 6px', borderRadius: 4, fontWeight: 700, background: u.role === 'owner' ? 'rgba(251,191,36,0.12)' : u.role === 'admin' ? 'rgba(239,68,68,0.1)' : 'rgba(108,140,255,0.08)', color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
+                        {u.role === 'owner' ? 'OWNER' : u.role === 'admin' ? 'ADMIN' : 'USER'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted, #666)' }}>@{u.username} • IGN: {u.ign || '—'}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
+                  <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Balance</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: '#fbbf24', marginTop: 2 }}>{formatTK(u.balance ?? u.wallet ?? 0)}</div>
+                  </div>
+                  <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Matches</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: '#fff', marginTop: 2 }}>{u.matchesPlayed ?? u.joinedMatches?.length ?? 0}</div>
+                  </div>
+                  <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Status</div>
+                    <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 12, color: u.banned ? '#ef4444' : '#22c55e', marginTop: 2 }}>{u.banned ? 'BANNED' : 'ACTIVE'}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {/* ═══ PHASE 1.9: Block self-balance-adjust + show reason ═══ */}
+                  {isSelf ? (
+                    <div style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)', fontSize: 10, color: 'var(--text-muted, #555)', fontFamily: 'var(--font-heading)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <i className="fa-solid fa-lock" style={{ fontSize: 9 }}></i> Cannot adjust own balance
+                    </div>
+                  ) : (
+                    <button style={{ ...S.btnGhost, background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.2)', fontSize: 10, padding: '6px 10px' }} onClick={() => dispatch({ type: 'SHOW_MODAL', payload: { type: 'adjust-balance', userId: u.id } })}>
+                      <i className="fa-solid fa-wallet"></i> Balance
+                    </button>
+                  )}
+                  {/* ═══ END PHASE 1.9 ═══ */}
+                  {u.role !== 'owner' && (
+                    <button style={u.banned ? { ...S.btnSuccess, fontSize: 10, padding: '6px 10px' } : { ...S.btnDanger, fontSize: 10, padding: '6px 10px' }} onClick={() => {
+                      dispatch({ type: 'TOGGLE_BAN', payload: u.id })
+                      adminAction(dispatch, u.banned ? 'Unbanned user' : 'Banned user', u.name || u.displayName, `${u.name || u.displayName} ${u.banned ? 'unbanned' : 'banned'}`, u.banned ? 'success' : 'error')
+                    }}>
+                      <i className={`fa-solid ${u.banned ? 'fa-lock-open' : 'fa-ban'}`}></i> {u.banned ? 'Unban' : 'Ban'}
+                    </button>
+                  )}
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
-                <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Balance</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: '#fbbf24', marginTop: 2 }}>{formatTK(u.balance ?? u.wallet ?? 0)}</div>
-                </div>
-                <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Matches</div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: '#fff', marginTop: 2 }}>{u.matchesPlayed ?? u.joinedMatches?.length ?? 0}</div>
-                </div>
-                <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted, #555)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Status</div>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 12, color: u.banned ? '#ef4444' : '#22c55e', marginTop: 2 }}>{u.banned ? 'BANNED' : 'ACTIVE'}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button style={{ ...S.btnGhost, background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.2)', fontSize: 10, padding: '6px 10px' }} onClick={() => dispatch({ type: 'SHOW_MODAL', payload: { type: 'adjust-balance', userId: u.id } })}>
-                  <i className="fa-solid fa-wallet"></i> Balance
-                </button>
-                {u.role !== 'owner' && (
-                  <button style={u.banned ? { ...S.btnSuccess, fontSize: 10, padding: '6px 10px' } : { ...S.btnDanger, fontSize: 10, padding: '6px 10px' }} onClick={() => {
-                    dispatch({ type: 'TOGGLE_BAN', payload: u.id })
-                    adminAction(dispatch, u.banned ? 'Unbanned user' : 'Banned user', u.name || u.displayName, `${u.name || u.displayName} ${u.banned ? 'unbanned' : 'banned'}`, u.banned ? 'success' : 'error')
-                  }}>
-                    <i className={`fa-solid ${u.banned ? 'fa-lock-open' : 'fa-ban'}`}></i> {u.banned ? 'Unban' : 'Ban'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     )
@@ -722,49 +1059,65 @@ function AdminUsers() {
             <tr><th style={S.th}>User</th><th style={S.th}>IGN</th><th style={S.th}>Role</th><th style={S.th}>Balance</th><th style={S.th}>Matches</th><th style={S.th}>Status</th><th style={S.th}>Actions</th></tr>
           </thead>
           <tbody>
-            {users.map(u => (
-              <tr key={u.id}>
-                <td style={S.td}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: u.role === 'owner' ? 'rgba(251,191,36,0.15)' : u.role === 'admin' ? 'rgba(239,68,68,0.15)' : 'rgba(108,140,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
-                      {(u.name || u.displayName || u.username || '?').charAt(0)
+            {users.map(u => {
+              // ═══ PHASE 1.9: Self-check flag (desktop) ═══
+              const isSelf = u.id === currentUserId
+              // ═══ END PHASE 1.9 ═══
+              return (
+                <tr key={u.id}>
+                  <td style={S.td}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: u.role === 'owner' ? 'rgba(251,191,36,0.15)' : u.role === 'admin' ? 'rgba(239,68,68,0.15)' : 'rgba(108,140,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
+                        {(u.name || u.displayName || u.username || '?').charAt(0)
                       }</div>
-                    <div style={{ minWidth: 0 }}>
-                      <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: '#fff', fontSize: 12, display: 'block', wordBreak: 'break-word' }}>{u.name || u.displayName || u.username}</span>
-                      <div style={{ fontSize: 9, color: 'var(--text-muted, #666)' }}>@{u.username}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: '#fff', fontSize: 12, display: 'block', wordBreak: 'break-word' }}>
+                          {u.name || u.displayName || u.username}
+                          {isSelf && <span style={{ marginLeft: 4, fontSize: 8, padding: '1px 5px', borderRadius: 3, fontWeight: 700, background: 'rgba(0,240,255,0.1)', color: '#00f0ff' }}>YOU</span>}
+                        </span>
+                        <div style={{ fontSize: 9, color: 'var(--text-muted, #666)' }}>@{u.username}</div>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td style={{ ...S.td, fontFamily: 'var(--font-display)', color: 'var(--text-muted, #888)', fontSize: 12 }}>{u.ign || '—'}</td>
-                <td style={S.td}>
-                  <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-heading)', background: u.role === 'owner' ? 'rgba(251,191,36,0.12)' : u.role === 'admin' ? 'rgba(239,68,68,0.1)' : 'rgba(108,140,255,0.08)', color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
-                    {u.role === 'owner' ? 'OWNER' : u.role === 'admin' ? 'ADMIN' : 'USER'}
-                  </span>
-                </td>
-                <td style={{ ...S.td, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: '#fbbf24' }}>{formatTK(u.balance ?? u.wallet ?? 0)}</td>
-                <td style={{ ...S.td, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13 }}>{u.matchesPlayed ?? u.joinedMatches?.length ?? 0}</td>
-                <td style={S.td}>
-                  <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-heading)', background: u.banned ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)', color: u.banned ? '#ef4444' : '#22c55e' }}>
-                    {u.banned ? 'BANNED' : 'ACTIVE'}
-                  </span>
-                </td>
-                <td style={S.td}>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button style={{ ...S.btnGhost, background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.2)' }} onClick={() => dispatch({ type: 'SHOW_MODAL', payload: { type: 'adjust-balance', userId: u.id } })}>
-                      <i className="fa-solid fa-wallet"></i> Balance
-                    </button>
-                    {u.role !== 'owner' && (
-                      <button style={u.banned ? S.btnSuccess : S.btnDanger} onClick={() => {
-                        dispatch({ type: 'TOGGLE_BAN', payload: u.id })
-                        adminAction(dispatch, u.banned ? 'Unbanned user' : 'Banned user', u.name || u.displayName, `${u.name || u.displayName} ${u.banned ? 'unbanned' : 'banned'}`, u.banned ? 'success' : 'error')
-                      }}>
-                        <i className={`fa-solid ${u.banned ? 'fa-lock-open' : 'fa-ban'}`}></i>
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td style={{ ...S.td, fontFamily: 'var(--font-display)', color: 'var(--text-muted, #888)', fontSize: 12 }}>{u.ign || '—'}</td>
+                  <td style={S.td}>
+                    <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-heading)', background: u.role === 'owner' ? 'rgba(251,191,36,0.12)' : u.role === 'admin' ? 'rgba(239,68,68,0.1)' : 'rgba(108,140,255,0.08)', color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
+                      {u.role === 'owner' ? 'OWNER' : u.role === 'admin' ? 'ADMIN' : 'USER'}
+                    </span>
+                  </td>
+                  <td style={{ ...S.td, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: '#fbbf24' }}>{formatTK(u.balance ?? u.wallet ?? 0)}</td>
+                  <td style={{ ...S.td, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13 }}>{u.matchesPlayed ?? u.joinedMatches?.length ?? 0}</td>
+                  <td style={S.td}>
+                    <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-heading)', background: u.banned ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)', color: u.banned ? '#ef4444' : '#22c55e' }}>
+                      {u.banned ? 'BANNED' : 'ACTIVE'}
+                    </span>
+                  </td>
+                  <td style={S.td}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {/* ═══ PHASE 1.9: Block self-balance-adjust (desktop) ═══ */}
+                      {isSelf ? (
+                        <div style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)', fontSize: 10, color: 'var(--text-muted, #555)', fontFamily: 'var(--font-heading)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <i className="fa-solid fa-lock" style={{ fontSize: 9 }}></i> Self
+                        </div>
+                      ) : (
+                        <button style={{ ...S.btnGhost, background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.2)' }} onClick={() => dispatch({ type: 'SHOW_MODAL', payload: { type: 'adjust-balance', userId: u.id } })}>
+                          <i className="fa-solid fa-wallet"></i> Balance
+                        </button>
+                      )}
+                      {/* ═══ END PHASE 1.9 ═══ */}
+                      {u.role !== 'owner' && (
+                        <button style={u.banned ? S.btnSuccess : S.btnDanger} onClick={() => {
+                          dispatch({ type: 'TOGGLE_BAN', payload: u.id })
+                          adminAction(dispatch, u.banned ? 'Unbanned user' : 'Banned user', u.name || u.displayName, `${u.name || u.displayName} ${u.banned ? 'unbanned' : 'banned'}`, u.banned ? 'success' : 'error')
+                        }}>
+                          <i className={`fa-solid ${u.banned ? 'fa-lock-open' : 'fa-ban'}`}></i>
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

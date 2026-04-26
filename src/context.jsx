@@ -1,4 +1,4 @@
-import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest } from './db'
+import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest, distributePrizes, cancelMatchAndRefund, checkDuplicateTXID, adminAdjustBalance } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
 import { auth } from './firebase'
@@ -63,7 +63,7 @@ const INITIAL_NOTIFICATIONS = [
 const INITIAL_TRANSACTIONS = [
   { id:'tx1', type:'add', amount:200, desc:'Added via bKash', date:getTimeStr(-30), status:'completed' },
   { id:'tx2', type:'join', amount:30, desc:'Joined Bermuda Rush Solo', date:getTimeStr(-60), status:'completed' },
-  { id:'tx3', type:'win', amount:150, desc:'Prize: Bermuda Classic Solo (2nd)', date:getTimeStr(-180), status:'completed' },
+  { id:'tx3', type:'win', amount:150, desc:'Prize: Bermuda Classic Solo (2nd Place)', date:getTimeStr(-180), status:'completed' },
   { id:'tx4', type:'join', amount:80, desc:'Joined Purgatory Night Duo (Team: Ghost Riders)', date:getTimeStr(-240), status:'completed' },
   { id:'tx5', type:'add', amount:500, desc:'Added via Nagad', date:getTimeStr(-500), status:'completed' },
   { id:'tx6', type:'withdraw', amount:500, desc:'Withdrawn to bKash', date:getTimeStr(-600), status:'completed' },
@@ -125,6 +125,11 @@ const initialState = {
   loading: false,
   sidebarOpen: false,
   language: saved?.language || 'en',
+  // Phase 1: Pending async operations
+  pendingPrizeDistribution: null,
+  pendingCancelMatch: null,
+  pendingBalanceAdjust: null,
+  rateLimited: false,
 }
 
 // ===== REDUCER =====
@@ -278,7 +283,7 @@ function reducer(state, action) {
 
     // ════════════════════════════════════════
     //  PROFILE
-    // ════════════════════════════════════════
+    // ══════════════════════════════════════
     case 'UPDATE_PROFILE': {
       const updated = { ...state.currentUser, ...action.payload }
       return {
@@ -338,13 +343,13 @@ function reducer(state, action) {
     case 'DELETE_MATCH':
       return { ...state, matches: state.matches.filter(m => m.id !== action.payload) }
 
-    // ════════════════════════════════════════
+    // ══════════════════════════════════════
     //  MATCH: JOIN
-    // ════════════════════════════════════════
+    // ══════════════════════════════════════
     case 'JOIN_MATCH': {
       const { matchId, teamName } = action.payload
       const match = state.matches.find(m => m.id === matchId)
-      if (!match || match.status === 'completed' || match.joinedCount >= match.maxSlots) return state
+      if (!match || match.status === 'completed' || match.status === 'cancelled' || match.joinedCount >= match.maxSlots) return state
       if (match.participants?.includes(state.currentUser?.id)) return state
       const cost = calculateJoinCost(match.mode, match.entryFee)
       if ((state.currentUser?.balance || 0) < cost) return state
@@ -378,42 +383,134 @@ function reducer(state, action) {
       }
     }
 
-    case 'SET_ROOM_CREDENTIALS':
+    case 'SET_ROOM_CREDENTIALS': {
+      const match = state.matches.find(m => m.id === action.payload.matchId)
+      if (!match) return state
+
+      // 🔒 PHASE 1.5: Minimum player threshold (60% of maxSlots)
+      const minRequired = Math.ceil(match.maxSlots * 0.6)
+      if (match.joinedCount < minRequired) {
+        return { ...state } // Silently block — admin shouldn't see this button (handled in Admin.jsx)
+      }
+
       return {
         ...state,
         matches: state.matches.map(m => m.id === action.payload.matchId
           ? { ...m, roomId: action.payload.roomId.trim(), roomPassword: action.payload.roomPassword.trim() }
           : m),
       }
+    }
 
-    case 'SUBMIT_RESULT':
+    // ════════════════════════════════════════
+    //  PHASE 1.1+1.2: RESULT → PRIZE DISTRIBUTION
+    //  Instead of just saving result locally, this sets a pending state.
+    //  The Provider's useEffect catches it and calls distributePrizes().
+    // ════════════════════════════════════════
+    case 'SUBMIT_RESULT': {
+      const match = state.matches.find(m => m.id === action.payload.matchId)
+      if (!match) return state
+
+      // Immediately set match to "completing" so UI shows "Processing..."
+      const updatingMatches = state.matches.map(m =>
+        m.id === action.payload.matchId ? { ...m, status: 'completing' } : m
+      )
+
       return {
         ...state,
-        matches: state.matches.map(m => m.id === action.payload.matchId
-          ? {
-              ...m,
-              status: 'completed',
-              result: {
-                submittedAt: getTimeStr(0),
-                method: action.payload.method || 'manual',
-                screenshotUrl: action.payload.screenshotUrl || null,
-                players: action.payload.players || [],
-              },
-            }
-          : m),
+        matches: updatingMatches,
+        pendingPrizeDistribution: {
+          matchId: action.payload.matchId,
+          matchData: { ...match },
+          resultPlayers: action.payload.players,
+          perKill: match.perKill || 0,
+          method: action.payload.method,
+          screenshotUrl: action.payload.screenshotUrl || null,
+        },
+        loading: true,
       }
+    }
+
+    case 'PRIZE_DISTRIBUTION_SUCCESS': {
+      const { matchId, updatedMatch, totalDistributed, unclaimed } = action.payload
+      const updatedMatches = state.matches.map(m =>
+        m.id === matchId ? { ...m, ...updatedMatch, status: 'completed' } : m
+      )
+      return {
+        ...state,
+        matches: updatedMatches,
+        loading: false,
+        pendingPrizeDistribution: null,
+      }
+    }
+
+    case 'PRIZE_DISTRIBUTION_ERROR': {
+      return { ...state, loading: false, pendingPrizeDistribution: null }
+    }
+
+    // ════════════════════════════════════════
+    //  PHASE 1.4: MATCH CANCELLATION + REFUND
+    //  Admin cancels match → all participants get refunded.
+    // ══════════════════════════════════════
+    case 'CANCEL_MATCH': {
+      const match = state.matches.find(m => m.id === action.payload.matchId)
+      if (!match) return state
+
+      // Immediately show "cancelling..." in UI
+      const updatingMatches = state.matches.map(m =>
+        m.id === action.payload.matchId ? { ...m, status: 'cancelling' } : m
+      )
+
+      return {
+        ...state,
+        matches: updatingMatches,
+        pendingCancelMatch: {
+          matchId: action.payload.matchId,
+          matchData: { ...match },
+          adminName: state.currentUser?.displayName || 'Admin',
+        },
+        loading: true,
+      }
+    }
+
+    case 'CANCEL_MATCH_SUCCESS': {
+      const { matchId, result } = action.payload
+      const updatedMatches = state.matches.map(m =>
+        m.id === matchId ? {
+          ...m,
+          status: 'cancelled',
+          cancelledAt: result.refundedAt,
+          refundCount: result.count,
+          refundTotal: result.refunded,
+        } : m
+      )
+      return { ...state, matches: updatedMatches, loading: false, pendingCancelMatch: null }
+    }
+
+    case 'CANCEL_MATCH_ERROR': {
+      return { ...state, loading: false, pendingCancelMatch: null }
+    }
 
     case 'BATCH_MATCH_UPDATE':
       return { ...state, matches: action.payload }
 
-    // ════════════════════════════════════════
-    //  WALLET — ADD MONEY (PENDING APPROVAL)
-    // ════════════════════════════════════════
+    // ══════════════════════════════════════
+    //  WALLET — ADD MONEY (Pending Approval)
+    // ════════════════════════════════════
     case 'ADD_MONEY': {
+      // 🔒 PHASE 1.8: Rate limiting — 1 request per 2 minutes per user
       const { amount, method, txId } = action.payload
+      const rateKey = `clutch_deposit_${state.currentUser?.id}`
+      const lastDeposit = localStorage.getItem(rateKey)
+      if (lastDeposit) {
+        const elapsed = Date.now() - parseInt(lastDeposit)
+        if (elapsed < 120000) {
+          return { ...state, rateLimited: true }
+        }
+      }
+      localStorage.setItem(rateKey, Date.now().toString())
+
       const requestId = 'amr_' + Date.now()
 
-      // 1. Create local pending transaction (NO balance change)
       const pendingTx = {
         id: requestId,
         type: 'add',
@@ -427,7 +524,6 @@ function reducer(state, action) {
         txId: txId,
       }
 
-      // 2. Create Firestore request for admin to see
       const firestoreReq = {
         id: requestId,
         userId: state.currentUser.id,
@@ -445,20 +541,21 @@ function reducer(state, action) {
       return {
         ...state,
         transactions: [pendingTx, ...state.transactions],
-        // balance is NOT changed — admin must approve
+        rateLimited: false,
       }
     }
+
+    case 'CLEAR_RATE_LIMIT':
+      return { ...state, rateLimited: false }
 
     // Admin approves add money request
     case 'APPROVE_ADD_MONEY': {
       const { requestId, userId, amount } = action.payload
 
-      // Update local pending transaction to completed
       const updatedTx = state.transactions.map(tx =>
         tx.id === requestId ? { ...tx, status: 'completed', desc: tx.desc.replace('(Pending)', '(Approved)') } : tx
       )
 
-      // Update local user balance
       const updatedUsers = state.users.map(u =>
         u.id === userId ? { ...u, balance: u.balance + amount } : u
       )
@@ -467,7 +564,6 @@ function reducer(state, action) {
         updatedCurrentUser = { ...updatedCurrentUser, balance: updatedCurrentUser.balance + amount }
       }
 
-      // Remove from pending requests list
       const updatedPending = state.pendingAddMoneyRequests.filter(r => r.id !== requestId)
 
       return {
@@ -568,23 +664,41 @@ function reducer(state, action) {
       }
     }
 
+    // ══════════════════════════════════════
+    //  PHASE 1.9 + 1.10: ADJUST BALANCE
+    //  Admin adjusts balance + creates transaction record.
+    //  Admin CANNOT adjust their own balance.
+    // ══════════════════════════════════════
     case 'ADJUST_BALANCE': {
       const { userId, action: act, amount } = action.payload
-      const updatedUsers = state.users.map(u =>
-        u.id === userId
-          ? { ...u, balance: act === 'add' ? u.balance + amount : Math.max(0, u.balance - amount) }
-          : u
-      )
-      let updatedCurrentUser = state.currentUser
-      if (updatedCurrentUser && updatedCurrentUser.id === userId) {
-        updatedCurrentUser = {
-          ...updatedCurrentUser,
-          balance: act === 'add'
-            ? updatedCurrentUser.balance + amount
-            : Math.max(0, updatedCurrentUser.balance - amount),
-        }
+
+      // 🔒 BLOCK: Admin cannot adjust own balance
+      if (userId === state.currentUser?.id) {
+        return { ...state }
       }
-      return { ...state, users: updatedUsers, currentUser: updatedCurrentUser }
+
+      // Set pending for async operation
+      return {
+        ...state,
+        pendingBalanceAdjust: { userId, action: act, amount, reason: action.payload.reason || 'Balance adjustment' },
+        loading: true,
+      }
+    }
+
+    case 'BALANCE_ADJUST_SUCCESS': {
+      const { userId, newBalance } = action.payload
+      const updatedUsers = state.users.map(u =>
+        u.id === userId ? { ...u, balance: newBalance } : u
+      )
+      const updatedCurrentUser = state.currentUser?.id === userId
+        ? { ...state.currentUser, balance: newBalance }
+        : state.currentUser
+
+      return { ...state, users: updatedUsers, currentUser: updatedCurrentUser, loading: false, pendingBalanceAdjust: null }
+    }
+
+    case 'BALANCE_ADJUST_ERROR': {
+      return { ...state, loading: false, pendingBalanceAdjust: null }
     }
 
     case 'ASSIGN_PERMISSIONS': {
@@ -617,10 +731,9 @@ function reducer(state, action) {
         ),
       }
 
-    // ════════════════════════════════════════
+    // ══════════════════════════════════════
     //  SETTINGS — separated LOAD vs SAVE
-    // ════════════════════════════════════════
-    // LOAD: pure state update, NO Firestore write (called on app startup)
+    // ════════════════════════════════════
     case 'LOAD_SETTINGS':
       return { ...state, adminPayments: action.payload }
 
@@ -740,7 +853,6 @@ export function AppProvider({ children }) {
       }
     }
     loadPending()
-    // Refresh every 15 seconds
     const interval = setInterval(loadPending, 15000)
     return () => clearInterval(interval)
   }, [isAdmin])
@@ -759,6 +871,72 @@ export function AppProvider({ children }) {
     }
     loadCloudMatches()
   }, [])
+
+  // ══════════════════════════════════════════
+  //  PHASE 1: ASYNC OPERATIONS
+  //  These 3 useEffects watch for pending async operations
+  //  (prize distribution, match cancellation, balance adjustment)
+  // ══════════════════════════════════════════
+  useEffect(() => {
+    if (!state.pendingPrizeDistribution) return
+    const { matchId, matchData, resultPlayers, perKill, method, screenshotUrl } = state.pendingPrizeDistribution
+
+    distributePrizes(matchId, matchData, resultPlayers, perKill)
+      .then(result => {
+        const updatedMatch = {
+          ...matchData,
+          status: 'completed',
+          result: {
+            submittedAt: new Date().toISOString(),
+            method: method,
+            screenshotUrl: screenshotUrl,
+            players: resultPlayers,
+          },
+        }
+        dispatch({ type: 'PRIZE_DISTRIBUTION_SUCCESS', payload: { matchId, updatedMatch, ...result } })
+      })
+      .catch(err => {
+        console.error("Prize distribution failed:", err)
+        dispatch({ type: 'PRIZE_DISTRIBUTION_ERROR', payload: { matchId } })
+        // Restore match status if distribution fails
+        dispatch({ type: 'BATCH_MATCH_UPDATE', payload: state.matches.map(m => m.id === matchId ? { ...m, status: 'live' } : m) })
+      })
+  }, [state.pendingPrizeDistribution])
+
+  useEffect(() => {
+    if (!state.pendingCancelMatch) return
+    const { matchId, matchData, adminName } = state.pendingCancelMatch
+
+    cancelMatchAndRefund(matchId, matchData, adminName)
+      .then(result => {
+        const updatedMatch = {
+          ...matchData,
+          status: 'cancelled',
+          cancelledAt: result.refundedAt,
+          refundCount: result.count,
+          refundTotal: result.refunded,
+        }
+        dispatch({ type: 'CANCEL_MATCH_SUCCESS', payload: { matchId, updatedMatch, result } })
+      })
+      .catch(err => {
+        console.error("Cancel match failed:", err)
+        dispatch({ type: 'CANCEL_MATCH_ERROR', payload: { matchId } })
+      })
+  }, [state.pendingCancelMatch])
+
+  useEffect(() => {
+    if (!state.pendingBalanceAdjust) return
+    const { userId, action, amount, reason } = state.pendingBalanceAdjust
+
+    adminAdjustBalance(userId, amount, reason)
+      .then(newBalance => {
+        dispatch({ type: 'BALANCE_ADJUST_SUCCESS', payload: { userId, newBalance } })
+      })
+      .catch(err => {
+        console.error("Balance adjust failed:", err)
+        dispatch({ type: 'BALANCE_ADJUST_ERROR', payload: { userId } })
+      })
+  }, [state.pendingBalanceAdjust])
 
   // 1-second tick
   useEffect(() => {
@@ -816,6 +994,8 @@ export function AppProvider({ children }) {
       if (!m.startTime) return m
       const start = new Date(m.startTime.replace(' ', 'T')).getTime()
       if (isNaN(start)) return m
+      // 🔒 Guard: Don't auto-change cancelled or completing matches
+      if (m.status === 'cancelled' || m.status === 'completing') return m
       const duration = m.gameType === 'CS' ? 15 * 60000 : 25 * 60000
       let newStatus = m.status
       if (m.status === 'upcoming' && now >= start) newStatus = 'live'

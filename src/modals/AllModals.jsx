@@ -303,7 +303,7 @@ export function JoinMatchModal({ matchId, data }) {
    ═══════════════════════════════════════ */
 export function AddMoneyModal() {
   const { state, dispatch } = useApp()
-  const { adminPayments } = state
+  const { adminPayments, currentUser, pendingAddMoneyRequests, transactions } = state
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('bkash')
   const [txId, setTxId] = useState('')
@@ -312,7 +312,7 @@ export function AddMoneyModal() {
   const brand = brandOf(method)
   const selectedMethod = ADD_MONEY_METHODS.find(m => m.id === method)
   const PAY_KEY = { bkash: 'bKash', nagad: 'Nagad', rocket: 'Rocket' }
-const adminNumber = adminPayments?.[PAY_KEY[method]] || ''
+  const adminNumber = adminPayments?.[PAY_KEY[method]] || ''
 
   const isNumberSet = adminNumber && adminNumber !== '' && adminNumber !== 'Not set by admin'
 
@@ -338,12 +338,65 @@ const adminNumber = adminPayments?.[PAY_KEY[method]] || ''
     }
   }
 
+  // ═══ PHASE 1.7: Duplicate TXID check ═══
+  const isTxIdDuplicate = (id) => {
+    if (!id || id.trim().length < 6) return false
+    const normalized = id.trim().toUpperCase()
+    // Check pending add money requests
+    const inPending = (pendingAddMoneyRequests || []).some(
+      r => r.txId && r.txId.toUpperCase() === normalized && r.status === 'pending'
+    )
+    if (inPending) return true
+    // Check approved transactions with txId
+    const inTx = (transactions || []).some(
+      t => t.txId && t.txId.toUpperCase() === normalized
+    )
+    return inTx
+  }
+  // ═══ END PHASE 1.7 ═══
+
+  // ═══ PHASE 1.8: Deposit rate limiting (1 per 2 min) ═══
+  const getRateLimitInfo = () => {
+    const now = Date.now()
+    const RATE_LIMIT_MS = 2 * 60 * 1000 // 2 minutes
+    const myRequests = (pendingAddMoneyRequests || []).filter(
+      r => r.userId === currentUser?.id && r.status === 'pending'
+    )
+    if (myRequests.length === 0) return { blocked: false, waitSeconds: 0 }
+    // Find the most recent request
+    const sorted = [...myRequests].sort((a, b) => {
+      const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return tB - tA
+    })
+    const latest = sorted[0]
+    const latestTime = latest?.createdAt ? new Date(latest.createdAt).getTime() : 0
+    const elapsed = now - latestTime
+    if (elapsed >= RATE_LIMIT_MS) return { blocked: false, waitSeconds: 0 }
+    const remaining = Math.ceil((RATE_LIMIT_MS - elapsed) / 1000)
+    return { blocked: true, waitSeconds: remaining }
+  }
+  const rateLimit = getRateLimitInfo()
+  // ═══ END PHASE 1.8 ═══
+
   const handleSubmit = () => {
     if (!isNumberSet) return showToast(dispatch, 'Admin has not set payment number yet. Contact admin.', 'error')
     const amt = parseFloat(amount)
     if (!amt || amt < 10) return showToast(dispatch, 'Minimum amount is 10 TK', 'error')
     if (!txId.trim()) return showToast(dispatch, 'Enter transaction ID (TrxID) from your payment app', 'error')
     if (txId.trim().length < 6) return showToast(dispatch, 'Transaction ID seems too short', 'error')
+
+    // ═══ PHASE 1.8: Rate limit check ═══
+    if (rateLimit.blocked) {
+      return showToast(dispatch, `Please wait ${rateLimit.waitSeconds}s before submitting another request`, 'error')
+    }
+    // ═══ END PHASE 1.8 ═══
+
+    // ═══ PHASE 1.7: Duplicate TXID check ═══
+    if (isTxIdDuplicate(txId)) {
+      return showToast(dispatch, 'This Transaction ID has already been used! Check your payment history.', 'error')
+    }
+    // ═══ END PHASE 1.7 ═══
 
     // ✅ FIXED: Now sends txId in payload, no instant balance change
     dispatch({
@@ -484,6 +537,27 @@ const adminNumber = adminPayments?.[PAY_KEY[method]] || ''
         </section>
       )}
 
+      {/* ═══ PHASE 1.8: Rate limit warning banner ═══ */}
+      {rateLimit.blocked && (
+        <section style={{
+          background: 'linear-gradient(135deg, rgba(248,113,113,0.08) 0%, rgba(248,113,113,0.02) 60%), #1b1b1d',
+          borderLeft: '3px solid #f87171',
+          padding: 12, borderRadius: 8,
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <i className="fa-solid fa-clock" style={{
+            color: '#f87171', fontSize: 16, flexShrink: 0, marginTop: 1,
+          }} />
+          <p style={{
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: 12, color: '#f87171', lineHeight: 1.6, margin: 0,
+          }}>
+            <strong>Slow down!</strong> You can only submit one add money request every 2 minutes. Please wait <strong>{rateLimit.waitSeconds}s</strong> before submitting again.
+          </p>
+        </section>
+      )}
+      {/* ═══ END PHASE 1.8 ═══ */}
+
       <section>
         <SectionHead>Select Amount</SectionHead>
         <div style={{
@@ -561,8 +635,11 @@ const adminNumber = adminPayments?.[PAY_KEY[method]] || ''
           <input
             style={{
               width: '100%', height: 56,
-              borderRadius: 12, border: '1px solid #353437',
-              background: 'transparent',
+              borderRadius: 12,
+              // ═══ PHASE 1.7: Red border when duplicate TXID detected ═══
+              border: isTxIdDuplicate(txId) ? '1px solid #f87171' : '1px solid #353437',
+              background: isTxIdDuplicate(txId) ? 'rgba(248,113,113,0.04)' : 'transparent',
+              // ═══ END PHASE 1.7 ═══
               padding: '0 16px',
               fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14, fontWeight: 700,
               color: '#e5e1e4',
@@ -576,6 +653,18 @@ const adminNumber = adminPayments?.[PAY_KEY[method]] || ''
             onChange={e => setTxId(e.target.value)}
           />
         </div>
+        {/* ═══ PHASE 1.7: Duplicate TXID inline warning ═══ */}
+        {isTxIdDuplicate(txId) && (
+          <p style={{
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: 11, color: '#f87171', margin: '6px 0 0 0',
+            fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            <i className="fa-solid fa-triangle-exclamation" />
+            This TXID is already used! You cannot reuse a transaction ID.
+          </p>
+        )}
+        {/* ═══ END PHASE 1.7 ═══ */}
         <p style={{
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           fontSize: 10, color: '#555555', margin: '6px 0 0 0',
@@ -626,17 +715,21 @@ const adminNumber = adminPayments?.[PAY_KEY[method]] || ''
           style={{
             flex: 1, height: 56, borderRadius: 12,
             border: 'none',
-            background: isNumberSet ? brand.primary : '#2a2a2c',
-            color: isNumberSet ? '#ffffff' : '#555555',
+            // ═══ PHASE 1.7 + 1.8: Disable submit when duplicate TXID or rate limited ═══
+            background: (isNumberSet && !isTxIdDuplicate(txId) && !rateLimit.blocked) ? brand.primary : '#2a2a2c',
+            color: (isNumberSet && !isTxIdDuplicate(txId) && !rateLimit.blocked) ? '#ffffff' : '#555555',
+            // ═══ END PHASE 1.7 + 1.8 ═══
             fontFamily: "'Lexend', sans-serif", fontSize: 14, fontWeight: 700,
             letterSpacing: '0.08em', textTransform: 'uppercase',
-            cursor: isNumberSet ? 'pointer' : 'not-allowed',
+            cursor: (isNumberSet && !isTxIdDuplicate(txId) && !rateLimit.blocked) ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             WebkitTapHighlightColor: 'transparent',
             minWidth: 0,
           }}
           onClick={handleSubmit}
-          disabled={!isNumberSet}
+          // ═══ PHASE 1.7 + 1.8: Disable button ═══
+          disabled={!isNumberSet || isTxIdDuplicate(txId) || rateLimit.blocked}
+          // ═══ END PHASE 1.7 + 1.8 ═══
         >
           <i className="fa-solid fa-paper-plane" style={{ fontSize: 16 }} />
           Submit Request
@@ -648,7 +741,7 @@ const adminNumber = adminPayments?.[PAY_KEY[method]] || ''
 
 /* ═══════════════════════════════════════
    3. WITHDRAW MODAL
-   ═══════════════════════════════════════ */
+   ═════════════════════════════════════ */
 export function WithdrawModal() {
   const { state, dispatch } = useApp()
   const { currentUser } = state
@@ -778,7 +871,7 @@ export function WithdrawModal() {
 
 /* ═══════════════════════════════════════
    4. CREATE MATCH MODAL
-   ═══════════════════════════════════════ */
+   ═════════════════════════════════════ */
 export function CreateMatchModal({ isEdit, matchId }) {
   const { state, dispatch } = useApp()
   const editMatch = isEdit ? state.matches.find(m => m.id === matchId) : null
@@ -1151,7 +1244,20 @@ export function AdjustBalanceModal({ userId }) {
   const handleSubmit = () => {
     const amt = parseFloat(amount)
     if (!amt || amt <= 0) return showToast(dispatch, 'Enter a valid amount', 'error')
-    dispatch({ type: 'ADJUST_BALANCE', payload: { userId, action, amount: amt } })
+    // ═══ PHASE 1.10: Reason is required — every balance change must be logged ═══
+    if (!reason.trim()) return showToast(dispatch, 'Reason is required for all balance adjustments', 'error')
+    // ═══ END PHASE 1.10 ═══
+    // ═══ PHASE 1.10: Include reason in payload so context creates a transaction record ═══
+    dispatch({
+      type: 'ADJUST_BALANCE',
+      payload: {
+        userId,
+        action,
+        amount: amt,
+        reason: reason.trim(),
+      },
+    })
+    // ═══ END PHASE 1.10 ═══
     dispatch({ type: 'CLOSE_MODAL' })
     showToast(dispatch, `Balance ${action === 'add' ? 'added' : 'deducted'} for ${user.name}`, 'success')
   }
@@ -1211,9 +1317,34 @@ export function AdjustBalanceModal({ userId }) {
       </div>
 
       <div style={M.fullRow}>
-        <label style={M.label}>Reason</label>
-        <input style={M.input} placeholder="Bonus / Correction / Penalty" value={reason} onChange={e => setReason(e.target.value)} />
+        {/* ═══ PHASE 1.10: Reason field now marked required ═══ */}
+        <label style={{ ...M.label, color: reason.trim() ? '#555555' : '#f87171' }}>
+          Reason *
+        </label>
+        <input
+          style={{
+            ...M.input,
+            border: reason.trim() ? '1px solid #353437' : '1px solid rgba(248,113,113,0.3)',
+          }}
+          placeholder="Bonus / Correction / Penalty"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+        />
+        {/* ═══ END PHASE 1.10 ═══ */}
       </div>
+
+      {/* ═══ PHASE 1.10: Required reason reminder ═══ */}
+      {!reason.trim() && (
+        <div style={{
+          ...M.infoBox, marginBottom: 14,
+          background: 'linear-gradient(135deg, rgba(248,113,113,0.06) 0%, rgba(248,113,113,0.01) 60%), #201f21',
+          border: '1px solid rgba(248,113,113,0.1)', color: '#f87171',
+        }}>
+          <i className="fa-solid fa-pen" style={{ fontSize: 10, marginTop: 2, flexShrink: 0 }} />
+          Reason is mandatory — this creates a transaction record visible in Finance.
+        </div>
+      )}
+      {/* ═══ END PHASE 1.10 ═══ */}
 
       {amount && parseFloat(amount) > 0 && (
         <div style={{
