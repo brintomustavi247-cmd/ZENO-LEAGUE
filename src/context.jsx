@@ -283,7 +283,7 @@ function reducer(state, action) {
 
     // ════════════════════════════════════════
     //  PROFILE
-    // ══════════════════════════════════════
+    // ════════════════════════════════════════
     case 'UPDATE_PROFILE': {
       const updated = { ...state.currentUser, ...action.payload }
       return {
@@ -330,6 +330,13 @@ function reducer(state, action) {
         roomId: '', roomPassword: '', image: fd.image || '',
         participants: [], prizePool: eco.prizePool, prizes: eco.prizes,
         createdBy: state.currentUser?.id, createdAt: new Date().toISOString(),
+        // ═══ PHASE 1.3: Escrow tracking fields ═══
+        escrow: { collected: 0, refunded: 0, distributed: 0 },
+        // ═══ PHASE 1.5: Min player threshold ═══
+        minPlayers: Number(fd.minPlayers) || 10,
+        // ═══ PHASE 1.6: Joined array for team name → user mapping ═══
+        joined: [],
+        // ═══ END PHASE 1.3 + 1.5 + 1.6 ═══
       }
 
       createMatchInDb(newMatchId, newMatch).catch(err => console.error("Cloud save failed:", err))
@@ -343,9 +350,9 @@ function reducer(state, action) {
     case 'DELETE_MATCH':
       return { ...state, matches: state.matches.filter(m => m.id !== action.payload) }
 
-    // ══════════════════════════════════════
+    // ════════════════════════════════════════
     //  MATCH: JOIN
-    // ══════════════════════════════════════
+    // ════════════════════════════════════════
     case 'JOIN_MATCH': {
       const { matchId, teamName } = action.payload
       const match = state.matches.find(m => m.id === matchId)
@@ -361,10 +368,29 @@ function reducer(state, action) {
         teamName: teamName || state.currentUser.teamName || '',
       }
 
+      // ═══ PHASE 1.6: Build joined entry for team name → user ID mapping ═══
+      const joinedEntry = {
+        userId: state.currentUser.id,
+        ign: state.currentUser.ign || '',
+        username: state.currentUser.username || '',
+        name: state.currentUser.name || state.currentUser.displayName || '',
+        teamName: teamName || '',
+        joinedAt: new Date().toISOString(),
+      }
+      // ═══ END PHASE 1.6 ═══
+
       const updatedMatch = {
         ...match,
         joinedCount: match.joinedCount + 1,
-        participants: [...(match.participants || []), state.currentUser.id]
+        participants: [...(match.participants || []), state.currentUser.id],
+        // ═══ PHASE 1.6: Push to joined array ═══
+        joined: [...(match.joined || []), joinedEntry],
+        // ═══ PHASE 1.3: Update escrow collected ═══
+        escrow: {
+          ...(match.escrow || { collected: 0, refunded: 0, distributed: 0 }),
+          collected: (match.escrow?.collected || 0) + cost,
+        },
+        // ═══ END PHASE 1.3 + 1.6 ═══
       }
       updateMatchInDb(matchId, updatedMatch).catch(err => console.error("Cloud match sync failed:", err))
 
@@ -387,11 +413,12 @@ function reducer(state, action) {
       const match = state.matches.find(m => m.id === action.payload.matchId)
       if (!match) return state
 
-      // 🔒 PHASE 1.5: Minimum player threshold (60% of maxSlots)
-      const minRequired = Math.ceil(match.maxSlots * 0.6)
+      // ═══ PHASE 1.5: Use minPlayers from match object instead of hardcoded 60% ═══
+      const minRequired = match.minPlayers || Math.ceil(match.maxSlots * 0.6)
       if (match.joinedCount < minRequired) {
-        return { ...state } // Silently block — admin shouldn't see this button (handled in Admin.jsx)
+        return { ...state } // Silently block
       }
+      // ═══ END PHASE 1.5 ═══
 
       return {
         ...state,
@@ -403,14 +430,11 @@ function reducer(state, action) {
 
     // ════════════════════════════════════════
     //  PHASE 1.1+1.2: RESULT → PRIZE DISTRIBUTION
-    //  Instead of just saving result locally, this sets a pending state.
-    //  The Provider's useEffect catches it and calls distributePrizes().
     // ════════════════════════════════════════
     case 'SUBMIT_RESULT': {
       const match = state.matches.find(m => m.id === action.payload.matchId)
       if (!match) return state
 
-      // Immediately set match to "completing" so UI shows "Processing..."
       const updatingMatches = state.matches.map(m =>
         m.id === action.payload.matchId ? { ...m, status: 'completing' } : m
       )
@@ -449,22 +473,23 @@ function reducer(state, action) {
 
     // ════════════════════════════════════════
     //  PHASE 1.4: MATCH CANCELLATION + REFUND
-    //  Admin cancels match → all participants get refunded.
-    // ══════════════════════════════════════
+    // ════════════════════════════════════════
     case 'CANCEL_MATCH': {
-      const match = state.matches.find(m => m.id === action.payload.matchId)
+      // ═══ PHASE 1.4 FIX: Handle both string payload (from Admin.jsx) and object payload ═══
+      const matchId = typeof action.payload === 'string' ? action.payload : action.payload.matchId
+      const match = state.matches.find(m => m.id === matchId)
       if (!match) return state
+      // ═══ END PHASE 1.4 FIX ═══
 
-      // Immediately show "cancelling..." in UI
       const updatingMatches = state.matches.map(m =>
-        m.id === action.payload.matchId ? { ...m, status: 'cancelling' } : m
+        m.id === matchId ? { ...m, status: 'cancelling' } : m
       )
 
       return {
         ...state,
         matches: updatingMatches,
         pendingCancelMatch: {
-          matchId: action.payload.matchId,
+          matchId: matchId,
           matchData: { ...match },
           adminName: state.currentUser?.displayName || 'Admin',
         },
@@ -481,6 +506,12 @@ function reducer(state, action) {
           cancelledAt: result.refundedAt,
           refundCount: result.count,
           refundTotal: result.refunded,
+          // ═══ PHASE 1.3: Update escrow refunded field ═══
+          escrow: {
+            ...(m.escrow || { collected: 0, refunded: 0, distributed: 0 }),
+            refunded: result.refunded,
+          },
+          // ═══ END PHASE 1.3 ═══
         } : m
       )
       return { ...state, matches: updatedMatches, loading: false, pendingCancelMatch: null }
@@ -493,11 +524,10 @@ function reducer(state, action) {
     case 'BATCH_MATCH_UPDATE':
       return { ...state, matches: action.payload }
 
-    // ══════════════════════════════════════
+    // ════════════════════════════════════════
     //  WALLET — ADD MONEY (Pending Approval)
-    // ════════════════════════════════════
+    // ════════════════════════════════════════
     case 'ADD_MONEY': {
-      // 🔒 PHASE 1.8: Rate limiting — 1 request per 2 minutes per user
       const { amount, method, txId } = action.payload
       const rateKey = `clutch_deposit_${state.currentUser?.id}`
       const lastDeposit = localStorage.getItem(rateKey)
@@ -664,11 +694,9 @@ function reducer(state, action) {
       }
     }
 
-    // ══════════════════════════════════════
+    // ════════════════════════════════════════
     //  PHASE 1.9 + 1.10: ADJUST BALANCE
-    //  Admin adjusts balance + creates transaction record.
-    //  Admin CANNOT adjust their own balance.
-    // ══════════════════════════════════════
+    // ════════════════════════════════════════
     case 'ADJUST_BALANCE': {
       const { userId, action: act, amount } = action.payload
 
@@ -677,7 +705,6 @@ function reducer(state, action) {
         return { ...state }
       }
 
-      // Set pending for async operation
       return {
         ...state,
         pendingBalanceAdjust: { userId, action: act, amount, reason: action.payload.reason || 'Balance adjustment' },
@@ -687,6 +714,7 @@ function reducer(state, action) {
 
     case 'BALANCE_ADJUST_SUCCESS': {
       const { userId, newBalance } = action.payload
+      const pending = state.pendingBalanceAdjust
       const updatedUsers = state.users.map(u =>
         u.id === userId ? { ...u, balance: newBalance } : u
       )
@@ -694,7 +722,30 @@ function reducer(state, action) {
         ? { ...state.currentUser, balance: newBalance }
         : state.currentUser
 
-      return { ...state, users: updatedUsers, currentUser: updatedCurrentUser, loading: false, pendingBalanceAdjust: null }
+      // ═══ PHASE 1.10: Create a transaction record for this adjustment ═══
+      const adjustTx = {
+        id: 'tx_adj_' + Date.now(),
+        type: pending?.action === 'add' ? 'adjust_add' : 'adjust_deduct',
+        amount: pending?.amount || 0,
+        desc: `Admin ${pending?.action === 'add' ? 'added' : 'deducted'} ${pending?.amount || 0} TK — ${pending?.reason || 'No reason'}`,
+        date: getTimeStr(0),
+        status: 'completed',
+        userId: userId,
+        adminId: state.currentUser?.id,
+        adminName: state.currentUser?.displayName || state.currentUser?.name,
+      }
+      // ═══ END PHASE 1.10 ═══
+
+      return {
+        ...state,
+        users: updatedUsers,
+        currentUser: updatedCurrentUser,
+        loading: false,
+        pendingBalanceAdjust: null,
+        // ═══ PHASE 1.10: Add transaction to history ═══
+        transactions: [adjustTx, ...state.transactions],
+        // ═══ END PHASE 1.10 ═══
+      }
     }
 
     case 'BALANCE_ADJUST_ERROR': {
@@ -731,18 +782,16 @@ function reducer(state, action) {
         ),
       }
 
-    // ══════════════════════════════════════
-    //  SETTINGS — separated LOAD vs SAVE
-    // ════════════════════════════════════
+    // ════════════════════════════════════════
+    //  SETTINGS
+    // ════════════════════════════════════════
     case 'LOAD_SETTINGS':
       return { ...state, adminPayments: action.payload }
 
-    // SAVE: admin changed settings — update state AND write to Firestore
     case 'SAVE_ADMIN_PAYMENTS':
       saveSettings(action.payload).catch(err => console.error('Settings cloud save failed:', err))
       return { ...state, adminPayments: { ...state.adminPayments, ...action.payload } }
 
-    // Legacy alias — redirect to SAVE
     case 'UPDATE_ADMIN_PAYMENTS':
       saveSettings(action.payload).catch(err => console.error('Settings cloud save failed:', err))
       return { ...state, adminPayments: { ...state.adminPayments, ...action.payload } }
@@ -826,7 +875,7 @@ export function AppProvider({ children }) {
     return () => unsubscribe()
   }, [dispatch])
 
-  // 🚀 Load settings from Firestore on startup (READ ONLY — no write back)
+  // 🚀 Load settings from Firestore on startup
   useEffect(() => {
     async function loadSettings() {
       try {
@@ -874,8 +923,6 @@ export function AppProvider({ children }) {
 
   // ══════════════════════════════════════════
   //  PHASE 1: ASYNC OPERATIONS
-  //  These 3 useEffects watch for pending async operations
-  //  (prize distribution, match cancellation, balance adjustment)
   // ══════════════════════════════════════════
   useEffect(() => {
     if (!state.pendingPrizeDistribution) return
@@ -898,7 +945,6 @@ export function AppProvider({ children }) {
       .catch(err => {
         console.error("Prize distribution failed:", err)
         dispatch({ type: 'PRIZE_DISTRIBUTION_ERROR', payload: { matchId } })
-        // Restore match status if distribution fails
         dispatch({ type: 'BATCH_MATCH_UPDATE', payload: state.matches.map(m => m.id === matchId ? { ...m, status: 'live' } : m) })
       })
   }, [state.pendingPrizeDistribution])
@@ -994,8 +1040,8 @@ export function AppProvider({ children }) {
       if (!m.startTime) return m
       const start = new Date(m.startTime.replace(' ', 'T')).getTime()
       if (isNaN(start)) return m
-      // 🔒 Guard: Don't auto-change cancelled or completing matches
-      if (m.status === 'cancelled' || m.status === 'completing') return m
+      // 🔒 Guard: Don't auto-change cancelled, completing, or cancelling matches
+      if (m.status === 'cancelled' || m.status === 'completing' || m.status === 'cancelling') return m
       const duration = m.gameType === 'CS' ? 15 * 60000 : 25 * 60000
       let newStatus = m.status
       if (m.status === 'upcoming' && now >= start) newStatus = 'live'
