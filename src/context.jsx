@@ -1,4 +1,4 @@
-import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, updateUser, getSettings, updateSettings } from './db'
+import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, getSettings, updateSettings } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
 import { auth } from './firebase'
