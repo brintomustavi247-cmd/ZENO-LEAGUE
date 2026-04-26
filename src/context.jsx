@@ -902,7 +902,7 @@ export function AppProvider({ children }) {
       }
     }
     loadPending()
-    const interval = setInterval(loadPending, 15000)
+    const interval = setInterval(loadPending, 5000)
     return () => clearInterval(interval)
   }, [isAdmin])
 

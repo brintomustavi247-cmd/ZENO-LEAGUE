@@ -109,11 +109,22 @@ export async function createAddMoneyRequest(requestData) {
   await setDoc(reqRef, requestData);
 }
 
+// ═══ FIX: Removed orderBy('createdAt', 'desc') from query.
+// ═══ The where + orderBy combo requires a composite Firestore index
+// ═══ that doesn't exist yet. Without it, the query silently fails
+// ═══ and the catch block swallows the error. Now we sort client-side.
 export async function fetchPendingAddMoneyRequests() {
   const col = collection(db, 'addMoneyRequests');
-  const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+  const q = query(col, where('status', '==', 'pending'));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Sort newest first on client side — no composite index needed
+  results.sort((a, b) => {
+    const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return tB - tA;
+  });
+  return results;
 }
 
 export async function approveAddMoneyRequest(requestId, userId, amount) {
@@ -136,17 +147,12 @@ export async function rejectAddMoneyRequest(requestId) {
 // ══════════════════════════════════════
 //  PHASE 1: PRIZE DISTRIBUTION (1.1 + 1.2)
 // ══════════════════════════════════════
-//  When admin submits match results, this
-//  distributes prizes + kill rewards to all
-//  winners automatically via atomic batch write.
-// ══════════════════════════════════════
 
 export async function distributePrizes(matchId, matchData, resultPlayers, perKill) {
   const matchRef = doc(db, 'matches', matchId);
   const pk = Number(perKill) || 0;
   const now = new Date().toISOString();
 
-  // Build IGN → User map from result players
   const ignList = resultPlayers.map(p => (p.ign || '').trim()).filter(Boolean);
   const userMap = {};
 
@@ -157,7 +163,6 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
     });
   }
 
-  // Atomic batch: all balance updates + transactions in one write
   const batch = writeBatch(db);
   let totalDistributed = 0;
 
@@ -174,7 +179,6 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
     const user = userMap[(player.ign || '').trim().toLowerCase()];
 
     if (!user) {
-      // Winner not found by IGN — create UNCLAIMED transaction so admin knows
       const txId = 'tx_unclaimed_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
       batch.set(doc(db, 'transactions', txId), {
         id: txId,
@@ -195,7 +199,6 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
       return;
     }
 
-    // Update user balance + stats
     const currentBalance = user.balance || 0;
     batch.update(doc(db, 'users', user.id), {
       balance: currentBalance + totalPrize,
@@ -203,7 +206,6 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
       earnings: (user.earnings || 0) + totalPrize,
     });
 
-    // Create win transaction
     const txId = 'tx_win_' + Date.now() + '_' + user.id.slice(0, 8);
 
     let desc = `Prize: ${matchData.title}`;
@@ -231,7 +233,6 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
     });
   });
 
-  // Update match document with distribution data
   batch.update(matchRef, {
     result: {
       submittedAt: now,
@@ -248,9 +249,6 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
 // ══════════════════════════════════════
 //  PHASE 1: MATCH CANCELLATION + REFUND (1.4)
 // ══════════════════════════════════════
-//  Cancels match and refunds entry fee to
-//  ALL participants via atomic batch write.
-// ══════════════════════════════════════
 
 export async function cancelMatchAndRefund(matchId, matchData, adminName) {
   const matchRef = doc(db, 'matches', matchId);
@@ -263,7 +261,6 @@ export async function cancelMatchAndRefund(matchId, matchData, adminName) {
     return { refunded: 0, count: 0 };
   }
 
-  // Fetch all participants in ONE batch read (not N separate reads)
   const users = await fetchUsersByIds(participants);
 
   const batch = writeBatch(db);
@@ -276,7 +273,6 @@ export async function cancelMatchAndRefund(matchId, matchData, adminName) {
     refundedTotal += entryFee;
     refundCount++;
 
-    // Create refund transaction
     const txId = 'tx_refund_' + Date.now() + '_' + user.id.slice(0, 8);
     batch.set(doc(db, 'transactions', txId), {
       id: txId,
@@ -292,7 +288,6 @@ export async function cancelMatchAndRefund(matchId, matchData, adminName) {
     });
   }
 
-  // Update match document
   batch.update(matchRef, {
     status: 'cancelled',
     cancelledAt: now,
@@ -309,10 +304,6 @@ export async function cancelMatchAndRefund(matchId, matchData, adminName) {
 // ══════════════════════════════════════
 //  PHASE 1: DUPLICATE TXID CHECK (1.7)
 // ══════════════════════════════════════
-//  Prevents users from submitting the same
-//  bKash TrxID twice for free money.
-//  Returns true if duplicate found.
-// ══════════════════════════════════════
 
 export async function checkDuplicateTXID(txId) {
   if (!txId || txId.trim().length < 4) return false;
@@ -326,37 +317,34 @@ export async function checkDuplicateTXID(txId) {
 // ══════════════════════════════════════
 //  PHASE 1: ADMIN BALANCE ADJUST + TX LOG (1.9 + 1.10)
 // ══════════════════════════════════════
-//  When admin manually adjusts a user's balance,
-//  this creates a proper transaction record.
-//  Prevents "invisible" balance changes.
-// ══════════════════════════════════════
 
+// ═══ FIX: Made adminName optional with default fallback.
+// ═══ context.jsx calls this with only 3 args (userId, amount, reason)
+// ═══ so adminName was undefined, causing "undefined" in transaction desc.
 export async function adminAdjustBalance(userId, amount, reason, adminName) {
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
   if (!userSnap.exists()) throw new Error('User not found');
 
   const userData = userSnap.data();
-  const newBalance = Math.max(0, (userData.balance || 0) + amount);
+  const admin = adminName || 'Admin';
   const now = new Date().toISOString();
 
-  // Update balance
-  await updateDoc(userRef, { balance: newBalance });
+  await updateDoc(userRef, { balance: Math.max(0, (userData.balance || 0) + amount) });
 
-  // Create transaction record
   const txId = 'tx_admin_' + Date.now() + '_' + userId.slice(0, 8);
   await setDoc(doc(db, 'transactions', txId), {
     id: txId,
     userId: userId,
     username: userData.name || userData.displayName || 'Unknown',
     ign: userData.ign || '',
-    type: amount > 0 ? 'admin_add' : 'admin_deduct',
+    type: amount >= 0 ? 'admin_add' : 'admin_deduct',
     amount: Math.abs(amount),
-    desc: `Admin ${adminName || 'System'}: ${reason || 'Balance adjustment'} (${amount > 0 ? 'Added' : 'Deducted'})`,
+    desc: `Admin ${admin}: ${reason || 'Balance adjustment'} (${amount >= 0 ? 'Added' : 'Deducted'})`,
     date: now,
     status: 'completed',
-    adminName: adminName,
+    adminName: admin,
   });
 
-  return newBalance;
+  return Math.max(0, (userData.balance || 0) + amount);
 }
