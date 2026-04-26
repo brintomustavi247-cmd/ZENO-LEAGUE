@@ -1,4 +1,4 @@
-import { fetchUser, createUser, fetchMatches, updateMatchInDb } from './db'
+import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, updateUser, getSettings, updateSettings } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
 import { auth } from './firebase'
@@ -106,9 +106,9 @@ const initialState = {
   isLoggedIn: saved?.isLoggedIn || false,
   currentUser: saved?.currentUser || null,
   users: saved?.users || INITIAL_USERS,
-    matches: [],
+  matches: saved?.matches || INITIAL_MATCHES,
   notifications: saved?.notifications || INITIAL_NOTIFICATIONS,
-  transactions: [],
+  transactions: saved?.transactions || INITIAL_TRANSACTIONS,
   standings: saved?.standings || INITIAL_STANDINGS,
   adminPayments: saved?.adminPayments || INITIAL_ADMIN_PAYMENTS,
   pendingWithdrawals: saved?.pendingWithdrawals || INITIAL_PENDING_WITHDRAWALS,
@@ -413,18 +413,21 @@ function reducer(state, action) {
     // ════════════════════════════════════════
     //  WALLET
     // ════════════════════════════════════════
-      case 'ADD_MONEY': {
-      const amt = action.payload.amount
-      // 🚀 CLOUD SYNC: Save balance to Firestore
+    case 'ADD_MONEY': {
+      // 🚀 PENDING APPROVAL: Create request instead of instant add
       if (state.currentUser?.firebaseUid) {
-        updateUser(state.currentUser.firebaseUid, { balance: state.currentUser.balance + amt }).catch(err => console.error("Cloud wallet sync failed:", err))
+        updateSettings(state.adminPayments).catch(err => console.error("Settings sync failed:", err))
       }
       return {
         ...state,
-        currentUser: { ...state.currentUser, balance: state.currentUser.balance + amt },
         transactions: [{
-          id: 'tx' + Date.now(), type: 'add', amount: amt,
-          desc: `Added via ${action.payload.method}`, date: getTimeStr(0), status: 'completed'
+          id: 'tx' + Date.now(), type: 'add', amount: action.payload.amount,
+          desc: `Add money via ${action.payload.method} (Pending Approval)`,
+          date: getTimeStr(0), status: 'pending',
+          userId: state.currentUser.id,
+          username: state.currentUser.name || state.currentUser.displayName,
+          method: action.payload.method,
+          adminPayments: { ...state.adminPayments },
         }, ...state.transactions],
       }
     }
@@ -548,6 +551,8 @@ function reducer(state, action) {
       }
 
     case 'UPDATE_ADMIN_PAYMENTS':
+      // Keep cloud settings in sync for all clients.
+      updateSettings(action.payload).catch(err => console.error('Settings cloud sync failed:', err))
       return { ...state, adminPayments: { ...state.adminPayments, ...action.payload } }
 
     case 'LOG_ACTION': {
@@ -630,6 +635,20 @@ export function AppProvider({ children }) {
       }
     })
     return () => unsubscribe()
+  }, [dispatch])
+    // 🚀 CLOUD SYNC: Sync admin payment settings from Firestore
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const settings = await getSettings()
+        if (settings) {
+          dispatch({ type: 'UPDATE_ADMIN_PAYMENTS', payload: settings })
+        }
+      } catch (err) {
+        console.error("Failed to load settings from cloud:", err)
+      }
+    }
+    loadSettings()
   }, [dispatch])
   // 🚀 CLOUD SYNC: Fetch matches from Firestore on startup
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from './firebase';
 
 // ══════════════════════════════════════
@@ -57,7 +57,28 @@ export async function addTransaction(txData) {
 
 export async function fetchTransactions(uid) {
   const txCol = collection(db, 'transactions');
-  const q = txCol.where('userId', '==', uid);
+  const q = query(txCol, where('userId', '==', uid));
   const txSnap = await getDocs(q);
   return txSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+  // ══════════════════════════════════════
+//  PLATFORM SETTINGS
+// ══════════════════════════════════════
+
+export async function getSettings() {
+  const settingsRef = doc(db, 'settings', 'global');
+  const settingsSnap = await getDoc(settingsRef);
+  if (settingsSnap.exists()) return settingsSnap.data();
+  return null;
+}
+
+export async function updateSettings(data) {
+  const settingsRef = doc(db, 'settings', 'global');
+  const settingsSnap = await getDoc(settingsRef);
+  if (settingsSnap.exists()) {
+    await updateDoc(settingsRef, data);
+  } else {
+    await setDoc(settingsRef, data);
+  }
 }
