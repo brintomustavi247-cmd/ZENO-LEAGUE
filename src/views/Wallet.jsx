@@ -9,10 +9,11 @@ export default function Wallet() {
   if (!currentUser) return null
 
   const balance = currentUser.balance || 0
-  const totalWon = transactions.filter(t => t.type === 'win').reduce((s, t) => s + t.amount, 0)
+  const totalWon = transactions.filter(t => t.type === 'win' && t.status !== 'rejected').reduce((s, t) => s + t.amount, 0)
   const totalPending = transactions.filter(t => t.status === 'pending').reduce((s, t) => s + t.amount, 0)
-  const totalSpent = transactions.filter(t => t.type === 'join').reduce((s, t) => s + t.amount, 0)
-  const totalAdded = transactions.filter(t => t.type === 'add').reduce((s, t) => s + t.amount, 0)
+  const totalSpent = transactions.filter(t => t.type === 'join' && t.status !== 'rejected').reduce((s, t) => s + t.amount, 0)
+  const totalAdded = transactions.filter(t => t.type === 'add' && t.status === 'completed').reduce((s, t) => s + t.amount, 0)
+  const pendingCount = transactions.filter(t => t.status === 'pending').length
 
   const txIcon = (type) => {
     switch (type) {
@@ -21,6 +22,15 @@ export default function Wallet() {
       case 'join': return { icon: 'fa-solid fa-crosshairs', bg: '#2a2a2c', color: '#889299' }
       case 'withdraw': return { icon: 'fa-solid fa-arrow-up-from-bracket', bg: '#2a2a2c', color: '#889299' }
       default: return { icon: 'fa-solid fa-arrow-right-arrow-left', bg: '#2a2c', color: '#889299' }
+    }
+  }
+
+  const txStatus = (status) => {
+    switch (status) {
+      case 'completed': return { label: 'Completed', color: '#4ade80', bg: 'rgba(74,222,128,0.1)' }
+      case 'pending': return { label: 'Pending', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)' }
+      case 'rejected': return { label: 'Rejected', color: '#f87171', bg: 'rgba(248,113,113,0.1)' }
+      default: return null
     }
   }
 
@@ -165,31 +175,51 @@ export default function Wallet() {
         <div style={{
           position: 'relative', borderRadius: 12, overflow: 'hidden',
           background: '#1c1b1d',
-          border: '1px solid rgba(255,255,255,0.05)',
+          border: pendingCount > 0 ? '1px solid rgba(251,191,36,0.2)' : '1px solid rgba(255,255,255,0.05)',
           padding: '18px 16px',
         }}>
           <div style={{
             position: 'absolute', top: -20, right: -20,
             width: 80, height: 80,
-            background: 'rgba(248,113,113,0.06)',
+            background: pendingCount > 0 ? 'rgba(251,191,36,0.08)' : 'rgba(248,113,113,0.06)',
             borderRadius: '50%',
             filter: 'blur(30px)', pointerEvents: 'none',
           }} />
-          <span style={{
-            fontSize: 11, fontWeight: 700, color: '#889299',
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            textTransform: 'uppercase', letterSpacing: '0.1em',
-            display: 'block', marginBottom: 6,
-          }}>
-            Pending
-          </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: pendingCount > 0 ? '#fbbf24' : '#889299',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              textTransform: 'uppercase', letterSpacing: '0.1em',
+            }}>
+              Pending
+            </span>
+            {pendingCount > 0 && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: '#fbbf24',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                padding: '2px 8px', borderRadius: 6,
+                background: 'rgba(251,191,36,0.12)',
+                letterSpacing: '0.05em',
+              }}>
+                {pendingCount} {pendingCount === 1 ? 'REQUEST' : 'REQUESTS'}
+              </span>
+            )}
+          </div>
           <span style={{
             fontFamily: "'Inter', sans-serif", fontSize: 22, fontWeight: 700,
-            color: '#e5e1e4',
+            color: pendingCount > 0 ? '#fbbf24' : '#e5e1e4',
             letterSpacing: '-0.01em',
           }}>
             {formatTK(totalPending)}
           </span>
+          {pendingCount > 0 && (
+            <div style={{
+              fontSize: 10, color: '#889299', marginTop: 4,
+              fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500,
+            }}>
+              Awaiting admin approval
+            </div>
+          )}
         </div>
 
         {/* Total Spent */}
@@ -276,34 +306,48 @@ export default function Wallet() {
           display: 'flex', flexDirection: 'column', gap: 8,
         }}>
           {transactions.slice(0, 10).map(tx => {
-            const isPositive = tx.type === 'win' || tx.type === 'add'
+            const isPositive = (tx.type === 'win' || tx.type === 'add') && tx.status !== 'rejected'
+            const isPending = tx.status === 'pending'
+            const isRejected = tx.status === 'rejected'
             const icon = txIcon(tx.type)
-            const amtColor = isPositive ? '#e5e1e4' : '#f87171'
+            const statusInfo = txStatus(tx.status)
+
+            let amtColor = '#e5e1e4'
+            if (isRejected) amtColor = '#f87171'
+            else if (isPending && isPositive) amtColor = '#889299'
+            else if (!isPositive) amtColor = '#f87171'
+
             const prefix = isPositive ? '+ ' : '- '
+
             return (
               <div
                 key={tx.id}
                 style={{
-                  background: '#131315',
+                  background: isPending ? '#141416' : '#131315',
                   borderRadius: 12, padding: '14px 16px',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   WebkitTapHighlightColor: 'transparent',
+                  borderLeft: isPending ? '3px solid rgba(251,191,36,0.3)' : isRejected ? '3px solid rgba(248,113,113,0.3)' : '3px solid transparent',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
                   <div style={{
                     width: 40, height: 40, borderRadius: '50%',
-                    background: icon.bg,
+                    background: isPending ? 'rgba(251,191,36,0.08)' : isRejected ? 'rgba(248,113,113,0.08)' : icon.bg,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0,
                   }}>
-                    <i className={icon.icon} style={{ fontSize: 15, color: icon.color }} />
+                    <i className={icon.icon} style={{
+                      fontSize: 15,
+                      color: isPending ? '#fbbf24' : isRejected ? '#f87171' : icon.color,
+                    }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, fontWeight: 600,
-                      color: '#e5e1e4', lineHeight: 1.3,
+                      color: isRejected ? '#555555' : '#e5e1e4', lineHeight: 1.3,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      textDecoration: isRejected ? 'line-through' : 'none',
                     }}>
                       {tx.desc}
                     </div>
@@ -311,8 +355,20 @@ export default function Wallet() {
                       fontSize: 11, color: '#555555',
                       fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500,
                       marginTop: 1,
+                      display: 'flex', alignItems: 'center', gap: 6,
                     }}>
-                      {tx.date || 'Just now'}
+                      <span>{tx.date || 'Just now'}</span>
+                      {statusInfo && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, color: statusInfo.color,
+                          fontFamily: "'Plus Jakarta Sans', sans-serif",
+                          textTransform: 'uppercase', letterSpacing: '0.05em',
+                          padding: '1px 6px', borderRadius: 4,
+                          background: statusInfo.bg,
+                        }}>
+                          {statusInfo.label}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -320,17 +376,19 @@ export default function Wallet() {
                   <div style={{
                     fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700,
                     color: amtColor, letterSpacing: '-0.01em',
+                    textDecoration: isRejected ? 'line-through' : 'none',
+                    opacity: isPending && isPositive ? 0.6 : 1,
                   }}>
                     {prefix}{formatTK(tx.amount)}
                   </div>
-                  {tx.status === 'pending' && (
+                  {isPending && isPositive && (
                     <div style={{
-                      fontSize: 9, fontWeight: 700, color: '#f87171',
+                      fontSize: 9, fontWeight: 600, color: '#fbbf24',
                       fontFamily: "'Plus Jakarta Sans', sans-serif",
                       textTransform: 'uppercase', letterSpacing: '0.05em',
                       marginTop: 2,
                     }}>
-                      Pending
+                      ⏳ Processing
                     </div>
                   )}
                 </div>

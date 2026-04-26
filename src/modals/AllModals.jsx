@@ -311,11 +311,13 @@ export function AddMoneyModal() {
 
   const brand = brandOf(method)
   const selectedMethod = ADD_MONEY_METHODS.find(m => m.id === method)
-  const adminNumber = adminPayments?.[method] || 'Not set by admin'
+  const adminNumber = adminPayments?.[method] || ''
+
+  const isNumberSet = adminNumber && adminNumber !== '' && adminNumber !== 'Not set by admin'
 
   const handleCopy = () => {
     const num = adminPayments?.[method] || ''
-    if (!num || num === 'Not set by admin') return
+    if (!num || num === 'Not set by admin' || num === '') return
     if (navigator.clipboard) {
       navigator.clipboard.writeText(num).then(() => {
         setCopied(true)
@@ -336,12 +338,24 @@ export function AddMoneyModal() {
   }
 
   const handleSubmit = () => {
+    if (!isNumberSet) return showToast(dispatch, 'Admin has not set payment number yet. Contact admin.', 'error')
     const amt = parseFloat(amount)
     if (!amt || amt < 10) return showToast(dispatch, 'Minimum amount is 10 TK', 'error')
-    if (!txId.trim()) return showToast(dispatch, 'Enter transaction ID', 'error')
-    dispatch({ type: 'ADD_MONEY', payload: { amount: amt, method: method.toUpperCase() } })
+    if (!txId.trim()) return showToast(dispatch, 'Enter transaction ID (TrxID) from your payment app', 'error')
+    if (txId.trim().length < 6) return showToast(dispatch, 'Transaction ID seems too short', 'error')
+
+    // ✅ FIXED: Now sends txId in payload, no instant balance change
+    dispatch({
+      type: 'ADD_MONEY',
+      payload: {
+        amount: amt,
+        method: method.toUpperCase(),
+        txId: txId.trim(),
+      }
+    })
     dispatch({ type: 'CLOSE_MODAL' })
-    showToast(dispatch, `${formatTK(amt)} added via ${method.toUpperCase()}`, 'success')
+    // ✅ FIXED: Correct message — pending approval, NOT "added"
+    showToast(dispatch, `${formatTK(amt)} request submitted! Wait for admin approval.`, 'success')
   }
 
   const SectionHead = ({ children }) => (
@@ -396,12 +410,12 @@ export function AddMoneyModal() {
       <section style={{
         position: 'relative', borderRadius: 12, overflow: 'hidden',
         background: '#1b1b1d',
-        borderLeft: `4px solid ${brand.primary}`,
+        borderLeft: `4px solid ${isNumberSet ? brand.primary : '#f87171'}`,
         boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
       }}>
         <div style={{
           position: 'absolute', inset: 0,
-          background: `linear-gradient(135deg, ${brand.primary}26 0%, ${brand.primary}00 100%)`,
+          background: `linear-gradient(135deg, ${isNumberSet ? brand.primary : '#f87171'}26 0%, ${isNumberSet ? brand.primary : '#f87171'}00 100%)`,
           pointerEvents: 'none',
         }} />
         <div style={{ padding: 16, position: 'relative', zIndex: 1 }}>
@@ -412,15 +426,15 @@ export function AddMoneyModal() {
           }}>
             Send Money To
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <p style={{
-              fontFamily: "'Inter', sans-serif", fontSize: 22, fontWeight: 700,
-              color: brand.primary, letterSpacing: '-0.01em', margin: 0,
-              wordBreak: 'break-all',
-            }}>
-              {adminNumber}
-            </p>
-            {adminNumber !== 'Not set by admin' && (
+          {isNumberSet ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{
+                fontFamily: "'Inter', sans-serif", fontSize: 22, fontWeight: 700,
+                color: brand.primary, letterSpacing: '-0.01em', margin: 0,
+                wordBreak: 'break-all',
+              }}>
+                {adminNumber}
+              </p>
               <button
                 onClick={handleCopy}
                 style={{
@@ -436,10 +450,38 @@ export function AddMoneyModal() {
                   style={{ fontSize: 14, color: copied ? '#4ade80' : '#c6c6c6' }}
                 />
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <p style={{
+              fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14, fontWeight: 600,
+              color: '#f87171', margin: 0,
+            }}>
+              <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }} />
+              Not set by admin
+            </p>
+          )}
         </div>
       </section>
+
+      {/* ✅ NEW: Warning when number is not set */}
+      {!isNumberSet && (
+        <section style={{
+          background: 'linear-gradient(135deg, rgba(248,113,113,0.08) 0%, rgba(248,113,113,0.02) 60%), #1b1b1d',
+          borderLeft: '3px solid #f87171',
+          padding: 12, borderRadius: 8,
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <i className="fa-solid fa-circle-exclamation" style={{
+            color: '#f87171', fontSize: 16, flexShrink: 0, marginTop: 1,
+          }} />
+          <p style={{
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: 12, color: '#f87171', lineHeight: 1.6, margin: 0,
+          }}>
+            Admin has not set a {selectedMethod?.label || method.toUpperCase()} number yet. You cannot add money right now. Please contact admin to set the payment number first.
+          </p>
+        </section>
+      )}
 
       <section>
         <SectionHead>Select Amount</SectionHead>
@@ -512,7 +554,7 @@ export function AddMoneyModal() {
           fontSize: 10, fontWeight: 600, letterSpacing: '0.12em',
           textTransform: 'uppercase', color: '#c6c6c6', marginBottom: 8,
         }}>
-          Transaction ID
+          Transaction ID (TrxID) *
         </label>
         <div style={{ background: '#1b1b1d', borderRadius: 12 }}>
           <input
@@ -527,12 +569,20 @@ export function AddMoneyModal() {
               outline: 'none', boxSizing: 'border-box',
               WebkitTapHighlightColor: 'transparent',
             }}
-            placeholder="Enter TrxID"
+            placeholder="e.g. N123456789"
             type="text"
             value={txId}
             onChange={e => setTxId(e.target.value)}
           />
         </div>
+        <p style={{
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontSize: 10, color: '#555555', margin: '6px 0 0 0',
+          fontWeight: 500,
+        }}>
+          <i className="fa-solid fa-circle-info" style={{ marginRight: 4 }} />
+          Find this in your {selectedMethod?.label || method.toUpperCase()} payment history/sms
+        </p>
       </section>
 
       <section style={{
@@ -548,7 +598,10 @@ export function AddMoneyModal() {
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           fontSize: 12, color: '#c6c6c6', lineHeight: 1.6, margin: 0,
         }}>
-          Send money to the number above via {selectedMethod?.label || method.toUpperCase()}, then enter the exact Transaction ID to verify your payment.
+          <strong style={{ color: '#e5e1e4' }}>Step 1:</strong> Send {amount || '___'} TK to the number above via {selectedMethod?.label || method.toUpperCase()}.<br />
+          <strong style={{ color: '#e5e1e4' }}>Step 2:</strong> Copy the Transaction ID (TrxID) from your payment app.<br />
+          <strong style={{ color: '#e5e1e4' }}>Step 3:</strong> Paste it below and submit.<br />
+          <strong style={{ color: '#facc15' }}>Note:</strong> Balance will update only after admin verifies your payment.
         </p>
       </section>
 
@@ -572,19 +625,20 @@ export function AddMoneyModal() {
           style={{
             flex: 1, height: 56, borderRadius: 12,
             border: 'none',
-            background: brand.primary,
-            color: '#ffffff',
+            background: isNumberSet ? brand.primary : '#2a2a2c',
+            color: isNumberSet ? '#ffffff' : '#555555',
             fontFamily: "'Lexend', sans-serif", fontSize: 14, fontWeight: 700,
             letterSpacing: '0.08em', textTransform: 'uppercase',
-            cursor: 'pointer',
+            cursor: isNumberSet ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             WebkitTapHighlightColor: 'transparent',
             minWidth: 0,
           }}
           onClick={handleSubmit}
+          disabled={!isNumberSet}
         >
-          <i className="fa-solid fa-plus" style={{ fontSize: 18 }} />
-          Add Money
+          <i className="fa-solid fa-paper-plane" style={{ fontSize: 16 }} />
+          Submit Request
         </button>
       </div>
     </div>

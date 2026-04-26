@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../context'
 import { formatTK, formatTKShort, calculateMatchEconomics, calculateResultPrize, calculateAllResultPrizes, getRoomUnlockCountdown, maxSlotsForMode, showToast } from '../utils'
+import { approveAddMoneyRequest, rejectAddMoneyRequest } from '../db'
 
 // ★ Inline fallback — remove this after updating utils.js
 function isTeamMode(mode) {
@@ -21,6 +22,7 @@ const PERM_MAP = {
   'admin-results': 'results',
   'admin-users': 'users',
   'admin-finance': 'finance',
+  'admin-add-money': 'finance',
   'admin-payments': 'payments',
   'admin-owners': '__owner__',
   'admin-activity': '__owner__',
@@ -82,7 +84,7 @@ function adminAction(dispatch, action, target, toastMsg, toastType) {
 // ═══════════════════════════════════════
 function AdminOverview() {
   const { state } = useApp()
-  const { matches, users, transactions, pendingWithdrawals } = state
+  const { matches, users, transactions, pendingWithdrawals, pendingAddMoneyRequests } = state
   const mobile = useIsMobile()
 
   const totalCollection = matches.reduce((s, m) => s + (m.entryFee * (m.joinedCount || 0)), 0)
@@ -99,6 +101,7 @@ function AdminOverview() {
     { label: 'Upcoming', value: upcomingCount, icon: 'fa-solid fa-clock', color: '#6c8cff' },
     { label: 'Total Users', value: users.filter(u => u.role === 'user').length, icon: 'fa-solid fa-users', color: '#00f0ff', sub: `${users.filter(u => !u.banned).length} active` },
     { label: 'Pending Withdrawals', value: pendingWithdrawals.length, icon: 'fa-solid fa-hourglass-half', color: '#fbbf24' },
+    { label: 'Add Money Requests', value: (pendingAddMoneyRequests || []).length, icon: 'fa-solid fa-wallet', color: '#22c55e', sub: 'Need approval' },
     { label: 'Transactions', value: transactions.length, icon: 'fa-solid fa-receipt', color: '#64748b' },
   ]
 
@@ -901,7 +904,194 @@ function AdminFinance() {
 }
 
 // ═══════════════════════════════════════
-//  7. PAYMENT SETTINGS
+//  7. ADD MONEY REQUESTS (NEW)
+// ═══════════════════════════════════════
+function AdminAddMoneyRequests() {
+  const { state, dispatch } = useApp()
+  const { pendingAddMoneyRequests } = state
+  const mobile = useIsMobile()
+  const [processing, setProcessing] = useState(null)
+
+  const requests = pendingAddMoneyRequests || []
+
+  const handleApprove = async (req) => {
+    setProcessing(req.id)
+    try {
+      // 1. Update Firestore (mark approved + add balance)
+      await approveAddMoneyRequest(req.id, req.userId, req.amount)
+      // 2. Update local state
+      dispatch({
+        type: 'APPROVE_ADD_MONEY',
+        payload: { requestId: req.id, userId: req.userId, amount: req.amount }
+      })
+      adminAction(dispatch, 'Approved add money', `${req.username} — ${formatTK(req.amount)} via ${req.method}`, `${formatTK(req.amount)} added to ${req.username}`, 'success')
+    } catch (err) {
+      console.error('Approve failed:', err)
+      showToast(dispatch, 'Failed to approve. Check console.', 'error')
+    }
+    setProcessing(null)
+  }
+
+  const handleReject = async (req) => {
+    setProcessing(req.id)
+    try {
+      // 1. Update Firestore (mark rejected)
+      await rejectAddMoneyRequest(req.id)
+      // 2. Update local state
+      dispatch({
+        type: 'REJECT_ADD_MONEY',
+        payload: { requestId: req.id }
+      })
+      adminAction(dispatch, 'Rejected add money', `${req.username} — ${formatTK(req.amount)} via ${req.method}`, `Rejected ${req.username}'s request`, 'error')
+    } catch (err) {
+      console.error('Reject failed:', err)
+      showToast(dispatch, 'Failed to reject. Check console.', 'error')
+    }
+    setProcessing(null)
+  }
+
+  const timeAgo = (isoStr) => {
+    if (!isoStr) return '—'
+    const diff = Date.now() - new Date(isoStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    return `${Math.floor(hrs / 24)}d ago`
+  }
+
+  if (requests.length === 0) {
+    return (
+      <div style={S.panel}>
+        <h1 style={S.title}><i className="fa-solid fa-wallet" style={{ marginRight: 10, color: '#22c55e' }}></i>Add Money Requests</h1>
+        <div style={{ ...S.card, padding: 40, textAlign: 'center' }}>
+          <i className="fa-solid fa-circle-check" style={{ fontSize: 40, color: '#22c55e', marginBottom: 14, display: 'block', opacity: 0.4 }}></i>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>All Caught Up</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #666)' }}>No pending add money requests. New requests appear here automatically.</div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={S.panel}>
+      <h1 style={S.title}><i className="fa-solid fa-wallet" style={{ marginRight: 10, color: '#22c55e' }}></i>Add Money Requests</h1>
+
+      <div style={{
+        padding: '12px 18px', borderRadius: 12, marginBottom: 20,
+        background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.12)',
+        display: 'flex', alignItems: 'flex-start', gap: 10,
+      }}>
+        <i className="fa-solid fa-triangle-exclamation" style={{ color: '#fbbf24', fontSize: 14, marginTop: 2, flexShrink: 0 }}></i>
+        <div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 600, color: '#fbbf24', marginBottom: 3 }}>Verify Before Approving</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', lineHeight: 1.5 }}>
+            Check your {requests[0]?.method || 'bKash'} payment app to confirm the user actually sent the money. Match the Transaction ID (TXID) before approving.
+          </div>
+        </div>
+      </div>
+
+      {mobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {requests.map(req => {
+            const isProcessing = processing === req.id
+            return (
+              <div key={req.id} style={{
+                ...S.mCard, borderLeft: '3px solid #22c55e',
+                opacity: isProcessing ? 0.5 : 1, pointerEvents: isProcessing ? 'none' : 'auto',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                      background: 'rgba(34,197,94,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, color: '#22c55e',
+                    }}>
+                      {(req.username || '?').charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: '#fff', fontSize: 13 }}>{req.username}</div>
+                      {req.ign && <div style={{ fontSize: 10, color: 'var(--text-muted, #666)' }}>IGN: {req.ign}</div>}
+                    </div>
+                  </div>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: '#22c55e', fontSize: 18 }}>{formatTK(req.amount)}</span>
+                </div>
+                <div style={S.mRow}><span style={S.mLabel}>Method</span><span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{req.method}</span></div>
+                <div style={S.mRow}><span style={S.mLabel}>TXID</span><span style={{ fontSize: 12, color: '#fbbf24', fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: 0.5 }}>{req.txId || '—'}</span></div>
+                {req.phone && <div style={S.mRow}><span style={S.mLabel}>Phone</span><span style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>{req.phone}</span></div>}
+                <div style={S.mRow}><span style={S.mLabel}>Time</span><span style={{ fontSize: 11, color: 'var(--text-muted, #666)' }}>{timeAgo(req.createdAt)}</span></div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                  <button
+                    style={{ ...S.btnDanger, padding: '8px 16px', fontSize: 12, opacity: isProcessing ? 0.5 : 1 }}
+                    onClick={() => handleReject(req)}
+                    disabled={isProcessing}
+                  >
+                    <i className="fa-solid fa-xmark"></i> Reject
+                  </button>
+                  <button
+                    style={{ ...S.btnSuccess, padding: '8px 16px', fontSize: 12, opacity: isProcessing ? 0.5 : 1 }}
+                    onClick={() => handleApprove(req)}
+                    disabled={isProcessing}
+                  >
+                    <i className="fa-solid fa-check"></i> Approve
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div style={{ ...S.card }}>
+          <table style={S.table}>
+            <thead>
+              <tr>
+                <th style={S.th}>User</th>
+                <th style={S.th}>Amount</th>
+                <th style={S.th}>Method</th>
+                <th style={S.th}>TXID</th>
+                <th style={S.th}>Phone</th>
+                <th style={S.th}>Time</th>
+                <th style={{ ...S.th, textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map(req => {
+                const isProcessing = processing === req.id
+                return (
+                  <tr key={req.id} style={{ opacity: isProcessing ? 0.5 : 1 }}>
+                    <td style={S.td}>
+                      <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: '#fff', fontSize: 12 }}>{req.username}</div>
+                      {req.ign && <div style={{ fontSize: 10, color: 'var(--text-muted, #666)' }}>IGN: {req.ign}</div>}
+                    </td>
+                    <td style={{ ...S.td, fontFamily: 'var(--font-display)', fontWeight: 700, color: '#22c55e', fontSize: 14 }}>{formatTK(req.amount)}</td>
+                    <td style={S.td}><span style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-heading)', background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>{req.method}</span></td>
+                    <td style={{ ...S.td, fontFamily: 'var(--font-display)', fontWeight: 700, color: '#fbbf24', fontSize: 12, letterSpacing: 0.5 }}>{req.txId || '—'}</td>
+                    <td style={{ ...S.td, fontSize: 12, color: 'var(--text-muted, #888)' }}>{req.phone || '—'}</td>
+                    <td style={{ ...S.td, fontSize: 11, color: 'var(--text-muted, #666)' }}>{timeAgo(req.createdAt)}</td>
+                    <td style={{ ...S.td, textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        <button style={{ ...S.btnDanger, opacity: isProcessing ? 0.5 : 1 }} onClick={() => handleReject(req)} disabled={isProcessing}>
+                          <i className="fa-solid fa-xmark"></i> Reject
+                        </button>
+                        <button style={{ ...S.btnSuccess, opacity: isProcessing ? 0.5 : 1 }} onClick={() => handleApprove(req)} disabled={isProcessing}>
+                          <i className="fa-solid fa-check"></i> Approve
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════
+//  8. PAYMENT SETTINGS
 // ═══════════════════════════════════════
 function AdminPaymentSettings() {
   const { state, dispatch } = useApp()
@@ -973,7 +1163,7 @@ function AdminPaymentSettings() {
 }
 
 // ═══════════════════════════════════════
-//  8. OWNER PANEL
+//  9. OWNER PANEL
 // ═══════════════════════════════════════
 function AdminOwnerPanel() {
   const { state, dispatch } = useApp()
@@ -1147,7 +1337,7 @@ function AdminOwnerPanel() {
 }
 
 // ═══════════════════════════════════════
-//  9. ACTIVITY LOG
+//  10. ACTIVITY LOG
 // ═══════════════════════════════════════
 function AdminActivityLog() {
   const { state } = useApp()
@@ -1202,6 +1392,7 @@ const ADMIN_TABS = [
   { id: 'admin-results', label: 'Results', icon: 'fa-clipboard-check', color: '#22c55e' },
   { id: 'admin-users', label: 'Users', icon: 'fa-users-gear', color: '#6c8cff' },
   { id: 'admin-finance', label: 'Finance', icon: 'fa-money-bill-transfer', color: '#ef4444' },
+  { id: 'admin-add-money', label: 'Add Money', icon: 'fa-wallet', color: '#22c55e' },
   { id: 'admin-payments', label: 'Payments', icon: 'fa-credit-card', color: '#f59e0b' },
   { id: 'admin-owners', label: 'Owner Panel', icon: 'fa-crown', color: '#fbbf24' },
   { id: 'admin-activity', label: 'Activity Log', icon: 'fa-clock-rotate-left', color: '#6c8cff' },
@@ -1297,6 +1488,7 @@ export default function Admin() {
       {activeTab === 'admin-results' && canAccess('admin-results') && <AdminResults />}
       {activeTab === 'admin-users' && canAccess('admin-users') && <AdminUsers />}
       {activeTab === 'admin-finance' && canAccess('admin-finance') && <AdminFinance />}
+      {activeTab === 'admin-add-money' && canAccess('admin-add-money') && <AdminAddMoneyRequests />}
       {activeTab === 'admin-payments' && canAccess('admin-payments') && <AdminPaymentSettings />}
       {activeTab === 'admin-owners' && canAccess('admin-owners') && <AdminOwnerPanel />}
       {activeTab === 'admin-activity' && canAccess('admin-activity') && <AdminActivityLog />}

@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
 // ══════════════════════════════════════
@@ -33,7 +33,7 @@ export async function updateUser(uid, data) {
 export async function fetchMatches() {
   const matchesCol = collection(db, 'matches');
   const matchesSnap = await getDocs(matchesCol);
-  return matchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return matchesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 export async function createMatchInDb(matchId, data) {
@@ -47,7 +47,7 @@ export async function updateMatchInDb(matchId, data) {
 }
 
 // ══════════════════════════════════════
-//  TRANSACTION LOG (Optional, for admin tracking)
+//  TRANSACTION LOG
 // ══════════════════════════════════════
 
 export async function addTransaction(txData) {
@@ -59,10 +59,10 @@ export async function fetchTransactions(uid) {
   const txCol = collection(db, 'transactions');
   const q = query(txCol, where('userId', '==', uid));
   const txSnap = await getDocs(q);
-  return txSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return txSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-  // ══════════════════════════════════════
+// ══════════════════════════════════════
 //  PLATFORM SETTINGS
 // ══════════════════════════════════════
 
@@ -73,7 +73,7 @@ export async function getSettings() {
   return null;
 }
 
-export async function updateSettings(data) {
+export async function saveSettings(data) {
   const settingsRef = doc(db, 'settings', 'global');
   const settingsSnap = await getDoc(settingsRef);
   if (settingsSnap.exists()) {
@@ -81,4 +81,39 @@ export async function updateSettings(data) {
   } else {
     await setDoc(settingsRef, data);
   }
+}
+
+// ══════════════════════════════════════
+//  ADD MONEY REQUESTS (Pending Approval)
+// ══════════════════════════════════════
+
+export async function createAddMoneyRequest(requestData) {
+  const reqRef = doc(db, 'addMoneyRequests', requestData.id);
+  await setDoc(reqRef, requestData);
+}
+
+export async function fetchPendingAddMoneyRequests() {
+  const col = collection(db, 'addMoneyRequests');
+  const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function approveAddMoneyRequest(requestId, userId, amount) {
+  // 1. Mark request as approved
+  const reqRef = doc(db, 'addMoneyRequests', requestId);
+  await updateDoc(reqRef, { status: 'approved', processedAt: new Date().toISOString() });
+
+  // 2. Add money to user's balance in Firestore
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    const currentBalance = userSnap.data().balance || 0;
+    await updateDoc(userRef, { balance: currentBalance + amount });
+  }
+}
+
+export async function rejectAddMoneyRequest(requestId) {
+  const reqRef = doc(db, 'addMoneyRequests', requestId);
+  await updateDoc(reqRef, { status: 'rejected', processedAt: new Date().toISOString() });
 }

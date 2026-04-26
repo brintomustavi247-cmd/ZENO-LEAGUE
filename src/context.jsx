@@ -1,4 +1,4 @@
-import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, getSettings, updateSettings } from './db'
+import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
 import { auth } from './firebase'
@@ -84,9 +84,9 @@ const INITIAL_STANDINGS = [
 ]
 
 const INITIAL_ADMIN_PAYMENTS = {
-  bKash: '017XX-XXXXXX',
-  Nagad: '018XX-XXXXXX',
-  Rocket: '019XX-XXXXXX',
+  bKash: '',
+  Nagad: '',
+  Rocket: '',
 }
 
 const INITIAL_PENDING_WITHDRAWALS = [
@@ -112,6 +112,7 @@ const initialState = {
   standings: saved?.standings || INITIAL_STANDINGS,
   adminPayments: saved?.adminPayments || INITIAL_ADMIN_PAYMENTS,
   pendingWithdrawals: saved?.pendingWithdrawals || INITIAL_PENDING_WITHDRAWALS,
+  pendingAddMoneyRequests: [],
   activityLog: saved?.activityLog || [],
   currentView: (saved?.isLoggedIn && saved?.currentUser) ? (saved.currentUser.role === 'owner' ? 'admin-overview' : 'dashboard') : 'login',
   viewParam: null,
@@ -186,10 +187,10 @@ function reducer(state, action) {
       }
     }
 
-    // ══════════════════════════════════════════
-    //  🔥 FIREBASE AUTH
     // ════════════════════════════════════════
-         case 'FIREBASE_LOGIN': {
+    //  FIREBASE AUTH
+    // ════════════════════════════════════════
+    case 'FIREBASE_LOGIN': {
       const payload = action.payload
       if (!payload) {
         if (state.currentUser?.firebaseUid) {
@@ -200,13 +201,10 @@ function reducer(state, action) {
 
       const authUser = payload.dbData ? payload : payload
       const dbData = payload.dbData || null
-      
-  
 
       const phone = authUser.phoneNumber?.replace('+880', '0') || ''
       const email = authUser.email || ''
-      
-      // OWNER CHECK: Phone or Email overrides everything
+
       const isOwner = (phone === OWNER_PHONE) || (email === OWNER_EMAIL)
       const role = isOwner ? 'owner' : (dbData?.role || 'user')
 
@@ -247,7 +245,7 @@ function reducer(state, action) {
       }
       return state
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  RESET PASSWORD
     // ════════════════════════════════════════
     case 'RESET_PASSWORD': {
@@ -278,9 +276,9 @@ function reducer(state, action) {
         sidebarOpen: false,
       }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  PROFILE
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'UPDATE_PROFILE': {
       const updated = { ...state.currentUser, ...action.payload }
       return {
@@ -310,9 +308,9 @@ function reducer(state, action) {
       }
     }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  MATCH: CREATE
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'CREATE_MATCH': {
       const fd = action.payload
       const eco = calculateMatchEconomics(fd.entryFee, fd.maxSlots, fd.gameType, fd.include4th, fd.include5th)
@@ -328,8 +326,7 @@ function reducer(state, action) {
         participants: [], prizePool: eco.prizePool, prizes: eco.prizes,
         createdBy: state.currentUser?.id, createdAt: new Date().toISOString(),
       }
-      
-      // 🚀 CLOUD SYNC: Save to Firestore in background
+
       createMatchInDb(newMatchId, newMatch).catch(err => console.error("Cloud save failed:", err))
 
       return { ...state, matches: [newMatch, ...state.matches] }
@@ -364,7 +361,6 @@ function reducer(state, action) {
         joinedCount: match.joinedCount + 1,
         participants: [...(match.participants || []), state.currentUser.id]
       }
-      // 🚀 CLOUD SYNC: Update match in Firestore
       updateMatchInDb(matchId, updatedMatch).catch(err => console.error("Cloud match sync failed:", err))
 
       return {
@@ -411,26 +407,97 @@ function reducer(state, action) {
       return { ...state, matches: action.payload }
 
     // ════════════════════════════════════════
-    //  WALLET
+    //  WALLET — ADD MONEY (PENDING APPROVAL)
     // ════════════════════════════════════════
     case 'ADD_MONEY': {
-      // 🚀 PENDING APPROVAL: Create request instead of instant add
-      if (state.currentUser?.firebaseUid) {
-        updateSettings(state.adminPayments).catch(err => console.error("Settings sync failed:", err))
+      const { amount, method, txId } = action.payload
+      const requestId = 'amr_' + Date.now()
+
+      // 1. Create local pending transaction (NO balance change)
+      const pendingTx = {
+        id: requestId,
+        type: 'add',
+        amount: Number(amount),
+        desc: `Add ৳${amount} via ${method} — TXID: ${txId} (Pending)`,
+        date: getTimeStr(0),
+        status: 'pending',
+        userId: state.currentUser.id,
+        username: state.currentUser.name || state.currentUser.displayName,
+        method: method,
+        txId: txId,
       }
+
+      // 2. Create Firestore request for admin to see
+      const firestoreReq = {
+        id: requestId,
+        userId: state.currentUser.id,
+        username: state.currentUser.name || state.currentUser.displayName,
+        ign: state.currentUser.ign || '',
+        phone: state.currentUser.phone || '',
+        amount: Number(amount),
+        method: method,
+        txId: txId,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      }
+      createAddMoneyRequest(firestoreReq).catch(err => console.error("Failed to submit add money request:", err))
+
       return {
         ...state,
-        transactions: [{
-          id: 'tx' + Date.now(), type: 'add', amount: action.payload.amount,
-          desc: `Add money via ${action.payload.method} (Pending Approval)`,
-          date: getTimeStr(0), status: 'pending',
-          userId: state.currentUser.id,
-          username: state.currentUser.name || state.currentUser.displayName,
-          method: action.payload.method,
-          adminPayments: { ...state.adminPayments },
-        }, ...state.transactions],
+        transactions: [pendingTx, ...state.transactions],
+        // balance is NOT changed — admin must approve
       }
     }
+
+    // Admin approves add money request
+    case 'APPROVE_ADD_MONEY': {
+      const { requestId, userId, amount } = action.payload
+
+      // Update local pending transaction to completed
+      const updatedTx = state.transactions.map(tx =>
+        tx.id === requestId ? { ...tx, status: 'completed', desc: tx.desc.replace('(Pending)', '(Approved)') } : tx
+      )
+
+      // Update local user balance
+      const updatedUsers = state.users.map(u =>
+        u.id === userId ? { ...u, balance: u.balance + amount } : u
+      )
+      let updatedCurrentUser = state.currentUser
+      if (updatedCurrentUser && updatedCurrentUser.id === userId) {
+        updatedCurrentUser = { ...updatedCurrentUser, balance: updatedCurrentUser.balance + amount }
+      }
+
+      // Remove from pending requests list
+      const updatedPending = state.pendingAddMoneyRequests.filter(r => r.id !== requestId)
+
+      return {
+        ...state,
+        transactions: updatedTx,
+        users: updatedUsers,
+        currentUser: updatedCurrentUser,
+        pendingAddMoneyRequests: updatedPending,
+      }
+    }
+
+    // Admin rejects add money request
+    case 'REJECT_ADD_MONEY': {
+      const { requestId } = action.payload
+
+      const updatedTx = state.transactions.map(tx =>
+        tx.id === requestId ? { ...tx, status: 'rejected', desc: tx.desc.replace('(Pending)', '(Rejected)') } : tx
+      )
+      const updatedPending = state.pendingAddMoneyRequests.filter(r => r.id !== requestId)
+
+      return {
+        ...state,
+        transactions: updatedTx,
+        pendingAddMoneyRequests: updatedPending,
+      }
+    }
+
+    // Load pending requests from Firestore (admin only)
+    case 'LOAD_PENDING_REQUESTS':
+      return { ...state, pendingAddMoneyRequests: action.payload }
 
     case 'WITHDRAW': {
       if (state.currentUser.balance < action.payload.amount) return state
@@ -550,9 +617,21 @@ function reducer(state, action) {
         ),
       }
 
+    // ════════════════════════════════════════
+    //  SETTINGS — separated LOAD vs SAVE
+    // ════════════════════════════════════════
+    // LOAD: pure state update, NO Firestore write (called on app startup)
+    case 'LOAD_SETTINGS':
+      return { ...state, adminPayments: action.payload }
+
+    // SAVE: admin changed settings — update state AND write to Firestore
+    case 'SAVE_ADMIN_PAYMENTS':
+      saveSettings(action.payload).catch(err => console.error('Settings cloud save failed:', err))
+      return { ...state, adminPayments: { ...state.adminPayments, ...action.payload } }
+
+    // Legacy alias — redirect to SAVE
     case 'UPDATE_ADMIN_PAYMENTS':
-      // Keep cloud settings in sync for all clients.
-      updateSettings(action.payload).catch(err => console.error('Settings cloud sync failed:', err))
+      saveSettings(action.payload).catch(err => console.error('Settings cloud save failed:', err))
       return { ...state, adminPayments: { ...state.adminPayments, ...action.payload } }
 
     case 'LOG_ACTION': {
@@ -610,18 +689,16 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // 1. Check if user exists in Firestore
         let dbUser = await fetchUser(firebaseUser.uid)
-        
+
         if (!dbUser) {
-          // 2. First time login! Create them in Firestore
           const phone = firebaseUser.phoneNumber?.replace('+880', '0') || ''
           const newUser = {
             username: firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user_' + firebaseUser.uid.slice(0, 8),
             name: firebaseUser.displayName || 'Firebase User',
             displayName: firebaseUser.displayName || 'Firebase User',
             ign: '',
-                      role: (phone === OWNER_PHONE || firebaseUser.email === OWNER_EMAIL) ? 'owner' : 'user',
+            role: (phone === OWNER_PHONE || firebaseUser.email === OWNER_EMAIL) ? 'owner' : 'user',
             phone: phone,
             email: firebaseUser.email || '',
             firebaseUid: firebaseUser.uid,
@@ -630,26 +707,44 @@ export function AppProvider({ children }) {
           dbUser = newUser
         }
 
-        // 3. Log them in with Firestore data
         dispatch({ type: 'FIREBASE_LOGIN', payload: { ...firebaseUser, dbData: dbUser } })
       }
     })
     return () => unsubscribe()
   }, [dispatch])
-    // 🚀 CLOUD SYNC: Sync admin payment settings from Firestore
+
+  // 🚀 Load settings from Firestore on startup (READ ONLY — no write back)
   useEffect(() => {
     async function loadSettings() {
       try {
         const settings = await getSettings()
-        if (settings) {
-          dispatch({ type: 'UPDATE_ADMIN_PAYMENTS', payload: settings })
+        if (settings && (settings.bKash || settings.Nagad || settings.Rocket)) {
+          dispatch({ type: 'LOAD_SETTINGS', payload: settings })
         }
       } catch (err) {
         console.error("Failed to load settings from cloud:", err)
       }
     }
     loadSettings()
-  }, [dispatch])
+  }, [])
+
+  // 🚀 Load pending add money requests (admin/owner only)
+  useEffect(() => {
+    if (!isAdmin) return
+    async function loadPending() {
+      try {
+        const requests = await fetchPendingAddMoneyRequests()
+        dispatch({ type: 'LOAD_PENDING_REQUESTS', payload: requests })
+      } catch (err) {
+        console.error("Failed to load pending add money requests:", err)
+      }
+    }
+    loadPending()
+    // Refresh every 15 seconds
+    const interval = setInterval(loadPending, 15000)
+    return () => clearInterval(interval)
+  }, [isAdmin])
+
   // 🚀 CLOUD SYNC: Fetch matches from Firestore on startup
   useEffect(() => {
     async function loadCloudMatches() {
@@ -664,6 +759,7 @@ export function AppProvider({ children }) {
     }
     loadCloudMatches()
   }, [])
+
   // 1-second tick
   useEffect(() => {
     const i = setInterval(() => dispatch({ type: 'TICK' }), 1000)
