@@ -109,16 +109,11 @@ export async function createAddMoneyRequest(requestData) {
   await setDoc(reqRef, requestData);
 }
 
-// ═══ FIX: Removed orderBy('createdAt', 'desc') from query.
-// ═══ The where + orderBy combo requires a composite Firestore index
-// ═══ that doesn't exist yet. Without it, the query silently fails
-// ═══ and the catch block swallows the error. Now we sort client-side.
 export async function fetchPendingAddMoneyRequests() {
   const col = collection(db, 'addMoneyRequests');
   const q = query(col, where('status', '==', 'pending'));
   const snap = await getDocs(q);
   const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  // Sort newest first on client side — no composite index needed
   results.sort((a, b) => {
     const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -157,7 +152,7 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
   const userMap = {};
 
   if (ignList.length > 0) {
-    const users = await fetchUsersByIGNs(ignList);
+    const users = await fetchUsersByIGNs(igns);
     users.forEach(u => {
       userMap[(u.ign || '').toLowerCase()] = u;
     });
@@ -189,12 +184,9 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
         amount: totalPrize,
         desc: `Prize: ${matchData.title} (#${player.position}) — UNCLAIMED (User not registered)`,
         matchId: matchId,
-        date: now,
-        status: 'completed',
-        position: player.position,
-        kills: kills,
-        positionPrize: positionPrize,
-        killPrize: killPrize,
+        date: now, status: 'completed',
+        position: player.position, kills: kills,
+        positionPrize: positionPrize, killPrize: killPrize,
       });
       return;
     }
@@ -216,28 +208,18 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
     if (killPrize > 0) desc += ` + ${kills} kills (${killPrize} TK)`;
 
     batch.set(doc(db, 'transactions', txId), {
-      id: txId,
-      userId: user.id,
+      id: txId, userId: user.id,
       username: user.name || user.displayName || user.ign,
       ign: user.ign || '',
-      type: 'win',
-      amount: totalPrize,
-      desc: desc,
-      matchId: matchId,
-      date: now,
-      status: 'completed',
-      position: player.position,
-      kills: kills,
-      positionPrize: positionPrize,
-      killPrize: killPrize,
+      type: 'win', amount: totalPrize, desc: desc,
+      matchId: matchId, date: now, status: 'completed',
+      position: player.position, kills: kills,
+      positionPrize: positionPrize, killPrize: killPrize,
     });
   });
 
   batch.update(matchRef, {
-    result: {
-      submittedAt: now,
-      players: resultPlayers,
-    },
+    result: { submittedAt: now, players: resultPlayers },
     prizeDistributed: (matchData.prizeDistributed || 0) + totalDistributed,
   });
 
@@ -275,25 +257,18 @@ export async function cancelMatchAndRefund(matchId, matchData, adminName) {
 
     const txId = 'tx_refund_' + Date.now() + '_' + user.id.slice(0, 8);
     batch.set(doc(db, 'transactions', txId), {
-      id: txId,
-      userId: user.id,
+      id: txId, userId: user.id,
       username: user.name || user.displayName || 'Unknown',
       ign: user.ign || '',
-      type: 'refund',
-      amount: entryFee,
+      type: 'refund', amount: entryFee,
       desc: `Refund: ${matchData.title} (Match cancelled by ${adminName || 'Admin'})`,
-      matchId: matchId,
-      date: now,
-      status: 'completed',
+      matchId: matchId, date: now, status: 'completed',
     });
   }
 
   batch.update(matchRef, {
-    status: 'cancelled',
-    cancelledAt: now,
-    cancelledBy: adminName || 'Admin',
-    refundCount: refundCount,
-    refundTotal: refundedTotal,
+    status: 'cancelled', cancelledAt: now, cancelledBy: adminName || 'Admin',
+    refundCount: refundCount, refundTotal: refundedTotal,
   });
 
   await batch.commit();
@@ -307,7 +282,6 @@ export async function cancelMatchAndRefund(matchId, matchData, adminName) {
 
 export async function checkDuplicateTXID(txId) {
   if (!txId || txId.trim().length < 4) return false;
-
   const col = collection(db, 'addMoneyRequests');
   const q = query(col, where('txId', '==', txId.trim().toUpperCase()));
   const snap = await getDocs(q);
@@ -318,9 +292,6 @@ export async function checkDuplicateTXID(txId) {
 //  PHASE 1: ADMIN BALANCE ADJUST + TX LOG (1.9 + 1.10)
 // ══════════════════════════════════════
 
-// ═══ FIX: Made adminName optional with default fallback.
-// ═══ context.jsx calls this with only 3 args (userId, amount, reason)
-// ═══ so adminName was undefined, causing "undefined" in transaction desc.
 export async function adminAdjustBalance(userId, amount, reason, adminName) {
   const userRef = doc(db, 'users', userId);
   const userSnap = await getDoc(userRef);
@@ -334,17 +305,71 @@ export async function adminAdjustBalance(userId, amount, reason, adminName) {
 
   const txId = 'tx_admin_' + Date.now() + '_' + userId.slice(0, 8);
   await setDoc(doc(db, 'transactions', txId), {
-    id: txId,
-    userId: userId,
+    id: txId, userId: userId,
     username: userData.name || userData.displayName || 'Unknown',
     ign: userData.ign || '',
     type: amount >= 0 ? 'admin_add' : 'admin_deduct',
     amount: Math.abs(amount),
     desc: `Admin ${admin}: ${reason || 'Balance adjustment'} (${amount >= 0 ? 'Added' : 'Deducted'})`,
-    date: now,
-    status: 'completed',
-    adminName: admin,
+    date: now, status: 'completed', adminName: admin,
   });
 
   return Math.max(0, (userData.balance || 0) + amount);
 }
+
+// ════════════════════════════════════════
+//  PHASE 2: MULTI-DEVICE SYNC — New Functions
+// ════════════════════════════════════════
+
+// 2.1 — Write join entry to match doc in Firestore
+//  Called from context.jsx JOIN_MATCH instead of updateMatchInDb
+export async function addJoinToMatch(matchId, joinEntry) {
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists()) return;
+
+  const existing = matchSnap.data().joined || [];
+  await updateDoc(matchRef, {
+    joined: [...existing, joinEntry],
+    joinedCount: (matchSnap.data().joinedCount || 0) + 1,
+  });
+}
+
+// 2.2 — Write withdrawal request to Firestore
+//  Called from context.jsx WITHDRAW instead of only local state
+export async function addWithdrawalToCloud(withdrawalData) {
+  const wdRef = doc(db, 'withdrawals', withdrawalData.id);
+  await setDoc(wdRef, withdrawalData);
+}
+
+// 2.3 — Write activity log entry to Firestore
+//  Called from context.jsx LOG_ACTION instead of only local state
+export async function logActivityToCloud(logEntry) {
+  const logRef = doc(db, 'activityLog', logEntry.id);
+  await setDoc(logRef, logEntry);
+}
+
+// 2.4 — Generic transaction writer
+//  Used by deposit approval, withdrawal approval, etc.
+export async function addTransactionToCloud(txData) {
+  const txRef = doc(db, 'transactions', txData.id);
+  await setDoc(txRef, txData);
+}
+
+// 2.7 — Real-time match listener using onSnapshot
+//  Returns unsubscribe function to clean up listener
+//  Called once from AppProvider, dispatches BATCH_MATCH_UPDATE on every change
+export function subscribeToMatches(onUpdate) {
+  const matchesCol = collection(db, 'matches');
+  const q = query(matchesCol, orderBy('createdAt', 'desc'));
+  const unsubscribe = onSnapshot(q, (snap) => {
+    const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    onUpdate(results);
+  });
+  return unsubscribe;
+}
+
+// ════════════════════════════════════════
+//  PHASE 2.6: REMOVE ALL localStorage FALLBACKS
+//  (No code needed — handled in context.jsx by removing LS reads in JOIN/WITHDRAW/etc.)
+// ══════════════════════════════════════════

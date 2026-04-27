@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../context'
 import { formatTK, formatTKShort, calculateMatchEconomics, calculateResultPrize, calculateAllResultPrizes, getRoomUnlockCountdown, maxSlotsForMode, showToast } from '../utils'
 import { approveAddMoneyRequest, rejectAddMoneyRequest } from '../db'
+import { FF_MAPS, FF_MODES, FF_GAME_TYPES, KILL_REWARDS, RESULT_METHODS } from '../data'
 
 // ★ Inline fallback — remove this after updating utils.js
 function isTeamMode(mode) {
@@ -10,7 +11,6 @@ function isTeamMode(mode) {
 function modeColor(mode) {
   return { Solo: '#6c8cff', Duo: '#fbbf24', Squad: '#a78bfa', 'Clash Squad': '#f87171' }[mode] || '#6c8cff'
 }
-import { FF_MAPS, FF_MODES, FF_GAME_TYPES, KILL_REWARDS, RESULT_METHODS } from '../data'
 
 // ═══════════════════════════════════════
 //  PERMISSION MAP
@@ -66,6 +66,7 @@ const S = {
   btnGhost: { padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-muted, #888)', fontFamily: 'var(--font-heading)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 },
   btnDanger: { padding: '6px 12px', borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.12)', color: '#ef4444', fontFamily: 'var(--font-heading)', fontSize: 11, fontWeight: 600, cursor: 'pointer' },
   btnSuccess: { padding: '6px 12px', borderRadius: 8, border: 'none', background: 'rgba(34,197,94,0.12)', color: '#22c55e', fontFamily: 'var(--font-heading)', fontSize: 11, fontWeight: 600, cursor: 'pointer' },
+  btnWarning: { padding: '6px 12px', borderRadius: 8, border: 'none', background: 'rgba(251,191,36,0.12)', color: '#fbbf24', fontFamily: 'var(--font-heading)', fontSize: 11, fontWeight: 600, cursor: 'pointer' },
   table: { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' },
   th: { padding: '10px 12px', fontFamily: 'var(--font-heading)', fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #666)', letterSpacing: 1, textTransform: 'uppercase', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' },
   td: { padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: 13, wordBreak: 'break-word' },
@@ -417,7 +418,7 @@ function AdminRooms() {
   }
   // ═══ END PHASE 1.3 ═══
 
-  const activeMatches = matches.filter(m => m.status !== 'completed')
+  const activeMatches = matches.filter(m => m.status !== 'completed' && m.status !== 'cancelled')
 
   if (activeMatches.length === 0) {
     return (
@@ -498,7 +499,7 @@ function AdminRooms() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 700, color: isUnlocked ? '#22c55e' : '#fbbf24' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 10, fontWeight: 700, color: isUnlocked && !threshold.meets ? '#f87171' : isUnlocked ? '#22c55e' : '#fbbf24' }}>
                       {/* ═══ PHASE 1.5: Show BLOCKED if below threshold even when time-unlocked ═══ */}
                       {isUnlocked && !threshold.meets ? 'BLOCKED' : isUnlocked ? 'UNLOCKED' : (countdown || '—').replace('Unlocks in ', '')}
                     </div>
@@ -517,7 +518,7 @@ function AdminRooms() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: 6 }}>
-                      {m.status === 'upcoming' && (
+                      {(m.status === 'upcoming' || m.status === 'live') && (
                         <button style={{ ...S.btnDanger, fontSize: 10, padding: '6px 10px' }} onClick={() => setConfirmCancelId(m.id)}>
                           <i className="fa-solid fa-xmark"></i> Cancel
                         </button>
@@ -624,7 +625,7 @@ function AdminRooms() {
                         </>
                       ) : (
                         <>
-                          {m.status === 'upcoming' && (
+                          {(m.status === 'upcoming' || m.status === 'live') && (
                             <button style={{ ...S.btnDanger, fontSize: 10 }} onClick={() => setConfirmCancelId(m.id)}>
                               <i className="fa-solid fa-xmark"></i> Cancel
                             </button>
@@ -646,7 +647,7 @@ function AdminRooms() {
 }
 
 // ═══════════════════════════════════════
-//  4. RESULT PANEL — ★ UPGRADED: Team Name + Points
+//  4. RESULT PANEL — ★ UPGRADED: Team Name + Points + EDIT RESULT
 // ═══════════════════════════════════════
 function AdminResults() {
   const { state, dispatch } = useApp()
@@ -658,6 +659,9 @@ function AdminResults() {
   const [selectedId, setSelectedId] = useState('')
   const [method, setMethod] = useState('manual')
   const [players, setPlayers] = useState([{ ign: '', kills: 0, position: 1 }])
+  // ═══ PHASE 4.2: Edit result state ═══
+  const [editingResultId, setEditingResultId] = useState(null)
+  // ═══ END PHASE 4.2 ═══
 
   const selected = matches.find(m => m.id === selectedId)
   const teamMode = selected ? isTeamMode(selected.mode) : false
@@ -692,6 +696,39 @@ function AdminResults() {
   const removePlayer = (i) => { if (players.length > 1) setPlayers(p => p.filter((_, idx) => idx !== i)) }
   const updatePlayer = (i, k, v) => setPlayers(p => p.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
 
+  // ═══ PHASE 4.2: Edit result handler — loads existing data into form ═══
+  const handleEditResult = (matchId) => {
+    const match = matches.find(m => m.id === matchId)
+    if (!match || !match.result) return
+
+    setEditingResultId(matchId)
+    setSelectedId(matchId)
+    setMethod(match.result.method || 'manual')
+
+    if (match.result.method === 'manual' && match.result.players?.length > 0) {
+      setPlayers(match.result.players.map((p, i) => ({
+        ign: p.ign || '',
+        teamName: p.teamName || '',
+        points: p.points || 0,
+        kills: p.kills || 0,
+        position: p.position || (i + 1)
+      })))
+    } else {
+      setPlayers([emptyRow()])
+    }
+
+    // Scroll to top of form
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const cancelEdit = () => {
+    setEditingResultId(null)
+    setSelectedId('')
+    setMethod('manual')
+    setPlayers([emptyRow()])
+  }
+  // ═══ END PHASE 4.2 ═══
+
   const handleSubmit = () => {
     if (!selectedId) return showToast(dispatch, 'Select a match!', 'error')
     if (method === 'manual') {
@@ -705,12 +742,19 @@ function AdminResults() {
           matchedUserIds: members ? members.map(m => m.userId).filter(Boolean) : [],
         }
       })
-      dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'manual', players: enriched } })
+      dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'manual', players: enriched, isEdit: !!editingResultId } })
       // ═══ END PHASE 1.6 ═══
     } else {
-      dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'screenshot', players: [], screenshotUrl: null } })
+      dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'screenshot', players: [], screenshotUrl: null, isEdit: !!editingResultId } })
     }
-    adminAction(dispatch, 'Submitted result', selected?.title, `Results submitted for ${selected?.title}!`, 'success')
+    
+    // ═══ PHASE 4.2: Log edit vs new result ═══
+    const actionVerb = editingResultId ? 'Edited result' : 'Submitted result'
+    adminAction(dispatch, actionVerb, selected?.title, `${actionVerb} for ${selected?.title}!`, 'success')
+    
+    // Reset edit state after submit
+    setEditingResultId(null)
+    // ═══ END PHASE 4.2 ═══
     setPlayers([emptyRow()])
   }
 
@@ -723,6 +767,8 @@ function AdminResults() {
       ? [{ ign: '', teamName: '', points: 0, kills: 0, position: 1 }]
       : [{ ign: '', kills: 0, position: 1 }]
     )
+    // Clear edit state when manually changing match
+    setEditingResultId(null)
   }
   const onMethodChange = (id) => {
     setMethod(id)
@@ -736,6 +782,29 @@ function AdminResults() {
   return (
     <div style={S.panel}>
       <h1 style={S.title}><i className="fa-solid fa-clipboard-check" style={{ marginRight: 10, color: '#22c55e' }}></i>Match Results</h1>
+
+      {/* ═══ PHASE 4.2: Edit mode banner ═══ */}
+      {editingResultId && (
+        <div style={{
+          padding: '14px 18px', borderRadius: 12, marginBottom: 20,
+          background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <i className="fa-solid fa-pen-to-square" style={{ color: '#fbbf24', fontSize: 18, flexShrink: 0 }}></i>
+            <div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>Editing Results</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 2 }}>
+                Modifying results for: {selected?.title || 'Loading...'}
+              </div>
+            </div>
+          </div>
+          <button style={{ ...S.btnGhost, padding: '8px 14px', fontSize: 12, borderColor: 'rgba(251,191,36,0.3)', color: '#fbbf24' }} onClick={cancelEdit}>
+            <i className="fa-solid fa-xmark"></i> Cancel
+          </button>
+        </div>
+      )}
+      {/* ═══ END PHASE 4.2 ═══ */}
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         {RESULT_METHODS.map(rm => (
@@ -857,7 +926,19 @@ function AdminResults() {
                 </div>
               )
             })}
-            <button type="button" style={{ ...S.btnPrimary, marginTop: 12 }} onClick={handleSubmit}><i className="fa-solid fa-check-double"></i> Submit Results</button>
+            {/* ═══ PHASE 4.2: Submit/Update button + Cancel edit ═══ */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              {editingResultId && (
+                <button type="button" style={{ ...S.btnGhost, flex: 1, justifyContent: 'center', padding: '12px 0' }} onClick={cancelEdit}>
+                  <i className="fa-solid fa-xmark"></i> Cancel
+                </button>
+              )}
+              <button type="button" style={{ ...S.btnPrimary, flex: editingResultId ? 2 : 1, background: editingResultId ? 'linear-gradient(135deg, #fbbf24, #f59e0b)' : 'linear-gradient(135deg, #6c8cff, #a78bfa)', boxShadow: editingResultId ? '0 4px 20px rgba(251,191,36,0.3)' : '0 4px 20px rgba(108,140,255,0.3)' }} onClick={handleSubmit}>
+                <i className={`fa-solid ${editingResultId ? 'fa-pen-to-square' : 'fa-check-double'}`}></i> 
+                {editingResultId ? 'Update Results' : 'Submit Results'}
+              </button>
+            </div>
+            {/* ═══ END PHASE 4.2 ═══ */}
           </div>
         )}
 
@@ -943,7 +1024,17 @@ function AdminResults() {
                     <div style={{ fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: '#fff' }}>{m.title}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted, #666)' }}>{m.mode} • {m.map} • {m.result?.method === 'screenshot' ? 'Screenshot' : 'Manual'}</div>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-display)', padding: '3px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', color: '#22c55e', flexShrink: 0 }}>SUBMITTED</span>
+                  {/* ═══ PHASE 4.2: SUBMITTED badge + EDIT button ═══ */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-display)', padding: '3px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>SUBMITTED</span>
+                    <button 
+                      style={{ ...S.btnWarning, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      onClick={() => handleEditResult(m.id)}
+                    >
+                      <i className="fa-solid fa-pen" style={{ fontSize: 9 }}></i> Edit
+                    </button>
+                  </div>
+                  {/* ═══ END PHASE 4.2 ═══ */}
                 </div>
                 {m.result?.players?.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -970,7 +1061,7 @@ function AdminResults() {
 }
 
 // ═══════════════════════════════════════
-//  5. USERS PANEL
+//  5. USERS PANEL — ★ UPGRADED: Duplicate IGN Detection
 // ═══════════════════════════════════════
 function AdminUsers() {
   const { state, dispatch } = useApp()
@@ -981,17 +1072,68 @@ function AdminUsers() {
   const currentUserId = state.currentUser?.id || state.currentUserId
   // ═══ END PHASE 1.9 ═══
 
+  // ═══ PHASE 7.8: Duplicate IGN detection ═══
+  const duplicateIGNs = useMemo(() => {
+    const ignCounts = {}
+    users.forEach(u => {
+      const ign = (u.ign || '').toLowerCase().trim()
+      if (ign) ignCounts[ign] = (ignCounts[ign] || 0) + 1
+    })
+    return new Set(Object.keys(ignCounts).filter(ign => ignCounts[ign] > 1))
+  }, [users])
+
+  const isDuplicateIGN = (user) => {
+    if (!user.ign) return false
+    return duplicateIGNs.has(user.ign.toLowerCase().trim())
+  }
+
+  const getDuplicateCount = (user) => {
+    if (!user.ign) return 0
+    const ign = user.ign.toLowerCase().trim()
+    return users.filter(u => (u.ign || '').toLowerCase().trim() === ign).length
+  }
+  // ═══ END PHASE 7.8 ═══
+
   if (mobile) {
     return (
       <div style={S.panel}>
         <h1 style={S.title}><i className="fa-solid fa-users-gear" style={{ marginRight: 10, color: '#00f0ff' }}></i>User Management</h1>
+        
+        {/* ═══ PHASE 7.8: Duplicate IGN warning banner (mobile) ═══ */}
+        {duplicateIGNs.size > 0 && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 12, marginBottom: 16,
+            background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.15)',
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+          }}>
+            <i className="fa-solid fa-triangle-exclamation" style={{ color: '#fbbf24', fontSize: 16, marginTop: 2, flexShrink: 0 }}></i>
+            <div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 600, color: '#fbbf24', marginBottom: 3 }}>
+                Duplicate IGNs Detected ({duplicateIGNs.size})
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted, #888)', lineHeight: 1.5 }}>
+                {[...duplicateIGNs].join(', ')} — Possible multi-accounting
+              </div>
+            </div>
+          </div>
+        )}
+        {/* ═══ END PHASE 7.8 ═══ */}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {users.map(u => {
             // ═══ PHASE 1.9: Self-check flag ═══
             const isSelf = u.id === currentUserId
-            // ═══ END PHASE 1.9 ═══
+            // ═══ PHASE 7.8: Duplicate IGN check ═══
+            const hasDupIGN = isDuplicateIGN(u)
+            const dupCount = getDuplicateCount(u)
+            // ═══ END PHASE 1.9 + 7.8 ═══
             return (
-              <div key={u.id} style={S.mCard}>
+              <div key={u.id} style={{
+                ...S.mCard,
+                // ═══ PHASE 7.8: Yellow border for duplicate IGN ═══
+                borderLeft: hasDupIGN ? '3px solid #fbbf24' : '3px solid transparent',
+                // ═══ END PHASE 7.8 ═══
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: u.role === 'owner' ? 'rgba(251,191,36,0.15)' : u.role === 'admin' ? 'rgba(239,68,68,0.15)' : 'rgba(108,140,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
                     {(u.name || u.displayName || u.username || '?').charAt(0)}
@@ -1004,7 +1146,18 @@ function AdminUsers() {
                         {u.role === 'owner' ? 'OWNER' : u.role === 'admin' ? 'ADMIN' : 'USER'}
                       </span>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted, #666)' }}>@{u.username} • IGN: {u.ign || '—'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted, #666)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>@{u.username}</span>
+                      {/* ═══ PHASE 7.8: Duplicate IGN badge ═══ */}
+                      {hasDupIGN && (
+                        <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 8, fontWeight: 700, background: 'rgba(251,191,36,0.15)', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <i className="fa-solid fa-copy" style={{ fontSize: 7 }}></i>
+                          IGN: {u.ign} ({dupCount}x)
+                        </span>
+                      )}
+                      {!hasDupIGN && <span>IGN: {u.ign || '—'}</span>}
+                      {/* ═══ END PHASE 7.8 ═══ */}
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
@@ -1053,6 +1206,42 @@ function AdminUsers() {
   return (
     <div style={S.panel}>
       <h1 style={S.title}><i className="fa-solid fa-users-gear" style={{ marginRight: 10, color: '#00f0ff' }}></i>User Management</h1>
+      
+      {/* ═══ PHASE 7.8: Duplicate IGN warning banner (desktop) ═══ */}
+      {duplicateIGNs.size > 0 && (
+        <div style={{
+          padding: '14px 18px', borderRadius: 12, marginBottom: 20,
+          background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.15)',
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+        }}>
+          <i className="fa-solid fa-triangle-exclamation" style={{ color: '#fbbf24', fontSize: 18, marginTop: 2, flexShrink: 0 }}></i>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: '#fbbf24', marginBottom: 4 }}>
+              <i className="fa-solid fa-copy" style={{ marginRight: 6, fontSize: 12 }}></i>
+              Duplicate IGNs Detected ({duplicateIGNs.size})
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', lineHeight: 1.5, marginBottom: 8 }}>
+              These IGNs are used by multiple accounts — possible multi-accounting:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {[...duplicateIGNs].map(ign => (
+                <span key={ign} style={{
+                  padding: '4px 10px', borderRadius: 6, fontSize: 11,
+                  background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)',
+                  color: '#fbbf24', fontFamily: 'var(--font-display)', fontWeight: 700,
+                }}>
+                  {ign}
+                  <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-muted, #888)', marginLeft: 4 }}>
+                    ({users.filter(u => (u.ign || '').toLowerCase().trim() === ign).length} accounts)
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ═══ END PHASE 7.8 ═══ */}
+
       <div style={{ ...S.card }}>
         <table style={S.table}>
           <thead>
@@ -1062,9 +1251,12 @@ function AdminUsers() {
             {users.map(u => {
               // ═══ PHASE 1.9: Self-check flag (desktop) ═══
               const isSelf = u.id === currentUserId
-              // ═══ END PHASE 1.9 ═══
+              // ═══ PHASE 7.8: Duplicate IGN check (desktop) ═══
+              const hasDupIGN = isDuplicateIGN(u)
+              const dupCount = getDuplicateCount(u)
+              // ═══ END PHASE 1.9 + 7.8 ═══
               return (
-                <tr key={u.id}>
+                <tr key={u.id} style={hasDupIGN ? { background: 'rgba(251,191,36,0.03)' } : {}}>
                   <td style={S.td}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: u.role === 'owner' ? 'rgba(251,191,36,0.15)' : u.role === 'admin' ? 'rgba(239,68,68,0.15)' : 'rgba(108,140,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
@@ -1079,7 +1271,16 @@ function AdminUsers() {
                       </div>
                     </div>
                   </td>
-                  <td style={{ ...S.td, fontFamily: 'var(--font-display)', color: 'var(--text-muted, #888)', fontSize: 12 }}>{u.ign || '—'}</td>
+                  <td style={{ ...S.td, fontFamily: 'var(--font-display)', color: hasDupIGN ? '#fbbf24' : 'var(--text-muted, #888)', fontSize: 12 }}>
+                    {/* ═══ PHASE 7.8: Highlight duplicate IGNs in table ═══ */}
+                    {u.ign || '—'}
+                    {hasDupIGN && (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontSize: 8, fontWeight: 700, background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
+                        <i className="fa-solid fa-copy" style={{ fontSize: 7 }}></i> {dupCount}x
+                      </div>
+                    )}
+                    {/* ═══ END PHASE 7.8 ═══ */}
+                  </td>
                   <td style={S.td}>
                     <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-heading)', background: u.role === 'owner' ? 'rgba(251,191,36,0.12)' : u.role === 'admin' ? 'rgba(239,68,68,0.1)' : 'rgba(108,140,255,0.08)', color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#ef4444' : '#6c8cff' }}>
                       {u.role === 'owner' ? 'OWNER' : u.role === 'admin' ? 'ADMIN' : 'USER'}
@@ -1497,7 +1698,7 @@ function AdminPaymentSettings() {
           <h3 style={S.cardHeaderTitle}>User Preview (Add Money Modal)</h3>
         </div>
         <div style={{ padding: 18, textAlign: 'center' }}>
-          <div style={{ padding: '18px', borderRadius: 14, background: 'rgba(0,240,255,0.06)', border: '1px solid rgba(0,240,255,0.12)' }}>
+          <div style={{ padding: '18px', borderRadius: 14, background: 'rgba(0,240,255,0.04)', border: '1px solid rgba(0,240,255,0.08)' }}>
             <div style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-heading)', letterSpacing: 1, textTransform: 'uppercase', color: 'var(--text-muted, #777)', marginBottom: 6 }}>
               <i className="fa-solid fa-paper-plane" style={{ marginRight: 4 }}></i>Send Money To
             </div>
