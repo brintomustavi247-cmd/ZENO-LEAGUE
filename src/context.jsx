@@ -1,4 +1,4 @@
-import { fetchUser, createUser, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest, distributePrizes, cancelMatchAndRefund, checkDuplicateTXID, adminAdjustBalance, addJoinToMatch, addWithdrawalToCloud, logActivityToCloud, addTransactionToCloud, subscribeToMatches } from './db'
+import { fetchUser, createUser, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest, distributePrizes, cancelMatchAndRefund, checkDuplicateTXID, adminAdjustBalance, addJoinToMatch, addWithdrawalToCloud, logActivityToCloud, addTransactionToCloud, subscribeToMatches, subscribeToSettings } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
 import { auth } from './firebase'
@@ -879,19 +879,14 @@ export function AppProvider({ children }) {
     return () => unsubscribe()
   }, [dispatch])
 
-  // 🚀 Load settings from Firestore on startup
+  // 🚀 PHASE 3.1: Real-time settings listener — fixes "Not set by admin" bug
   useEffect(() => {
-    async function loadSettings() {
-      try {
-        const settings = await getSettings()
-        if (settings && (settings.bKash || settings.Nagad || settings.Rocket)) {
-          dispatch({ type: 'LOAD_SETTINGS', payload: settings })
-        }
-      } catch (err) {
-        console.error("Failed to load settings from cloud:", err)
+    const unsubscribe = subscribeToSettings((settings) => {
+      if (settings) {
+        dispatch({ type: 'LOAD_SETTINGS', payload: settings })
       }
-    }
-    loadSettings()
+    })
+    return () => unsubscribe()
   }, [])
 
   // 🚀 Load pending add money requests (admin/owner only)

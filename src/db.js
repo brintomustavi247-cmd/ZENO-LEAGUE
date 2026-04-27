@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, orderBy, deleteDoc, writeBatch } from 'firebase/firestore';
+import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest, distributePrizes, cancelMatchAndRefund, checkDuplicateTXID, adminAdjustBalance, addJoinToMatch, addWithdrawalToCloud, logActivityToCloud, addTransactionToCloud, subscribeToMatches, subscribeToSettings } from './db'
 import { db } from './firebase';
 
 // ══════════════════════════════════════
@@ -373,3 +373,16 @@ export function subscribeToMatches(onUpdate) {
 //  PHASE 2.6: REMOVE ALL localStorage FALLBACKS
 //  (No code needed — handled in context.jsx by removing LS reads in JOIN/WITHDRAW/etc.)
 // ══════════════════════════════════════════
+// ════════════════════════════════════════
+//  PHASE 3: REAL-TIME SETTINGS LISTENER (Fixes "Not set by admin" bug)
+// ════════════════════════════════════════
+
+export function subscribeToSettings(onUpdate) {
+  const settingsRef = doc(db, 'settings', 'global');
+  const unsubscribe = onSnapshot(settingsRef, (snap) => {
+    if (snap.exists()) {
+      onUpdate(snap.data());
+    }
+  });
+  return unsubscribe;
+}
