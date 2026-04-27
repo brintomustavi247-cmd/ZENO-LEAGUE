@@ -1,4 +1,4 @@
-import { fetchUser, createUser, fetchMatches, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest, distributePrizes, cancelMatchAndRefund, checkDuplicateTXID, adminAdjustBalance } from './db'
+import { fetchUser, createUser, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest, distributePrizes, cancelMatchAndRefund, checkDuplicateTXID, adminAdjustBalance, addJoinToMatch, addWithdrawalToCloud, logActivityToCloud, addTransactionToCloud, subscribeToMatches } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost } from './utils'
 import { auth } from './firebase'
@@ -392,7 +392,8 @@ function reducer(state, action) {
         },
         // ═══ END PHASE 1.3 + 1.6 ═══
       }
-      updateMatchInDb(matchId, updatedMatch).catch(err => console.error("Cloud match sync failed:", err))
+        addJoinToMatch(matchId, joinedEntry).catch(err => console.error("Cloud join sync failed:", err))
+      addTransactionToCloud({ id: 'tx' + Date.now(), type: 'join', amount: cost, desc: teamName ? `Joined ${match.title} (Team: ${teamName})` : `Joined ${match.title}`, date: getTimeStr(0), status: 'completed', userId: state.currentUser.id, username: state.currentUser.name || state.currentUser.displayName, ign: state.currentUser.ign || '' }).catch(() => {})
 
       return {
         ...state,
@@ -634,6 +635,8 @@ function reducer(state, action) {
         amount: action.payload.amount, method: action.payload.method, account: action.payload.account,
         createdAt: getTimeStr(0), status: 'pending',
       }
+            addWithdrawalToCloud(wd).catch(err => console.error("Cloud withdraw sync failed:", err))
+      addTransactionToCloud({ id: 'tx' + Date.now(), type: 'withdraw', amount: action.payload.amount, desc: `Withdrawal to ${action.payload.method}`, date: getTimeStr(0), status: 'pending', userId: state.currentUser.id, username: state.currentUser.name || state.currentUser.displayName, ign: state.currentUser.ign || '' }).catch(() => {})
       return {
         ...state,
         currentUser: { ...state.currentUser, balance: state.currentUser.balance - action.payload.amount },
@@ -807,6 +810,7 @@ function reducer(state, action) {
         details: action.payload.details || null,
         createdAt: getTimeStr(0),
       }
+            logActivityToCloud(entry).catch(err => console.error("Cloud log sync failed:", err))
       return {
         ...state,
         activityLog: [entry, ...state.activityLog].slice(0, 200),
@@ -906,19 +910,12 @@ export function AppProvider({ children }) {
     return () => clearInterval(interval)
   }, [isAdmin])
 
-  // 🚀 CLOUD SYNC: Fetch matches from Firestore on startup
+  // 🚀 PHASE 2.7: Real-time match listener
   useEffect(() => {
-    async function loadCloudMatches() {
-      try {
-        const cloudMatches = await fetchMatches()
-        if (cloudMatches.length > 0) {
-          dispatch({ type: 'BATCH_MATCH_UPDATE', payload: cloudMatches })
-        }
-      } catch (err) {
-        console.error("Failed to load matches from cloud:", err)
-      }
-    }
-    loadCloudMatches()
+    const unsubscribe = subscribeToMatches((cloudMatches) => {
+      dispatch({ type: 'BATCH_MATCH_UPDATE', payload: cloudMatches })
+    })
+    return () => unsubscribe()
   }, [])
 
   // ══════════════════════════════════════════
@@ -1018,20 +1015,12 @@ export function AppProvider({ children }) {
 
   // Persist to localStorage
   useEffect(() => {
-    saveToLS({
+       saveToLS({
       isLoggedIn: state.isLoggedIn,
       currentUser: state.currentUser,
-      transactions: state.transactions,
-      adminPayments: state.adminPayments,
       language: state.language,
-      activityLog: state.activityLog,
-      pendingWithdrawals: state.pendingWithdrawals,
-      matches: state.matches,
-      users: state.users,
-      notifications: state.notifications,
     })
-  }, [state.isLoggedIn, state.currentUser, state.transactions, state.adminPayments, state.language, state.activityLog, state.pendingWithdrawals, state.matches, state.users, state.notifications])
-
+ }, [state.isLoggedIn, state.currentUser, state.language])
   // Auto phase detection
   useEffect(() => {
     const now = Date.now()
