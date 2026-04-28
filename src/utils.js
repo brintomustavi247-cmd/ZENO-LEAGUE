@@ -344,3 +344,43 @@ export function getRoomUnlockMs(match) {
   if (!start) return Infinity
   return start - 10 * 60 * 1000 - Date.now()
 }
+// ====================================================================
+// 🏆 ELO RANKING ENGINE
+// ====================================================================
+
+/**
+ * Calculate ELO change for a Battle Royale match.
+ * 1st place = +max, Last place = -max
+ */
+export function calculateELO(playerElo, avgOpponentElo, placement, totalPlayers) {
+  const K = 32
+  const expectedScore = 1 / (1 + Math.pow(10, (avgOpponentElo - playerElo) / 400))
+  const actualScore = (totalPlayers - placement) / (totalPlayers - 1)
+  const change = Math.round(K * (actualScore - expectedScore))
+  return Math.max(-50, Math.min(50, change)) // Cap at +/- 50
+}
+
+/**
+ * Get tier object based on ELO
+ */
+export function getEloTier(elo) {
+  if (elo === undefined || elo === null) return { name: 'Unranked', color: '#555555', icon: '⚪', min: 0, max: 999 }
+  if (elo >= 2200) return { name: 'Grandmaster', color: '#FF6B6B', icon: '🔥', min: 2200, max: 9999 }
+  if (elo >= 2000) return { name: 'Heroic', color: '#A78BFA', icon: '💀', min: 2000, max: 2199 }
+  if (elo >= 1800) return { name: 'Diamond', color: '#B9F2FF', icon: '💎', min: 1800, max: 1999 }
+  if (elo >= 1600) return { name: 'Platinum', color: '#61CDFF', icon: '🥈', min: 1600, max: 1799 }
+  if (elo >= 1400) return { name: 'Gold', color: '#FFD700', icon: '🥇', min: 1400, max: 1599 }
+  if (elo >= 1200) return { name: 'Silver', color: '#C0C0C0', icon: '🥉', min: 1200, max: 1399 }
+  if (elo >= 1000) return { name: 'Bronze', color: '#CD7F32', icon: '🛡️', min: 1000, max: 1199 }
+  return { name: 'Unranked', color: '#555555', icon: '⚪', min: 0, max: 999 }
+}
+
+/**
+ * Get progress percentage to next tier (0-100%)
+ */
+export function getTierProgress(elo) {
+  const tier = getEloTier(elo)
+  const progress = elo - tier.min
+  const range = tier.max - tier.min
+  return Math.min(100, Math.round((progress / range) * 100))
+}

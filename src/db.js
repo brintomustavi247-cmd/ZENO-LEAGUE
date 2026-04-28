@@ -1,4 +1,5 @@
 import { db } from './firebase';
+import { calculateELO } from './utils';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, getDocs, query, where, writeBatch, orderBy } from 'firebase/firestore';
 
 // ══════════════════════════════════════
@@ -16,7 +17,7 @@ export async function createUser(uid, data) {
   const userRef = doc(db, 'users', uid);
   await setDoc(userRef, {
     ...data,
-    balance: 0, kills: 0, wins: 0, matchesPlayed: 0, earnings: 0,
+    balance: 0, kills: 0, wins: 0, matchesPlayed: 0, earnings: 0, elo: 1000,
     banned: false, status: 'active', createdAt: new Date().toISOString()
   });
 }
@@ -140,7 +141,7 @@ export async function rejectAddMoneyRequest(requestId) {
 }
 
 // ══════════════════════════════════════
-//  PHASE 1: PRIZE DISTRIBUTION (1.1 + 1.2)
+//  PHASE 1: PRIZE DISTRIBUTION (1.1 + 1.2) + ELO ENGINE
 // ══════════════════════════════════════
 
 export async function distributePrizes(matchId, matchData, resultPlayers, perKill) {
@@ -157,6 +158,10 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
       userMap[(u.ign || '').toLowerCase()] = u;
     });
   }
+
+  // Pre-calculate average ELO of all registered players in this match
+  const allPlayerElos = resultPlayers.map(p => userMap[(p.ign || '').trim().toLowerCase()]?.elo || 1000);
+  const avgMatchElo = allPlayerElos.length > 0 ? (allPlayerElos.reduce((a, b) => a + b, 0) / allPlayerElos.length) : 1000;
 
   const batch = writeBatch(db);
   let totalDistributed = 0;
@@ -192,10 +197,17 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
     }
 
     const currentBalance = user.balance || 0;
+    const currentElo = user.elo || 1000;
+    
+    // ELO Calculation
+    const eloChange = calculateELO(currentElo, avgMatchElo, player.position, resultPlayers.length);
+    const newElo = currentElo + eloChange;
+
     batch.update(doc(db, 'users', user.id), {
       balance: currentBalance + totalPrize,
       wins: (user.wins || 0) + (player.position === 1 ? 1 : 0),
       earnings: (user.earnings || 0) + totalPrize,
+      elo: newElo, // <--- SAVES ELO TO FIRESTORE
     });
 
     const txId = 'tx_win_' + Date.now() + '_' + user.id.slice(0, 8);
@@ -206,6 +218,7 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
     else if (player.position === 3) desc += ' (🥉 3rd Place)';
     else desc += ` (#${player.position} Place)`;
     if (killPrize > 0) desc += ` + ${kills} kills (${killPrize} TK)`;
+    desc += ` [ELO ${eloChange >= 0 ? '+' : ''}${eloChange}]`;
 
     batch.set(doc(db, 'transactions', txId), {
       id: txId, userId: user.id,
@@ -215,6 +228,7 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
       matchId: matchId, date: now, status: 'completed',
       position: player.position, kills: kills,
       positionPrize: positionPrize, killPrize: killPrize,
+      eloChange: eloChange,
     });
   });
 
@@ -317,17 +331,14 @@ export async function adminAdjustBalance(userId, amount, reason, adminName) {
   return Math.max(0, (userData.balance || 0) + amount);
 }
 
-// ════════════════════════════════════════
-//  PHASE 2: MULTI-DEVICE SYNC — New Functions
-// ════════════════════════════════════════
+// ══════════════════════════════════════
+//  PHASE 2: MULTI-DEVICE SYNC
+// ══════════════════════════════════════
 
-// 2.1 — Write join entry to match doc in Firestore
-//  Called from context.jsx JOIN_MATCH instead of updateMatchInDb
 export async function addJoinToMatch(matchId, joinEntry) {
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
   if (!matchSnap.exists()) return;
-
   const existing = matchSnap.data().joined || [];
   await updateDoc(matchRef, {
     joined: [...existing, joinEntry],
@@ -335,30 +346,21 @@ export async function addJoinToMatch(matchId, joinEntry) {
   });
 }
 
-// 2.2 — Write withdrawal request to Firestore
-//  Called from context.jsx WITHDRAW instead of only local state
 export async function addWithdrawalToCloud(withdrawalData) {
   const wdRef = doc(db, 'withdrawals', withdrawalData.id);
   await setDoc(wdRef, withdrawalData);
 }
 
-// 2.3 — Write activity log entry to Firestore
-//  Called from context.jsx LOG_ACTION instead of only local state
 export async function logActivityToCloud(logEntry) {
   const logRef = doc(db, 'activityLog', logEntry.id);
   await setDoc(logRef, logEntry);
 }
 
-// 2.4 — Generic transaction writer
-//  Used by deposit approval, withdrawal approval, etc.
 export async function addTransactionToCloud(txData) {
   const txRef = doc(db, 'transactions', txData.id);
   await setDoc(txRef, txData);
 }
 
-// 2.7 — Real-time match listener using onSnapshot
-//  Returns unsubscribe function to clean up listener
-//  Called once from AppProvider, dispatches BATCH_MATCH_UPDATE on every change
 export function subscribeToMatches(onUpdate) {
   const matchesCol = collection(db, 'matches');
   const q = query(matchesCol, orderBy('createdAt', 'desc'));
@@ -369,37 +371,26 @@ export function subscribeToMatches(onUpdate) {
   return unsubscribe;
 }
 
-// ════════════════════════════════════════
-//  PHASE 2.6: REMOVE ALL localStorage FALLBACKS
-//  (No code needed — handled in context.jsx by removing LS reads in JOIN/WITHDRAW/etc.)
-// ══════════════════════════════════════════
-// ════════════════════════════════════════
-//  PHASE 3: REAL-TIME SETTINGS LISTENER (Fixes "Not set by admin" bug)
-// ════════════════════════════════════════
+// ══════════════════════════════════════
+//  PHASE 3: REAL-TIME LISTENERS
+// ══════════════════════════════════════
 
 export function subscribeToSettings(onUpdate) {
   const settingsRef = doc(db, 'settings', 'global');
   const unsubscribe = onSnapshot(settingsRef, (snap) => {
-    if (snap.exists()) {
-      onUpdate(snap.data());
-    }
-  });
-  return unsubscribe;
-}
-export function subscribeToUser(uid, onUpdate) {
-  const userRef = doc(db, 'users', uid);
-  const unsubscribe = onSnapshot(userRef, (snap) => {
-    if (snap.exists()) {
-      onUpdate(snap.data());
-    }
+    if (snap.exists()) onUpdate(snap.data());
   });
   return unsubscribe;
 }
 
-// ══════════════════════════════════════
-//  REAL-TIME WITHDRAWAL LISTENER
-//  Admin sees withdrawals instantly — no polling needed
-// ══════════════════════════════════════
+export function subscribeToUser(uid, onUpdate) {
+  const userRef = doc(db, 'users', uid);
+  const unsubscribe = onSnapshot(userRef, (snap) => {
+    if (snap.exists()) onUpdate(snap.data());
+  });
+  return unsubscribe;
+}
+
 export function subscribeToWithdrawals(onUpdate) {
   const wdCol = collection(db, 'withdrawals');
   const q = query(wdCol, orderBy('createdAt', 'desc'));
@@ -410,16 +401,10 @@ export function subscribeToWithdrawals(onUpdate) {
   return unsubscribe;
 }
 
-// ══════════════════════════════════════
-//  WITHDRAWAL APPROVE/REJECT — writes to Firestore
-//  This triggers real-time listeners → admin + user update instantly
-// ══════════════════════════════════════
-
 export async function approveWithdrawalInCloud(wdId, userId, amount) {
   const now = new Date().toISOString()
   const wdRef = doc(db, 'withdrawals', wdId)
   await updateDoc(wdRef, { status: 'approved', processedAt: now })
-
   const txId = 'tx_wd_ok_' + Date.now()
   await setDoc(doc(db, 'transactions', txId), {
     id: txId, userId, amount,
@@ -428,18 +413,17 @@ export async function approveWithdrawalInCloud(wdId, userId, amount) {
     date: now, createdAt: now,
   })
 }
+
 export async function rejectWithdrawalInCloud(wdId, userId, amount) {
   const now = new Date().toISOString()
   const wdRef = doc(db, 'withdrawals', wdId)
   await updateDoc(wdRef, { status: 'rejected', processedAt: now })
-
   const userRef = doc(db, 'users', userId)
   const userSnap = await getDoc(userRef)
   if (userSnap.exists()) {
     const userData = userSnap.data()
     await updateDoc(userRef, { balance: (userData.balance || 0) + amount })
   }
-
   const txId = 'tx_wd_rj_' + Date.now()
   await setDoc(doc(db, 'transactions', txId), {
     id: txId, userId, amount,
@@ -449,14 +433,6 @@ export async function rejectWithdrawalInCloud(wdId, userId, amount) {
   })
 }
 
-// ══════════════════════════════════════
-//  REAL-TIME USER TRANSACTIONS
-//  User sees their transaction history update instantly
-// ══════════════════════════════════════
-
-// ══════════════════════════════════════
-//  ALL USERS — for leaderboard
-// ══════════════════════════════════════
 export function subscribeToAllUsers(onUpdate) {
   const usersCol = collection(db, 'users')
   const q = query(usersCol, orderBy('earnings', 'desc'))
@@ -472,7 +448,6 @@ export function subscribeToUserTransactions(uid, onUpdate) {
   const q = query(txCol, where('userId', '==', uid))
   const unsubscribe = onSnapshot(q, (snap) => {
     const results = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    // Sort by date descending on client-side to avoid needing composite index
     results.sort((a, b) => {
       const dateA = new Date(a.date || 0).getTime()
       const dateB = new Date(b.date || 0).getTime()
