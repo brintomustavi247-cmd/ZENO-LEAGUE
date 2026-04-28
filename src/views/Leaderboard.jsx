@@ -4,27 +4,31 @@ import { formatTK } from '../utils'
 
 export default function Leaderboard() {
   const { state } = useApp()
-  const { users, standings, currentUser } = state
-  const [tab, setTab] = useState('standings')
+  const { users, currentUser } = state
+  const [tab, setTab] = useState('earnings')
 
   if (!currentUser) return null
 
   const activeUsers = users.filter(u => u.ign && !u.banned && u.role !== 'owner' && u.role !== 'admin')
 
   const sortedPlayers = (() => {
-    const s = [...activeUsers].sort((a, b) => (b.earnings || 0) - (a.earnings || 0))
-    return tab === 'wins' ? [...activeUsers].sort((a, b) => (b.wins || 0) - (a.wins || 0))
-      : tab === 'kills' ? [...activeUsers].sort((a, b) => (b.kills || 0) - (a.kills || 0))
-      : s
+    if (tab === 'wins') return [...activeUsers].sort((a, b) => (b.wins || 0) - (a.wins || 0))
+    if (tab === 'kills') return [...activeUsers].sort((a, b) => (b.kills || 0) - (a.kills || 0))
+    return [...activeUsers].sort((a, b) => (b.earnings || 0) - (a.earnings || 0))
   })()
+
+  const getValue = (u) => {
+    if (tab === 'wins') return `${u.wins || 0} W`
+    if (tab === 'kills') return `${u.kills || 0} K`
+    return formatTK(u.earnings || 0)
+  }
 
   const podiumPlayers = sortedPlayers.slice(0, 3).map(u => ({
     ...u,
-    xp: tab === 'earnings' ? formatTK(u.earnings || 0) : tab === 'wins' ? `${u.wins || 0} W` : `${u.kills || 0} K`
+    xp: getValue(u),
   }))
 
   const hasPodium = podiumPlayers.length === 3
-
   const restList = sortedPlayers.slice(3)
 
   const userPlayerRank = sortedPlayers.findIndex(u => u.id === currentUser.id)
@@ -96,7 +100,7 @@ export default function Leaderboard() {
                 transition: 'opacity 0.2s ease',
               }}
             >
-              {t}
+              {t.label}
             </button>
           )
         })}
@@ -249,9 +253,10 @@ export default function Leaderboard() {
 
         {/* Rows */}
         {restList.map((item, idx) => {
-          const rank = tab === 'players' ? idx + 4 : idx + 4
+          const rank = idx + 4
           const isMe = item.id === currentUser.id
-          const isTop3 = false
+          const matchesPlayed = item.matchesPlayed || 0
+          const winRate = matchesPlayed > 0 ? Math.round(((item.wins || 0) / matchesPlayed) * 100) : 0
 
           return (
             <div key={item.id || item.teamName} style={{
@@ -272,32 +277,23 @@ export default function Leaderboard() {
 
               {/* Player */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, overflow: 'hidden' }}>
-                {isMe ? (
-                  <div style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    background: '#2a2a2c', border: '1px solid #61cdff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'Lexend', sans-serif", fontSize: 11, fontWeight: 700, color: '#61cdff',
-                    flexShrink: 0,
-                  }}>
-                    {(currentUser?.ign || 'Y')[0].toUpperCase()}
-                  </div>
-                ) : (
-                  <div style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    background: '#2a2a2c', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'Lexend', sans-serif", fontSize: 10, fontWeight: 700, color: '#555555',
-                  }}>
-                    {(item.name || item.teamName || '?')[0].toUpperCase()}
-                  </div>
-                )}
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: '#2a2a2c',
+                  border: isMe ? '1px solid #61cdff' : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: "'Lexend', sans-serif", fontSize: isMe ? 11 : 10, fontWeight: 700,
+                  color: isMe ? '#61cdff' : '#555555',
+                  flexShrink: 0,
+                }}>
+                  {(isMe ? (currentUser?.ign || 'Y') : (item.name || item.teamName || '?'))[0].toUpperCase()}
+                </div>
                 <span style={{
                   fontFamily: "'Lexend', sans-serif", fontSize: 13, fontWeight: 600,
                   color: isMe ? '#61cdff' : '#e5e1e4',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
-                  {isMe ? `${currentUser?.ign || 'You'} ` : (item.name || item.teamName)}
+                  {isMe ? (currentUser?.ign || 'You') : (item.name || item.teamName)}
                   {isMe && (
                     <span style={{
                       fontSize: 9, fontWeight: 700, color: '#0e0e10',
@@ -315,7 +311,7 @@ export default function Leaderboard() {
                 textAlign: 'center',
                 fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: '#555555',
               }}>
-                {tab === 'players' ? (item.matchesPlayed || 0) : (item.played || 0)}
+                {matchesPlayed}
               </div>
 
               {/* Win Rate */}
@@ -323,10 +319,7 @@ export default function Leaderboard() {
                 textAlign: 'center',
                 fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: '#555555',
               }}>
-                {tab === 'players'
-                  ? `${Math.round((item.wins / (item.matchesPlayed || 1)) * 100)}%`
-                  : `${Math.round(((item.wins || 0) / (item.played || 1)) * 100)}%`
-                }
+                {winRate}%
               </div>
 
               {/* Score */}
@@ -363,7 +356,7 @@ export default function Leaderboard() {
               #{userRank}
             </span>
             <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: '#e5e1e4' }}>
-              {podiumPlayers[userPlayerRank]?.xp || 'N/A'}
+              {getValue(currentUser)}
             </span>
             <span style={{
               fontSize: 10, fontWeight: 700, color: '#0e0e0e',
@@ -377,83 +370,17 @@ export default function Leaderboard() {
         </div>
       )}
 
-      {/* ═══ TEAM STANDINGS (from standings data) ═══ */}
-      {tab === 'standings' && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14,
-            borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 12,
-          }}>
-            <div style={{ width: 4, height: 18, background: '#61cdff', flexShrink: 0 }} />
-            <h3 style={{
-              fontFamily: "'Lexend', sans-serif", fontSize: 16, fontWeight: 700,
-              color: '#e5e1e4', margin: 0, textTransform: 'uppercase',
-              letterSpacing: '-0.025em',
-            }}>
-              Team Standings
-            </h3>
-          </div>
-
-          <div style={{
-            background: '#0e0e10', borderRadius: 12,
-            border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden',
-          }}>
-            {/* Header */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '28px 1fr 40px 40px 40px 40px',
-              gap: 2, padding: '10px 12px',
-              borderBottom: '1px solid rgba(255,255,255,0.05)',
-              background: '#1c1b1d',
-              fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 10, fontWeight: 700,
-              color: '#889299', textTransform: 'uppercase', letterSpacing: '0.08em',
-            }}>
-              <div style={{ textAlign: 'center' }}>#</div>
-              <div style={{ minWidth: 0, overflow: 'hidden' }}>Team</div>
-              <div style={{ textAlign: 'center' }}>P</div>
-              <div style={{ textAlign: 'center' }}>W</div>
-              <div style={{ textAlign: 'center' }}>K</div>
-              <div style={{ textAlign: 'center' }}>Pts</div>
-            </div>
-
-            {sortedStandings.map((t, i) => (
-              <div key={t.teamName} style={{
-                display: 'grid',
-                gridTemplateColumns: '28px 1fr 40px 40px 40px 40px',
-                gap: 2, padding: '10px 12px', alignItems: 'center',
-                borderBottom: i < sortedStandings.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none',
-                background: i < 3 ? (i === 0 ? 'rgba(250,204,21,0.03)' : i === 1 ? 'rgba(204,204,204,0.03)' : 'rgba(205,127,50,0.03)') : 'transparent',
-                borderLeft: i < 3 ? `2px solid ${['#facc15','#cccccc','#cd7f32'][i]}` : '2px solid transparent',
-              }}>
-                <div style={{
-                  textAlign: 'center', fontFamily: "'Lexend', sans-serif",
-                  fontSize: 11, fontWeight: 700,
-                  color: i === 0 ? '#facc15' : i === 1 ? '#cccccc' : i === 2 ? '#cd7f32' : '#555555',
-                }}>
-                  {i + 1}
-                </div>
-                <div style={{
-                  fontFamily: "'Lexend', sans-serif", fontSize: 12, fontWeight: 600,
-                  color: i < 3 ? '#e5e1e4' : '#bdc8cf',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left', paddingLeft: 8,
-                }}>
-                  {t.teamName}
-                </div>
-                {[
-                  t.played, t.wins, t.kills,
-                  t.points
-                ].map((val, si) => (
-                  <div key={si} style={{
-                    textAlign: 'center',
-                    fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500,
-                    color: i === 0 ? '#facc15' : i === 1 ? '#cccccc' : i === 2 ? '#cd7f32' : '#555555',
-                  }}>
-                    {val}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+      {activeUsers.length === 0 && (
+        <div style={{
+          textAlign: 'center', padding: '60px 20px',
+          background: '#1c1b1d', borderRadius: 16,
+          border: '1px solid rgba(255,255,255,0.05)',
+        }}>
+          <i className="fa-solid fa-trophy" style={{ fontSize: 40, color: '#353437', marginBottom: 16, display: 'block' }} />
+          <p style={{ color: '#889299', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 15, marginBottom: 8 }}>No players yet</p>
+          <p style={{ color: '#555555', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12 }}>
+            Players will appear here after joining their first match.
+          </p>
         </div>
       )}
 
