@@ -48,8 +48,49 @@ function isAdminView(view) {
 
 function ViewRouter() {
   const { state, dispatch, isAdmin } = useApp()
-  const { currentView, viewParam, loading, sidebarOpen } = state
+  const { currentView, viewParam, loading, sidebarOpen, modal } = state
   const admin = isAdminView(currentView)
+
+  // ═══ PHASE 4.7: Offline detection ═══
+  const [offline, setOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
+
+  useEffect(() => {
+    const goOffline = () => setOffline(true)
+    const goOnline = () => setOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
+
+  // ═══ PHASE 4.6: Android back button — modal/sidebar close on back press ═══
+  useEffect(() => {
+    if (state.modal) {
+      window.history.pushState({ modalOpen: true }, '')
+    }
+  }, [state.modal])
+
+  useEffect(() => {
+    if (state.sidebarOpen && !state.modal) {
+      window.history.pushState({ sidebarOpen: true }, '')
+    }
+  }, [state.sidebarOpen, state.modal])
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (state.modal) {
+        window.history.pushState({ modalOpen: true }, '')
+        dispatch({ type: 'CLOSE_MODAL' })
+      } else if (state.sidebarOpen) {
+        window.history.pushState({ sidebarOpen: true }, '')
+        dispatch({ type: 'CLOSE_SIDEBAR' })
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [state.modal, state.sidebarOpen, dispatch])
 
   function renderView() {
     switch (currentView) {
@@ -93,9 +134,27 @@ function ViewRouter() {
     }
   }
 
+  // ═══ PHASE 4.7: Offline banner component ═══
+  const offlineBanner = offline && (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+      background: 'linear-gradient(90deg, #fbbf24, #f59e0b)',
+      color: '#1a1a1a',
+      padding: '8px 16px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+      fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, fontWeight: 700,
+      letterSpacing: '0.05em', textTransform: 'uppercase',
+      boxShadow: '0 2px 16px rgba(251,191,36,0.3)',
+    }}>
+      <i className="fa-solid fa-wifi" style={{ fontSize: 13 }} />
+      <span>You are offline — Check your internet connection</span>
+    </div>
+  )
+
   if (loading) {
     return (
-      <div style={{ display: 'flex', minHeight: '100dvh' }}>
+      <div style={{ display: 'flex', minHeight: '100dvh', paddingTop: offline ? 36 : 0 }}>
+        {offlineBanner}
         <Sidebar />
         <div style={{ flex: 1, minWidth: 0, padding: '0 16px', overflow: 'hidden' }}>
           <LoadingSkeleton />
@@ -109,7 +168,10 @@ function ViewRouter() {
       display: 'flex',
       minHeight: '100dvh',
       position: 'relative',
+      paddingTop: offline ? 36 : 0,
     }}>
+      {offlineBanner}
+
       <Sidebar />
 
       {sidebarOpen && (
@@ -153,7 +215,6 @@ function ViewRouter() {
     </div>
   )
 }
-
 export default function App() {
   const [ready, setReady] = useState(false)
 
