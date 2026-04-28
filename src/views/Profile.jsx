@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context'
-import { formatTK, formatTKShort } from '../utils'
+import { formatTK, formatTKShort, getEloTier, getTierProgress } from '../utils'
 
 export default function Profile() {
   const { state, dispatch, navigate } = useApp()
@@ -11,6 +11,13 @@ export default function Profile() {
   const [editIgn, setEditIgn] = useState('')
 
   if (!currentUser) return null
+
+  // ===== ELO RANK LOGIC =====
+  const elo = currentUser.elo || 1000
+  const tier = getEloTier(elo)
+  const tierProgress = getTierProgress(elo)
+  const nextTier = tier.max === 9999 ? null : getEloTier(tier.max + 1)
+  const pointsToNext = nextTier ? (nextTier.min - elo) : 0
 
   const myMatches = matches.filter(m => m.participants?.includes(currentUser.id))
   const winRate = currentUser.matchesPlayed > 0
@@ -56,6 +63,7 @@ export default function Profile() {
   const roleBg = currentUser.role === 'owner' ? 'rgba(251,191,36,0.12)' : currentUser.role === 'admin' ? 'rgba(239,68,68,0.1)' : 'rgba(0,240,255,0.1)'
 
   const stats = [
+    { label: 'ELO', value: elo, icon: 'fa-solid fa-ranking-star', color: tier.color, bg: `${tier.color}15` },
     { label: 'Matches', value: currentUser.matchesPlayed, icon: 'fa-solid fa-gamepad', color: '#6c8cff', bg: 'rgba(108,140,255,0.1)' },
     { label: 'Wins', value: currentUser.wins, icon: 'fa-solid fa-trophy', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)' },
     { label: 'Kills', value: currentUser.kills, icon: 'fa-solid fa-crosshairs', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
@@ -71,13 +79,13 @@ export default function Profile() {
       <div style={{
         position: 'relative', borderRadius: 24, overflow: 'hidden',
         marginBottom: 24,
-        background: 'linear-gradient(135deg, rgba(0,240,255,0.08), rgba(167,139,250,0.06)), linear-gradient(180deg, rgba(15,15,35,0.95), rgba(10,10,25,0.98))',
-        border: '1px solid rgba(255,255,255,0.06)',
+        background: `linear-gradient(135deg, ${tier.color}10, ${tier.color}05), linear-gradient(180deg, rgba(15,15,35,0.95), rgba(10,10,25,0.98))`,
+        border: `1px solid ${tier.color}15`,
       }}>
-        {/* Top gradient line */}
+        {/* Top gradient line - now uses tier color */}
         <div style={{
           height: 3,
-          background: 'linear-gradient(90deg, transparent, #00f0ff, #a78bfa, transparent)',
+          background: `linear-gradient(90deg, transparent, ${tier.color}, transparent)`,
           backgroundSize: '200% 100%', animation: 'shimmer 3s linear infinite',
         }}></div>
 
@@ -85,12 +93,12 @@ export default function Profile() {
         <div style={{
           position: 'absolute', top: -40, right: -40,
           width: 180, height: 180, borderRadius: '50%',
-          background: 'rgba(0,240,255,0.03)', filter: 'blur(30px)',
+          background: `${tier.color}05`, filter: 'blur(30px)',
         }}></div>
         <div style={{
           position: 'absolute', bottom: -30, left: -30,
           width: 120, height: 120, borderRadius: '50%',
-          background: 'rgba(167,139,250,0.03)', filter: 'blur(20px)',
+          background: `${tier.color}04`, filter: 'blur(20px)',
         }}></div>
 
         <div style={{ position: 'relative', padding: '32px 24px 28px' }}>
@@ -105,19 +113,19 @@ export default function Profile() {
                   style={{
                     width: 80, height: 80, borderRadius: 20,
                     objectFit: 'cover',
-                    border: '2px solid rgba(0,240,255,0.2)',
-                    boxShadow: '0 8px 32px rgba(0,240,255,0.15)',
+                    border: `2px solid ${tier.color}40`,
+                    boxShadow: `0 8px 32px ${tier.color}25`,
                   }}
                 />
               ) : (
                 <div style={{
                   width: 80, height: 80, borderRadius: 20,
-                  background: 'linear-gradient(135deg, rgba(0,240,255,0.15), rgba(167,139,250,0.1))',
-                  border: '2px solid rgba(0,240,255,0.2)',
-                  boxShadow: '0 8px 32px rgba(0,240,255,0.15)',
+                  background: `linear-gradient(135deg, ${tier.color}25, ${tier.color}10)`,
+                  border: `2px solid ${tier.color}40`,
+                  boxShadow: `0 8px 32px ${tier.color}25`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontFamily: 'var(--font-heading)', fontSize: 32, fontWeight: 800,
-                  color: '#00f0ff',
+                  color: tier.color,
                 }}>
                   {(currentUser.displayName || currentUser.name).charAt(0).toUpperCase()}
                 </div>
@@ -135,11 +143,11 @@ export default function Profile() {
               <label style={{
                 position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)',
                 width: 28, height: 28, borderRadius: 8,
-                background: 'linear-gradient(135deg, #6c8cff, #a78bfa)',
+                background: `linear-gradient(135deg, ${tier.color}90, ${tier.color}70)`,
                 border: '2px solid rgba(10,10,25,0.9)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(108,140,255,0.3)',
+                boxShadow: `0 4px 12px ${tier.color}40`,
                 transition: 'transform 0.2s ease',
               }}
               onMouseEnter={e => e.currentTarget.style.transform = 'translateX(-50%) scale(1.1)'}
@@ -160,8 +168,8 @@ export default function Profile() {
                     placeholder="Display Name"
                     style={{
                       padding: '8px 12px', borderRadius: 8,
-                      border: '1px solid rgba(0,240,255,0.3)',
-                      background: 'rgba(0,240,255,0.05)',
+                      border: `1px solid ${tier.color}40`,
+                      background: `${tier.color}08`,
                       color: '#fff', fontFamily: 'var(--font-heading)', fontSize: 15, fontWeight: 700,
                       outline: 'none',
                     }}
@@ -209,7 +217,7 @@ export default function Profile() {
                   </h1>
                   <div style={{
                     fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
-                    color: '#a78bfa', marginBottom: 6,
+                    color: tier.color, marginBottom: 6,
                   }}>
                     {currentUser.ign}
                   </div>
@@ -237,6 +245,66 @@ export default function Profile() {
             </div>
           </div>
 
+          {/* ===== RANK BADGE + PROGRESS ===== */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 14,
+            padding: '14px 16px', borderRadius: 12,
+            background: `${tier.color}08`,
+            border: `1px solid ${tier.color}20`,
+            marginBottom: 20,
+          }}>
+            <div style={{ fontSize: 32, lineHeight: 1 }}>{tier.icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ 
+                fontSize: 9, 
+                color: `${tier.color}99`, 
+                fontFamily: "'Lexend', sans-serif", 
+                fontWeight: 700, 
+                letterSpacing: '0.15em', 
+                textTransform: 'uppercase', 
+                marginBottom: 2 
+              }}>
+                {tier.name} Rank
+              </div>
+              <div style={{ 
+                fontFamily: "'Inter', sans-serif", 
+                fontSize: 24, 
+                fontWeight: 900, 
+                color: tier.color, 
+                lineHeight: 1.1 
+              }}>
+                {elo} <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.6 }}>ELO</span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', minWidth: 90 }}>
+              <div style={{ 
+                fontSize: 9, 
+                color: '#555', 
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                marginBottom: 6, 
+                fontWeight: 600 
+              }}>
+                {pointsToNext > 0 ? `${pointsToNext} pts to ${nextTier.name}` : 'MAX RANK'}
+              </div>
+              <div style={{ 
+                width: '100%', 
+                height: 5, 
+                borderRadius: 99, 
+                background: '#201f21', 
+                overflow: 'hidden',
+                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)'
+              }}>
+                <div style={{ 
+                  width: `${tierProgress}%`, 
+                  height: '100%', 
+                  background: `linear-gradient(90deg, ${tier.color}90, ${tier.color})`, 
+                  borderRadius: 99,
+                  boxShadow: `0 0 8px ${tier.color}50`
+                }} />
+              </div>
+            </div>
+          </div>
+
           {/* Quick info row */}
           <div style={{
             display: 'flex', gap: 12, flexWrap: 'wrap',
@@ -245,8 +313,8 @@ export default function Profile() {
           }}>
             {[
               { label: 'Balance', value: formatTK(currentUser.balance), color: '#fbbf24', icon: 'fa-solid fa-wallet' },
-              { label: 'Joined', value: myMatches.length + ' matches', color: '#6c8cff', icon: 'fa-solid fa-calendar-check' },
-              { label: 'Member Since', value: currentUser.createdAt || 'N/A', color: 'var(--text-muted, #777)', icon: 'fa-solid fa-clock' },
+              { label: 'Joined', value: myMatches.length + ' matches', color: tier.color, icon: 'fa-solid fa-calendar-check' },
+              { label: 'Member Since', value: currentUser.createdAt ? new Date(currentUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A', color: 'var(--text-muted, #777)', icon: 'fa-solid fa-clock' },
             ].map(item => (
               <div key={item.label} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -279,15 +347,15 @@ export default function Profile() {
                 onClick={startEdit}
                 style={{
                   padding: '10px 20px', borderRadius: 10,
-                  border: '1px solid rgba(0,240,255,0.2)',
-                  background: 'rgba(0,240,255,0.08)',
-                  color: '#00f0ff', fontFamily: 'var(--font-display)', fontSize: 12,
+                  border: `1px solid ${tier.color}30`,
+                  background: `${tier.color}10`,
+                  color: tier.color, fontFamily: 'var(--font-display)', fontSize: 12,
                   fontWeight: 700, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 6,
                   transition: 'all 0.2s ease',
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,240,255,0.12)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,240,255,0.08)'}
+                onMouseEnter={e => e.currentTarget.style.background = `${tier.color}18`}
+                onMouseLeave={e => e.currentTarget.style.background = `${tier.color}10`}
               >
                 <i className="fa-solid fa-pen"></i> Edit Profile
               </button>
@@ -311,7 +379,7 @@ export default function Profile() {
 
       {/* ===== STATS GRID ===== */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24,
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24,
       }}>
         {stats.map(s => (
           <div key={s.label} style={{
@@ -349,7 +417,7 @@ export default function Profile() {
       </div>
 
       {/* Responsive stats grid */}
-      <style>{`@media(max-width:480px){[style*="grid-template-columns: repeat(3"]{grid-template-columns:repeat(2, 1fr)!important}}`}</style>
+      <style>{`@media(max-width:480px){[style*="grid-template-columns: repeat(4"]{grid-template-columns:repeat(2, 1fr)!important}}`}</style>
 
       {/* ===== MATCH HISTORY ===== */}
       <div style={{
@@ -364,10 +432,10 @@ export default function Profile() {
         }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
-            background: 'rgba(108,140,255,0.1)',
+            background: `${tier.color}15`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <i className="fa-solid fa-clock-rotate-left" style={{ fontSize: 14, color: '#6c8cff' }}></i>
+            <i className="fa-solid fa-clock-rotate-left" style={{ fontSize: 14, color: tier.color }}></i>
           </div>
           <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 15, fontWeight: 700, color: '#fff', margin: 0 }}>
             Match History
@@ -402,7 +470,6 @@ export default function Profile() {
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  {/* Phase dot */}
                   <div style={{
                     width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
                     background: phaseColors[m.status] || '#64748b',
@@ -410,7 +477,6 @@ export default function Profile() {
                     animation: m.status === 'live' ? 'pulse 1.5s infinite' : 'none',
                   }}></div>
 
-                  {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 600,
@@ -424,7 +490,6 @@ export default function Profile() {
                     </div>
                   </div>
 
-                  {/* Status badge */}
                   <span style={{
                     padding: '3px 10px', borderRadius: 6, fontSize: 9,
                     fontFamily: 'var(--font-display)', fontWeight: 700,
@@ -437,7 +502,6 @@ export default function Profile() {
                     {phaseLabels[m.status] || m.status}
                   </span>
 
-                  {/* Arrow */}
                   <i className="fa-solid fa-chevron-right" style={{ fontSize: 10, color: 'var(--text-muted, #444)', flexShrink: 0 }}></i>
                 </div>
               )
