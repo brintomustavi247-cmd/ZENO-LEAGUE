@@ -6,6 +6,18 @@ import { onAuthStateChanged } from 'firebase/auth'
 const AppContext = createContext(null)
 
 const LS_KEY = 'clutch_arena_bd'
+// NUKE old format data — prevents ghost balance, mock withdrawals, stale users
+;(function clearOldLS() {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed?.currentUser && (parsed.currentUser.balance !== undefined || parsed.currentUser.role !== undefined)) {
+        localStorage.removeItem(LS_KEY)
+      }
+    }
+  } catch {}
+})()
 function loadFromLS() {
   try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null } catch { return null }
 }
@@ -39,7 +51,7 @@ const initialState = {
   pendingWithdrawals: [],
   pendingAddMoneyRequests: [],
   activityLog: [],
-  currentView: (saved?.isLoggedIn && saved?.currentUser) ? (saved.currentUser.role === 'owner' ? 'admin-overview' : 'dashboard') : 'login',
+  currentView: saved?.isLoggedIn ? 'dashboard' : 'login',
   viewParam: null,
   matchFilter: 'all',
   adminTab: 'admin-overview',
