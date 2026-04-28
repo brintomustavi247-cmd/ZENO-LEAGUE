@@ -1,4 +1,4 @@
-import { fetchUser, createUser, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest, distributePrizes, cancelMatchAndRefund, checkDuplicateTXID, adminAdjustBalance, addJoinToMatch, addWithdrawalToCloud, logActivityToCloud, addTransactionToCloud, subscribeToMatches, subscribeToSettings, subscribeToUser, subscribeToWithdrawals } from './db'
+import { fetchUser, createUser, createMatchInDb, updateMatchInDb, getSettings, saveSettings, createAddMoneyRequest, fetchPendingAddMoneyRequests, approveAddMoneyRequest, rejectAddMoneyRequest, distributePrizes, cancelMatchAndRefund, checkDuplicateTXID, adminAdjustBalance, addJoinToMatch, addWithdrawalToCloud, logActivityToCloud, addTransactionToCloud, subscribeToMatches, subscribeToSettings, subscribeToUser, subscribeToWithdrawals, approveWithdrawalInCloud, rejectWithdrawalInCloud, subscribeToUserTransactions } from './db'
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost, showToast } from './utils'
 import { auth } from './firebase'
@@ -594,6 +594,8 @@ function reducer(state, action) {
       return { ...state, pendingAddMoneyRequests: action.payload }
           case 'LOAD_WITHDRAWALS':
       return { ...state, pendingWithdrawals: action.payload }
+          case 'LOAD_TRANSACTIONS':
+      return { ...state, transactions: action.payload }
 
     case 'WITHDRAW': {
       if (state.currentUser.balance < action.payload.amount) return state
@@ -736,22 +738,24 @@ function reducer(state, action) {
           : state.currentUser,
       }
     }
-    case 'APPROVE_WITHDRAW':
-      return {
-        ...state,
-        pendingWithdrawals: state.pendingWithdrawals.filter(w => w.id !== action.payload && w.status === 'pending'),
-        transactions: state.transactions.map(tx =>
-          tx.id === action.payload ? { ...tx, status: 'completed' } : tx
-        ),
+    case 'APPROVE_WITHDRAW': {
+      const wd = state.pendingWithdrawals.find(w => w.id === action.payload)
+      if (wd) {
+        approveWithdrawalInCloud(wd.id, wd.userId, wd.amount).catch(err =>
+          console.error("Cloud approve failed:", err)
+        )
       }
-    case 'REJECT_WITHDRAW':
-      return {
-        ...state,
-        pendingWithdrawals: state.pendingWithdrawals.filter(w => w.id !== action.payload && w.status === 'pending'),
-        transactions: state.transactions.map(tx =>
-          tx.id === action.payload ? { ...tx, status: 'rejected', desc: tx.desc + ' (Rejected)' } : tx
-        ),
+      return { ...state }
+    }
+    case 'REJECT_WITHDRAW': {
+      const wd = state.pendingWithdrawals.find(w => w.id === action.payload)
+      if (wd) {
+        rejectWithdrawalInCloud(wd.id, wd.userId, wd.amount).catch(err =>
+          console.error("Cloud reject failed:", err)
+        )
       }
+      return { ...state }
+    }
 
     // ════════════════════════════════════════
     //  SETTINGS
@@ -890,6 +894,15 @@ export function AppProvider({ children }) {
     })
     return () => unsubscribe()
   }, [isAdmin])
+    // 🚀 REAL-TIME: User transaction history — instant sync to wallet
+  useEffect(() => {
+    const uid = state.currentUser?.firebaseUid
+    if (!uid) return
+    const unsubscribe = subscribeToUserTransactions(uid, (txs) => {
+      dispatch({ type: 'LOAD_TRANSACTIONS', payload: txs })
+    })
+    return () => unsubscribe()
+  }, [state.currentUser?.firebaseUid])
 
   // 🚀 PHASE 2.7: Real-time match listener
   useEffect(() => {

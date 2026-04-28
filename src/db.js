@@ -409,3 +409,65 @@ export function subscribeToWithdrawals(onUpdate) {
   });
   return unsubscribe;
 }
+
+// ══════════════════════════════════════
+//  WITHDRAWAL APPROVE/REJECT — writes to Firestore
+//  This triggers real-time listeners → admin + user update instantly
+// ══════════════════════════════════════
+
+export async function approveWithdrawalInCloud(wdId, userId, amount) {
+  const now = new Date().toISOString()
+  const wdRef = doc(db, 'withdrawals', wdId)
+  await updateDoc(wdRef, { status: 'approved', processedAt: now })
+
+  const userRef = doc(db, 'users', userId)
+  const userSnap = await getDoc(userRef)
+  if (userSnap.exists()) {
+    const userData = userSnap.data()
+    await updateDoc(userRef, { balance: (userData.balance || 0) + amount })
+  }
+
+  const txId = 'tx_wd_ok_' + Date.now()
+  await setDoc(doc(db, 'transactions', txId), {
+    id: txId, userId, amount,
+    type: 'withdraw', status: 'completed',
+    desc: `Withdrawal of ${amount} TK approved and processed`,
+    date: now, createdAt: now,
+  })
+}
+
+export async function rejectWithdrawalInCloud(wdId, userId, amount) {
+  const now = new Date().toISOString()
+  const wdRef = doc(db, 'withdrawals', wdId)
+  await updateDoc(wdRef, { status: 'rejected', processedAt: now })
+
+  const userRef = doc(db, 'users', userId)
+  const userSnap = await getDoc(userRef)
+  if (userSnap.exists()) {
+    const userData = userSnap.data()
+    await updateDoc(userRef, { balance: (userData.balance || 0) + amount })
+  }
+
+  const txId = 'tx_wd_rj_' + Date.now()
+  await setDoc(doc(db, 'transactions', txId), {
+    id: txId, userId, amount,
+    type: 'refund', status: 'completed',
+    desc: `Withdrawal of ${amount} TK rejected — Amount refunded to balance`,
+    date: now, createdAt: now,
+  })
+}
+
+// ══════════════════════════════════════
+//  REAL-TIME USER TRANSACTIONS
+//  User sees their transaction history update instantly
+// ══════════════════════════════════════
+
+export function subscribeToUserTransactions(uid, onUpdate) {
+  const txCol = collection(db, 'transactions')
+  const q = query(txCol, where('userId', '==', uid), orderBy('date', 'desc'))
+  const unsubscribe = onSnapshot(q, (snap) => {
+    const results = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    onUpdate(results)
+  })
+  return unsubscribe
+}
