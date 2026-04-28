@@ -21,6 +21,9 @@ export default function Leaderboard() {
   const podiumPlayers = tab === 'players'
     ? sortedPlayers.slice(0, 3).map((u, i) => ({ ...u, xp: formatTK(u.earnings) }))
     : sortedStandings.slice(0, 3).map((t, i) => ({ ...t, name: t.teamName, xp: `${t.points} XP` }))
+  
+  // Ensure we have all 3 podium positions before rendering
+  const hasPodium = podiumPlayers.length === 3
 
   // Rest of list (rank 4+)
   const restList = tab === 'players'
@@ -101,6 +104,7 @@ export default function Leaderboard() {
       </div>
 
       {/* ═══ PODIUM SECTION ═══ */}
+      {hasPodium && (
       <div style={{
         display: 'flex', justifyContent: 'center', alignItems: 'flex-end',
         height: 280, marginBottom: 48, gap: 8,
@@ -110,19 +114,19 @@ export default function Leaderboard() {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           width: '28%', maxWidth: 160,
         }}>
-          <AvatarCircle name={podiumPlayers[1].name} size={56} rank={2} />
+          <AvatarCircle name={podiumPlayers[1]?.name} size={56} rank={2} />
           <div style={{ textAlign: 'center', marginBottom: 10 }}>
             <div style={{
               fontFamily: "'Lexend', sans-serif", fontSize: 14, fontWeight: 700,
               color: '#e5e1e4', overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', maxWidth: 120,
             }}>
-              {podiumPlayers[1].name}
+              {podiumPlayers[1]?.name}
             </div>
             <div style={{
               fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: '#cccccc', marginTop: 2,
             }}>
-              {podiumPlayers[1].xp} XP
+              {podiumPlayers[1]?.xp} XP
             </div>
           </div>
           <div style={{
@@ -150,19 +154,19 @@ export default function Leaderboard() {
           <div style={{ marginBottom: 8, color: '#facc15' }}>
             <i className="fa-solid fa-crown" style={{ fontSize: 28 }} />
           </div>
-          <AvatarCircle name={podiumPlayers[0].name} size={72} rank={1} />
+          <AvatarCircle name={podiumPlayers[0]?.name} size={72} rank={1} />
           <div style={{ textAlign: 'center', marginBottom: 10 }}>
             <div style={{
               fontFamily: "'Lexend', sans-serif", fontSize: 16, fontWeight: 700,
               color: '#e5e1e4', overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', maxWidth: 140,
             }}>
-              {podiumPlayers[0].name}
+              {podiumPlayers[0]?.name}
             </div>
             <div style={{
               fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: '#facc15', marginTop: 2,
             }}>
-              {podiumPlayers[0].xp} XP
+              {podiumPlayers[0]?.xp} XP
             </div>
           </div>
           <div style={{
@@ -187,19 +191,19 @@ export default function Leaderboard() {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           width: '28%', maxWidth: 160,
         }}>
-          <AvatarCircle name={podiumPlayers[2].name} size={56} rank={3} />
+          <AvatarCircle name={podiumPlayers[2]?.name} size={56} rank={3} />
           <div style={{ textAlign: 'center', marginBottom: 10 }}>
             <div style={{
               fontFamily: "'Lexend', sans-serif", fontSize: 14, fontWeight: 700,
               color: '#e5e1e4', overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', maxWidth: 120,
             }}>
-              {podiumPlayers[2].name}
+              {podiumPlayers[2]?.name}
             </div>
             <div style={{
               fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: '#cd7f32', marginTop: 2,
             }}>
-              {podiumPlayers[2].xp} XP
+              {podiumPlayers[2]?.xp} XP
             </div>
           </div>
           <div style={{
@@ -219,6 +223,7 @@ export default function Leaderboard() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ═══ RANKED TABLE ═══ */}
       <div style={{
