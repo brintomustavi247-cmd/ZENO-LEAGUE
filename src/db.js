@@ -1,10 +1,23 @@
 import { db } from './firebase';
 import { calculateELO } from './utils';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, getDocs, query, where, writeBatch, orderBy } from 'firebase/firestore';
+// ══════════════════════════════════════
+//  SECURITY: SANITIZATION & SAFE IDS
+// ══════════════════════════════════════
+function sanitize(str) {
+  if (typeof str !== 'string') return str;
+  // Prevents XSS if data is ever rendered outside React (emails, PDFs)
+  return str.replace(/[<>"'&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' })[c]).trim().slice(0, 100);
+}
 
+function safeTxId(prefix) {
+  // Prevents TX ID collisions if two actions happen in the same millisecond
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
 // ══════════════════════════════════════
 //  USER DOCUMENTS
 // ══════════════════════════════════════
+
 
 export async function fetchUser(uid) {
   const userRef = doc(db, 'users', uid);
@@ -17,6 +30,8 @@ export async function createUser(uid, data) {
   const userRef = doc(db, 'users', uid);
   await setDoc(userRef, {
     ...data,
+    ign: sanitize(data.ign), // Force sanitize IGN
+    displayName: sanitize(data.displayName), // Force sanitize Name
     balance: 0, kills: 0, wins: 0, matchesPlayed: 0, earnings: 0, elo: 1000,
     banned: false, status: 'active', createdAt: new Date().toISOString()
   });
@@ -179,7 +194,7 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
     const user = userMap[(player.ign || '').trim().toLowerCase()];
 
     if (!user) {
-      const txId = 'tx_unclaimed_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const txId = safeTxId('tx_unclaimed');
       batch.set(doc(db, 'transactions', txId), {
         id: txId,
         userId: 'unknown',
@@ -187,7 +202,7 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
         ign: player.ign || '',
         type: 'win',
         amount: totalPrize,
-        desc: `Prize: ${matchData.title} (#${player.position}) — UNCLAIMED (User not registered)`,
+        desc: `Prize: ${sanitize(matchData.title)} (#${player.position}) — UNCLAIMED (User not registered)`,
         matchId: matchId,
         date: now, status: 'completed',
         position: player.position, kills: kills,
@@ -210,9 +225,9 @@ export async function distributePrizes(matchId, matchData, resultPlayers, perKil
       elo: newElo, // <--- SAVES ELO TO FIRESTORE
     });
 
-    const txId = 'tx_win_' + Date.now() + '_' + user.id.slice(0, 8);
+    const txId = safeTxId('tx_win');
 
-    let desc = `Prize: ${matchData.title}`;
+    let desc = `Prize: ${sanitize(matchData.title)}`;
     if (player.position === 1) desc += ' (🥇 1st Place)';
     else if (player.position === 2) desc += ' (🥈 2nd Place)';
     else if (player.position === 3) desc += ' (🥉 3rd Place)';
@@ -269,13 +284,13 @@ export async function cancelMatchAndRefund(matchId, matchData, adminName) {
     refundedTotal += entryFee;
     refundCount++;
 
-    const txId = 'tx_refund_' + Date.now() + '_' + user.id.slice(0, 8);
+    const txId = safeTxId('tx_refund');
     batch.set(doc(db, 'transactions', txId), {
       id: txId, userId: user.id,
       username: user.name || user.displayName || 'Unknown',
       ign: user.ign || '',
       type: 'refund', amount: entryFee,
-      desc: `Refund: ${matchData.title} (Match cancelled by ${adminName || 'Admin'})`,
+      desc: `Refund: ${sanitize(matchData.title)} (Match cancelled by ${sanitize(adminName) || 'Admin'})`,
       matchId: matchId, date: now, status: 'completed',
     });
   }
@@ -317,14 +332,14 @@ export async function adminAdjustBalance(userId, amount, reason, adminName) {
 
   await updateDoc(userRef, { balance: Math.max(0, (userData.balance || 0) + amount) });
 
-  const txId = 'tx_admin_' + Date.now() + '_' + userId.slice(0, 8);
+  const txId = safeTxId('tx_admin');
   await setDoc(doc(db, 'transactions', txId), {
     id: txId, userId: userId,
     username: userData.name || userData.displayName || 'Unknown',
     ign: userData.ign || '',
     type: amount >= 0 ? 'admin_add' : 'admin_deduct',
     amount: Math.abs(amount),
-    desc: `Admin ${admin}: ${reason || 'Balance adjustment'} (${amount >= 0 ? 'Added' : 'Deducted'})`,
+    desc: `Admin ${sanitize(admin)}: ${sanitize(reason) || 'Balance adjustment'} (${amount >= 0 ? 'Added' : 'Deducted'})`,
     date: now, status: 'completed', adminName: admin,
   });
 
@@ -335,13 +350,19 @@ export async function adminAdjustBalance(userId, amount, reason, adminName) {
 //  PHASE 2: MULTI-DEVICE SYNC
 // ══════════════════════════════════════
 
+// ⚠️ WARNING: Read-Modify-Write race condition. If 2 users click "Join" at the exact 
+// same millisecond, one join will be overwritten. MUST be moved to a Cloud Function in Phase 6.3.
 export async function addJoinToMatch(matchId, joinEntry) {
   const matchRef = doc(db, 'matches', matchId);
   const matchSnap = await getDoc(matchRef);
   if (!matchSnap.exists()) return;
   const existing = matchSnap.data().joined || [];
+  
+  // Sanitize team name before saving
+  const safeEntry = { ...joinEntry, teamName: sanitize(joinEntry.teamName) };
+
   await updateDoc(matchRef, {
-    joined: [...existing, joinEntry],
+    joined: [...existing, safeEntry],
     joinedCount: (matchSnap.data().joinedCount || 0) + 1,
   });
 }
@@ -405,7 +426,9 @@ export async function approveWithdrawalInCloud(wdId, userId, amount) {
   const now = new Date().toISOString()
   const wdRef = doc(db, 'withdrawals', wdId)
   await updateDoc(wdRef, { status: 'approved', processedAt: now })
-  const txId = 'tx_wd_ok_' + Date.now()
+const txId = safeTxId('tx_wd_ok')
+
+
   await setDoc(doc(db, 'transactions', txId), {
     id: txId, userId, amount,
     type: 'withdraw', status: 'completed',
@@ -424,7 +447,7 @@ export async function rejectWithdrawalInCloud(wdId, userId, amount) {
     const userData = userSnap.data()
     await updateDoc(userRef, { balance: (userData.balance || 0) + amount })
   }
-  const txId = 'tx_wd_rj_' + Date.now()
+const txId = safeTxId('tx_wd_rj')
   await setDoc(doc(db, 'transactions', txId), {
     id: txId, userId, amount,
     type: 'refund', status: 'completed',
