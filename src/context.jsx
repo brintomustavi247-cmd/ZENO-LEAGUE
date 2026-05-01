@@ -9,7 +9,7 @@ import {
   subscribeToWithdrawals, approveWithdrawalInCloud,
   rejectWithdrawalInCloud, subscribeToUserTransactions,
   updateUser, subscribeToAllUsers,
-  // ═══ V5.0: NEW IMPORTS ═══
+  // ═══ V5.0: GROWTH ENGINE IMPORTS ═══
   processReferral, unlockReferralBonus, fetchReferralStats,
   watchAdReward, getAdCooldownRemaining,
   spinClutchWheel, canSpinToday,
@@ -19,10 +19,12 @@ import { createContext, useContext, useReducer, useEffect, useCallback, useRef }
 import { calculateMatchEconomics, calculateJoinCost, showToast } from './utils'
 import { auth } from './firebase'
 import { onAuthStateChanged } from 'firebase/auth'
+
 const AppContext = createContext(null)
 
 const LS_KEY = 'clutch_arena_bd'
-// NUKE old format data — prevents ghost balance, mock withdrawals, stale users
+
+// NUKE old format data
 ;(function clearOldLS() {
   try {
     const raw = localStorage.getItem(LS_KEY)
@@ -34,6 +36,7 @@ const LS_KEY = 'clutch_arena_bd'
     }
   } catch {}
 })()
+
 function loadFromLS() {
   try { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null } catch { return null }
 }
@@ -43,7 +46,7 @@ function saveToLS(data) {
 
 const getTimeStr = (msOffset) => new Date(Date.now() + msOffset).toISOString().slice(0, 16).replace('T', ' ')
 
-// ===== OWNER PHONE — kept in sync with Login.jsx =====
+// ===== OWNER CREDENTIALS =====
 const OWNER_PHONE = '+8801871035221'
 const OWNER_EMAIL = 'brintomustavi247@gmail.com'
 
@@ -55,6 +58,9 @@ function parseHash() {
 
 const saved = loadFromLS()
 
+// ═══════════════════════════════════════════════════════════════════════
+//  INITIAL STATE — V5.0 GROWTH ENGINE ENABLED
+// ═══════════════════════════════════════════════════════════════════════
 const initialState = {
   isLoggedIn: saved?.isLoggedIn || false,
   currentUser: saved?.currentUser || null,
@@ -78,6 +84,7 @@ const initialState = {
   loading: false,
   sidebarOpen: false,
   language: saved?.language || 'en',
+
   // Phase 1: Pending async operations
   pendingPrizeDistribution: null,
   pendingCancelMatch: null,
@@ -85,16 +92,19 @@ const initialState = {
   rateLimited: false,
   requireIGN: false,
   joinBlocked: null,
+
   // ═══ V5.0: GROWTH ENGINE STATE ═══
-  referralStats: null,           // { code, totalReferrals, pendingMatch, unlocked, earnings, lockedBalance }
-  adCooldown: 0,                 // Seconds remaining
-  canSpin: false,                // Can user spin today?
-  spinResult: null,              // Last spin result
-  profitStats: null,             // Admin profit dashboard data
-  shareMatchId: null,            // Which match to share
+  referralStats: null,
+  adCooldown: 0,
+  canSpin: false,
+  spinResult: null,
+  profitStats: null,
+  shareMatchId: null,
 }
 
-// ===== REDUCER =====
+// ═══════════════════════════════════════════════════════════════════════
+//  REDUCER — ALL CASES PRESERVED + V5.0 ADDED
+// ═══════════════════════════════════════════════════════════════════════
 function reducer(state, action) {
   switch (action.type) {
 
@@ -113,7 +123,7 @@ function reducer(state, action) {
       return { ...state, sidebarOpen: false }
 
     // ══════════════════════════════════════════
-    //  AUTH — supports username OR phone login
+    //  AUTH — username OR phone login
     // ══════════════════════════════════════════
     case 'LOGIN_USER': {
       const { username, phone, password } = action.payload
@@ -190,7 +200,7 @@ function reducer(state, action) {
           email: dbData?.email || email,
           firebaseUid: authUser.uid,
           balance: dbData?.balance ?? 0,
-          lockedBalance: dbData?.lockedBalance ?? 0,        // ═══ v5.0
+          lockedBalance: dbData?.lockedBalance ?? 0,
           kills: dbData?.kills ?? 0,
           wins: dbData?.wins ?? 0,
           matchesPlayed: dbData?.matchesPlayed ?? 0,
@@ -211,6 +221,12 @@ function reducer(state, action) {
           // ═══ v5.0: Ad data
           lastAdWatch: dbData?.lastAdWatch || null,
           totalAdRewards: dbData?.totalAdRewards || 0,
+          // ═══ v5.0: Gamification
+          streak: dbData?.streak || 0,
+          level: dbData?.level || 1,
+          xp: dbData?.xp || 0,
+          nextLevelXP: dbData?.nextLevelXP || 100,
+          winRate: dbData?.winRate || 0,
           createdAt: dbData?.createdAt || state.currentUser?.createdAt || new Date().toISOString()
         },
         currentView: state.isLoggedIn ? state.currentView : (role === 'owner' ? 'admin-overview' : 'dashboard'),
@@ -219,9 +235,9 @@ function reducer(state, action) {
         modal: null,
       }
     }
+
     case 'FIREBASE_USER_UPDATE': {
       if (!state.currentUser) return state
-      // ═══ PHASE 4.10: Banned user = immediate logout ═══
       if (action.payload?.banned === true) {
         return {
           ...state, isLoggedIn: false, currentUser: null,
@@ -234,7 +250,6 @@ function reducer(state, action) {
           sidebarOpen: false,
         }
       }
-      // ═══ PHASE 4.1: If user just set IGN, clear requireIGN flag ═══
       const newState = {
         ...state,
         currentUser: { ...state.currentUser, ...action.payload },
@@ -280,7 +295,6 @@ function reducer(state, action) {
         modal: null,
         toasts: [],
         sidebarOpen: false,
-        // ═══ v5.0: Clear growth state on logout
         referralStats: null,
         adCooldown: 0,
         canSpin: false,
@@ -343,7 +357,6 @@ function reducer(state, action) {
       }
 
       createMatchInDb(newMatchId, newMatch).catch(err => console.error("Cloud save failed:", err))
-
       return { ...state, matches: [newMatch, ...state.matches] }
     }
 
@@ -361,7 +374,7 @@ function reducer(state, action) {
       const match = state.matches.find(m => m.id === matchId)
       if (!match || match.status === 'completed' || match.status === 'cancelled' || match.joinedCount >= match.maxSlots) return state
       if (match.participants?.includes(state.currentUser?.id)) return state
-      // ═══ PHASE 4.5: Match overlap prevention
+
       const alreadyActive = state.matches.some(m =>
         (m.status === 'upcoming' || m.status === 'live') &&
         m.participants?.includes(state.currentUser?.id)
@@ -372,7 +385,7 @@ function reducer(state, action) {
       const totalBalance = (state.currentUser?.balance || 0) + (state.currentUser?.lockedBalance || 0)
       if (totalBalance < cost) return state
 
-      // ═══ v5.0: Use locked balance first, then regular balance
+      // v5.0: Use locked balance first, then regular balance
       let remainingCost = cost
       let newBalance = state.currentUser.balance || 0
       let newLockedBalance = state.currentUser.lockedBalance || 0
@@ -424,7 +437,6 @@ function reducer(state, action) {
         ign: state.currentUser.ign || ''
       }).catch(() => {})
 
-      // ═══ v5.0: Unlock referral bonus on first match join
       unlockReferralBonus(state.currentUser.id).catch(() => {})
 
       return {
@@ -444,12 +456,8 @@ function reducer(state, action) {
     case 'SET_ROOM_CREDENTIALS': {
       const match = state.matches.find(m => m.id === action.payload.matchId)
       if (!match) return state
-
       const minRequired = match.minPlayers || Math.ceil(match.maxSlots * 0.6)
-      if (match.joinedCount < minRequired) {
-        return { ...state }
-      }
-
+      if (match.joinedCount < minRequired) return { ...state }
       return {
         ...state,
         matches: state.matches.map(m => m.id === action.payload.matchId
@@ -464,11 +472,9 @@ function reducer(state, action) {
     case 'SUBMIT_RESULT': {
       const match = state.matches.find(m => m.id === action.payload.matchId)
       if (!match) return state
-
       const updatingMatches = state.matches.map(m =>
         m.id === action.payload.matchId ? { ...m, status: 'completing' } : m
       )
-
       return {
         ...state,
         matches: updatingMatches,
@@ -485,7 +491,7 @@ function reducer(state, action) {
     }
 
     case 'PRIZE_DISTRIBUTION_SUCCESS': {
-      const { matchId, updatedMatch, totalDistributed, unclaimed } = action.payload
+      const { matchId, updatedMatch } = action.payload
       const updatedMatches = state.matches.map(m =>
         m.id === matchId ? { ...m, ...updatedMatch, status: 'completed' } : m
       )
@@ -508,11 +514,9 @@ function reducer(state, action) {
       const matchId = typeof action.payload === 'string' ? action.payload : action.payload.matchId
       const match = state.matches.find(m => m.id === matchId)
       if (!match) return state
-
       const updatingMatches = state.matches.map(m =>
         m.id === matchId ? { ...m, status: 'cancelling' } : m
       )
-
       return {
         ...state,
         matches: updatingMatches,
@@ -559,14 +563,11 @@ function reducer(state, action) {
       const lastDeposit = localStorage.getItem(rateKey)
       if (lastDeposit) {
         const elapsed = Date.now() - parseInt(lastDeposit)
-        if (elapsed < 120000) {
-          return { ...state, rateLimited: true }
-        }
+        if (elapsed < 120000) return { ...state, rateLimited: true }
       }
       localStorage.setItem(rateKey, Date.now().toString())
 
       const requestId = 'amr_' + Date.now()
-
       const pendingTx = {
         id: requestId,
         type: 'add',
@@ -612,11 +613,9 @@ function reducer(state, action) {
 
     case 'APPROVE_ADD_MONEY': {
       const { requestId, userId, amount } = action.payload
-
       const updatedTx = state.transactions.map(tx =>
         tx.id === requestId ? { ...tx, status: 'completed', desc: tx.desc.replace('(Pending)', '(Approved)') } : tx
       )
-
       const updatedUsers = state.users.map(u =>
         u.id === userId ? { ...u, balance: u.balance + amount } : u
       )
@@ -624,9 +623,7 @@ function reducer(state, action) {
       if (updatedCurrentUser && updatedCurrentUser.id === userId) {
         updatedCurrentUser = { ...updatedCurrentUser, balance: updatedCurrentUser.balance + amount }
       }
-
       const updatedPending = state.pendingAddMoneyRequests.filter(r => r.id !== requestId)
-
       return {
         ...state,
         transactions: updatedTx,
@@ -638,12 +635,10 @@ function reducer(state, action) {
 
     case 'REJECT_ADD_MONEY': {
       const { requestId } = action.payload
-
       const updatedTx = state.transactions.map(tx =>
         tx.id === requestId ? { ...tx, status: 'rejected', desc: tx.desc.replace('(Pending)', '(Rejected)') } : tx
       )
       const updatedPending = state.pendingAddMoneyRequests.filter(r => r.id !== requestId)
-
       return {
         ...state,
         transactions: updatedTx,
@@ -661,9 +656,8 @@ function reducer(state, action) {
       return { ...state, users: action.payload }
 
     case 'WITHDRAW': {
-      // ═══ v5.0: Block withdrawal if locked balance exists (must use it first)
       if ((state.currentUser?.lockedBalance || 0) > 0) {
-        showToast({ dispatch }, 'Use your locked balance in matches first!', 'error')
+        showToast({ dispatch: () => {} }, 'Use your locked balance in matches first!', 'error')
         return state
       }
       if (state.currentUser.balance < action.payload.amount) return state
@@ -739,9 +733,7 @@ function reducer(state, action) {
 
     case 'ADJUST_BALANCE': {
       const { userId, action: act, amount } = action.payload
-      if (userId === state.currentUser?.id) {
-        return { ...state }
-      }
+      if (userId === state.currentUser?.id) return { ...state }
       return {
         ...state,
         pendingBalanceAdjust: { userId, action: act, amount, reason: action.payload.reason || 'Balance adjustment' },
@@ -758,7 +750,6 @@ function reducer(state, action) {
       const updatedCurrentUser = state.currentUser?.id === userId
         ? { ...state.currentUser, balance: newBalance }
         : state.currentUser
-
       const adjustTx = {
         id: 'tx_adj_' + Date.now(),
         type: pending?.action === 'add' ? 'adjust_add' : 'adjust_deduct',
@@ -770,7 +761,6 @@ function reducer(state, action) {
         adminId: state.currentUser?.id,
         adminName: state.currentUser?.displayName || state.currentUser?.name,
       }
-
       return {
         ...state,
         users: updatedUsers,
@@ -797,22 +787,16 @@ function reducer(state, action) {
           : state.currentUser,
       }
     }
+
     case 'APPROVE_WITHDRAW': {
       const wd = state.pendingWithdrawals.find(w => w.id === action.payload)
-      if (wd) {
-        approveWithdrawalInCloud(wd.id, wd.userId, wd.amount).catch(err =>
-          console.error("Cloud approve failed:", err)
-        )
-      }
+      if (wd) approveWithdrawalInCloud(wd.id, wd.userId, wd.amount).catch(err => console.error("Cloud approve failed:", err))
       return { ...state }
     }
+
     case 'REJECT_WITHDRAW': {
       const wd = state.pendingWithdrawals.find(w => w.id === action.payload)
-      if (wd) {
-        rejectWithdrawalInCloud(wd.id, wd.userId, wd.amount).catch(err =>
-          console.error("Cloud reject failed:", err)
-        )
-      }
+      if (wd) rejectWithdrawalInCloud(wd.id, wd.userId, wd.amount).catch(err => console.error("Cloud reject failed:", err))
       return { ...state }
     }
 
@@ -877,13 +861,25 @@ function reducer(state, action) {
 
     case 'PROCESS_REFERRAL_SUCCESS': {
       const { referrerId, amount } = action.payload
-      showToast({ dispatch: () => {} }, `🎉 +${amount} TK referral bonus! Join a match to unlock.`, 'success')
       return {
         ...state,
         currentUser: {
           ...state.currentUser,
           lockedBalance: (state.currentUser?.lockedBalance || 0) + amount,
           referredBy: referrerId,
+        }
+      }
+    }
+
+    case 'UNLOCK_REFERRAL_BONUS': {
+      const { amount } = action.payload
+      return {
+        ...state,
+        currentUser: {
+          ...state.currentUser,
+          lockedBalance: Math.max(0, (state.currentUser?.lockedBalance || 0) - amount),
+          balance: (state.currentUser?.balance || 0) + amount,
+          referralEarnings: (state.currentUser?.referralEarnings || 0) + amount,
         }
       }
     }
@@ -895,15 +891,16 @@ function reducer(state, action) {
       return { ...state, adCooldown: action.payload }
 
     case 'AD_REWARD_SUCCESS': {
-      const { amount, newBalance } = action.payload
+      const { amount, newBalance, newTotal } = action.payload
       return {
         ...state,
         currentUser: {
           ...state.currentUser,
           balance: newBalance,
-          totalAdRewards: (state.currentUser?.totalAdRewards || 0) + amount,
+          totalAdRewards: newTotal,
+          lastAdWatch: new Date().toISOString(),
         },
-        adCooldown: 300, // 5 minutes in seconds
+        adCooldown: 300,
       }
     }
 
@@ -923,8 +920,11 @@ function reducer(state, action) {
         currentUser: {
           ...state.currentUser,
           balance: isFreeEntry ? state.currentUser.balance : (state.currentUser.balance || 0) + result.amount,
-          totalSpinWinnings: isFreeEntry ? state.currentUser.totalSpinWinnings : (state.currentUser.totalSpinWinnings || 0) + result.amount,
+          totalSpinWinnings: isFreeEntry
+            ? (state.currentUser.totalSpinWinnings || 0)
+            : (state.currentUser.totalSpinWinnings || 0) + result.amount,
           freeMatchEntry: isFreeEntry || state.currentUser?.freeMatchEntry,
+          lastSpinDate: new Date().toISOString(),
         }
       }
     }
@@ -941,12 +941,39 @@ function reducer(state, action) {
     case 'SET_SHARE_MATCH':
       return { ...state, shareMatchId: action.payload }
 
+    // ════════════════════════════════════════
+    //  ═══ V5.0: SHARE MATCH ACTION ═══
+    // ════════════════════════════════════════
+    case 'SHARE_MATCH': {
+      const match = state.matches.find(m => m.id === action.payload)
+      if (!match) return state
+      // Award 5 TK for sharing
+      const newBalance = (state.currentUser?.balance || 0) + 5
+      return {
+        ...state,
+        currentUser: {
+          ...state.currentUser,
+          balance: newBalance,
+        },
+        transactions: [{
+          id: 'tx_share_' + Date.now(),
+          type: 'share_reward',
+          amount: 5,
+          desc: `Shared match: ${match.title}`,
+          date: getTimeStr(0),
+          status: 'completed'
+        }, ...state.transactions],
+      }
+    }
+
     default:
       return state
   }
 }
 
-// ===== PROVIDER =====
+// ═══════════════════════════════════════════════════════════════════════
+//  PROVIDER — ALL LISTENERS + V5.0 GROWTH ENGINE
+// ═══════════════════════════════════════════════════════════════════════
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
@@ -972,6 +999,13 @@ export function AppProvider({ children }) {
             phone: phone,
             email: firebaseUser.email || '',
             firebaseUid: firebaseUser.uid,
+            // v5.0 defaults
+            referralCode: firebaseUser.uid.slice(0, 8).toUpperCase(),
+            lockedBalance: 0,
+            streak: 0,
+            level: 1,
+            xp: 0,
+            nextLevelXP: 100,
           }
           await createUser(firebaseUser.uid, newUser)
           dbUser = newUser
@@ -986,9 +1020,7 @@ export function AppProvider({ children }) {
   // Real-time settings listener
   useEffect(() => {
     const unsubscribe = subscribeToSettings((settings) => {
-      if (settings) {
-        dispatch({ type: 'LOAD_SETTINGS', payload: settings })
-      }
+      if (settings) dispatch({ type: 'LOAD_SETTINGS', payload: settings })
     })
     return () => unsubscribe()
   }, [])
@@ -1060,7 +1092,6 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const uid = state.currentUser?.firebaseUid
     if (!uid) return
-
     async function loadReferralStats() {
       try {
         const stats = await fetchReferralStats(uid)
@@ -1093,7 +1124,7 @@ export function AppProvider({ children }) {
   }, [state.currentUser?.lastSpinDate])
 
   // ══════════════════════════════════════════
-  //  V5.0: PROFIT STATS (Admin only)
+  //  V5.0: PROFIT STATS (Owner only)
   // ══════════════════════════════════════════
   useEffect(() => {
     if (!isOwner) return
@@ -1154,7 +1185,7 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!state.pendingBalanceAdjust) return
-    const { userId, action, amount, reason } = state.pendingBalanceAdjust
+    const { userId, action: act, amount, reason } = state.pendingBalanceAdjust
 
     adminAdjustBalance(userId, amount, reason)
       .then(newBalance => {
@@ -1264,8 +1295,64 @@ export function AppProvider({ children }) {
 
   const navigate = useCallback((path) => { window.location.hash = path }, [])
 
+  // ══════════════════════════════════════════
+  //  V5.0: ASYNC ACTION HELPERS (exposed via context)
+  // ══════════════════════════════════════════
+  const processReferralCode = useCallback(async (code) => {
+    if (!state.currentUser?.firebaseUid) return
+    try {
+      const result = await processReferral(state.currentUser.firebaseUid, code)
+      if (result.success) {
+        dispatch({ type: 'PROCESS_REFERRAL_SUCCESS', payload: { referrerId: result.referrerId, amount: result.amount } })
+      }
+      return result
+    } catch (err) {
+      console.error('Referral processing failed:', err)
+      return { success: false, error: err.message }
+    }
+  }, [state.currentUser?.firebaseUid])
+
+  const handleWatchAd = useCallback(async () => {
+    if (!state.currentUser?.firebaseUid) return
+    try {
+      const result = await watchAdReward(state.currentUser.firebaseUid)
+      if (result.success) {
+        dispatch({ type: 'AD_REWARD_SUCCESS', payload: result })
+      }
+      return result
+    } catch (err) {
+      console.error('Ad reward failed:', err)
+      return { success: false, error: err.message }
+    }
+  }, [state.currentUser?.firebaseUid])
+
+  const handleSpinClutch = useCallback(async () => {
+    if (!state.currentUser?.firebaseUid) return
+    try {
+      const result = await spinClutchWheel(state.currentUser.firebaseUid)
+      if (result.success) {
+        dispatch({ type: 'SPIN_SUCCESS', payload: { result: result.prize } })
+      }
+      return result
+    } catch (err) {
+      console.error('Clutch spin failed:', err)
+      return { success: false, error: err.message }
+    }
+  }, [state.currentUser?.firebaseUid])
+
   return (
-    <AppContext.Provider value={{ state, dispatch, navigate, isAdmin, isOwner, t }}>
+    <AppContext.Provider value={{
+      state,
+      dispatch,
+      navigate,
+      isAdmin,
+      isOwner,
+      t,
+      // v5.0 async helpers
+      processReferralCode,
+      handleWatchAd,
+      handleSpinClutch,
+    }}>
       {children}
     </AppContext.Provider>
   )

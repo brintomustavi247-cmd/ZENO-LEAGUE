@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useApp } from '../context'
 import MatchCard from '../components/MatchCard'
-import { formatTK, formatTKShort, getMatchPhase, getMatchCountdown } from '../utils'
+import { formatTK, getMatchPhase, getMatchCountdown } from '../utils'
 
 const pad = n => String(n).padStart(2, '0')
 
@@ -26,9 +26,9 @@ function cdFormat(ms) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  ANIMATED COUNTER HOOK
+//  ANIMATED COUNTER
 // ═══════════════════════════════════════════════════════════════════════
-function useAnimatedCounter(target, duration = 1000) {
+function useAnimatedCounter(target, duration = 1200) {
   const [count, setCount] = useState(0)
   const startRef = useRef(null)
   const fromRef = useRef(0)
@@ -37,7 +37,6 @@ function useAnimatedCounter(target, duration = 1000) {
     fromRef.current = count
     startRef.current = null
     let raf
-
     const animate = (timestamp) => {
       if (!startRef.current) startRef.current = timestamp
       const progress = Math.min((timestamp - startRef.current) / duration, 1)
@@ -46,7 +45,6 @@ function useAnimatedCounter(target, duration = 1000) {
       setCount(current)
       if (progress < 1) raf = requestAnimationFrame(animate)
     }
-
     raf = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(raf)
   }, [target, duration])
@@ -55,65 +53,60 @@ function useAnimatedCounter(target, duration = 1000) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  PROGRESS RING COMPONENT
+//  CIRCULAR STAT BADGE (Inspired by Gambit CIS)
 // ═══════════════════════════════════════════════════════════════════════
-function ProgressRing({ value, max, size = 80, stroke = 6, children }) {
+function CircularStat({ value, label, color, icon, suffix = '' }) {
+  const size = 72
+  const stroke = 4
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
-  const offset = circumference - (value / max) * circumference
+  const pct = Math.min(value / 100, 1)
+  const offset = circumference - pct * circumference
 
   return (
-    <div className="progress-ring" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle
-          className="progress-ring-bg"
-          cx={size / 2} cy={size / 2} r={radius}
-          strokeWidth={stroke}
-        />
-        <circle
-          className="progress-ring-fill"
-          cx={size / 2} cy={size / 2} r={radius}
-          strokeWidth={stroke}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <div className="progress-ring-text">{children}</div>
+    <div className="circular-stat">
+      <div className="circular-stat-ring" style={{ width: size, height: size }}>
+        <svg width={size} height={size}>
+          <circle className="ring-bg" cx={size/2} cy={size/2} r={radius} strokeWidth={stroke} />
+          <circle
+            className="ring-fill"
+            cx={size/2} cy={size/2} r={radius} strokeWidth={stroke}
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            style={{ stroke: color }}
+          />
+        </svg>
+        <div className="ring-text">
+          <i className={icon} style={{ color, fontSize: 14 }} />
+          <span style={{ color, fontSize: 16, fontWeight: 800 }}>{value}{suffix}</span>
+        </div>
+      </div>
+      <span className="circular-stat-label">{label}</span>
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  STREAK FLAME COMPONENT
+//  STREAK BAR (Upgraded from flame)
 // ═══════════════════════════════════════════════════════════════════════
-function StreakFlame({ streak, maxStreak = 7 }) {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+function StreakBar({ streak, maxStreak = 7 }) {
+  const days = ['M','T','W','T','F','S','S']
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div className="streak-flame">
-          <i className="fa-solid fa-fire" style={{ fontSize: 14 }} />
+    <div className="streak-bar">
+      <div className="streak-header">
+        <div className="streak-title">
+          <i className="fa-solid fa-fire" style={{ color: '#f59e0b' }} />
           <span>{streak} Day Streak</span>
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-number)', fontWeight: 600 }}>
-          {streak >= maxStreak ? 'MAX BONUS!' : `${maxStreak - streak} more for 50 TK`}
+        <span className="streak-bonus">
+          {streak >= maxStreak ? '🔥 MAX BONUS!' : `${maxStreak - streak} more for 50 TK`}
         </span>
       </div>
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div className="streak-days">
         {days.map((day, i) => (
-          <div key={day} style={{
-            flex: 1, textAlign: 'center', padding: '8px 4px',
-            borderRadius: 'var(--radius-sm)',
-            background: i < streak ? 'linear-gradient(135deg, var(--warning), var(--red))' : 'var(--bg-raised)',
-            border: `1px solid ${i < streak ? 'rgba(245,158,11,0.3)' : 'var(--glass-border)'}`,
-            transition: 'var(--transition)',
-          }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: i < streak ? '#fff' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              {day}
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: i < streak ? '#fff' : 'var(--text-muted)', fontFamily: 'var(--font-number)', marginTop: 2 }}>
-              {i < streak ? <i className="fa-solid fa-check" /> : '·'}
-            </div>
+          <div key={i} className={`streak-day ${i < streak ? 'active' : ''}`}>
+            <span className="day-letter">{day}</span>
+            <span className="day-check">{i < streak ? '✓' : '·'}</span>
           </div>
         ))}
       </div>
@@ -122,93 +115,28 @@ function StreakFlame({ streak, maxStreak = 7 }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  XP BAR COMPONENT
+//  XP BAR (Upgraded)
 // ═══════════════════════════════════════════════════════════════════════
 function XPBar({ xp, level, nextLevelXP }) {
-  const progress = (xp / nextLevelXP) * 100
+  const progress = Math.min((xp / nextLevelXP) * 100, 100)
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 'var(--radius-sm)',
-            background: 'linear-gradient(135deg, var(--cyan), var(--purple))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-number)', fontSize: 12, fontWeight: 800, color: '#fff',
-            boxShadow: 'var(--cyan-glow)',
-          }}>
-            {level}
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)' }}>
-            Level {level}
-          </span>
+    <div className="xp-bar">
+      <div className="xp-header">
+        <div className="xp-level">
+          <div className="level-badge">{level}</div>
+          <span>Level {level}</span>
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-number)', fontWeight: 600 }}>
-          {xp} / {nextLevelXP} XP
-        </span>
+        <span className="xp-text">{xp} / {nextLevelXP} XP</span>
       </div>
-      <div style={{
-        height: 6, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-full)', overflow: 'hidden',
-      }}>
-        <div style={{
-          height: '100%', width: `${progress}%`,
-          background: 'linear-gradient(90deg, var(--cyan), var(--purple))',
-          borderRadius: 'var(--radius-full)',
-          boxShadow: 'var(--cyan-glow)',
-          transition: 'width 1s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        }} />
+      <div className="xp-track">
+        <div className="xp-fill" style={{ width: `${progress}%` }} />
       </div>
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  QUICK ACTION BUTTON
-// ═══════════════════════════════════════════════════════════════════════
-function QuickAction({ icon, label, color, onClick, delay }) {
-  return (
-    <button
-      onClick={onClick}
-      className="fade-in"
-      style={{
-        animationDelay: `${delay}ms`,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-        padding: '16px 12px', borderRadius: 'var(--radius)',
-        background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
-        border: '1px solid var(--glass-border)', cursor: 'pointer',
-        transition: 'var(--transition)', WebkitTapHighlightColor: 'transparent',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.borderColor = color
-        e.currentTarget.style.transform = 'translateY(-4px)'
-        e.currentTarget.style.boxShadow = `0 8px 24px ${color}30`
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.borderColor = 'var(--glass-border)'
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
-      }}
-    >
-      <div style={{
-        width: 44, height: 44, borderRadius: 'var(--radius-sm)',
-        background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 20, color, transition: 'var(--transition)',
-      }}>
-        <i className={icon} />
-      </div>
-      <span style={{
-        fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-        letterSpacing: '0.1em', color: 'var(--text-secondary)',
-        fontFamily: 'var(--font-body)',
-      }}>
-        {label}
-      </span>
-    </button>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  HERO BANNER COMPONENT
+//  HERO BANNER (Upgraded — PUBG/Free Fire vibe)
 // ═══════════════════════════════════════════════════════════════════════
 function HeroBanner({ hero, heroPhase, heroCountdown, heroJoined, heroTime, onJoin, onNavigate }) {
   const [countdown, setCountdown] = useState(heroCountdown)
@@ -216,10 +144,7 @@ function HeroBanner({ hero, heroPhase, heroCountdown, heroJoined, heroTime, onJo
   useEffect(() => {
     if (heroPhase === 'live' || heroPhase === 'completed') return
     const interval = setInterval(() => {
-      setCountdown(prev => {
-        const next = prev - 1000
-        return next > 0 ? next : 0
-      })
+      setCountdown(prev => prev > 1000 ? prev - 1000 : 0)
     }, 1000)
     return () => clearInterval(interval)
   }, [heroPhase, heroCountdown])
@@ -227,285 +152,433 @@ function HeroBanner({ hero, heroPhase, heroCountdown, heroJoined, heroTime, onJo
   if (!hero) return null
 
   return (
-    <div
-      className="hero-banner fade-in"
-      onClick={() => onNavigate(`match-detail/${hero.id}`)}
-    >
-      {hero.image ? (
-        <img src={hero.image} alt="" />
-      ) : (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(135deg, var(--bg-deep), var(--bg-raised))',
-        }} />
-      )}
+    <div className="hero-banner-v2" onClick={() => onNavigate(`match-detail/${hero.id}`)}>
+      {/* Animated gradient mesh background */}
+      <div className="hero-mesh">
+        <div className="mesh-blob mesh-1" />
+        <div className="mesh-blob mesh-2" />
+        <div className="mesh-blob mesh-3" />
+      </div>
 
-      <div className="content">
-        {heroPhase !== 'completed' && (
-          <div className="badge">
-            {heroPhase === 'live' && <span className="dot" />}
-            {heroPhase === 'live' ? 'Live Tournament' : 'Upcoming Arena'}
-          </div>
-        )}
+      {/* Content */}
+      <div className="hero-content">
+        <div className="hero-badge-row">
+          {heroPhase === 'live' ? (
+            <span className="hero-badge live">
+              <span className="live-dot" /> LIVE NOW
+            </span>
+          ) : (
+            <span className="hero-badge upcoming">UPCOMING ARENA</span>
+          )}
+          <span className="hero-prize">
+            <i className="fa-solid fa-trophy" /> {formatTK(hero.prizePool || 0)} TK
+          </span>
+        </div>
 
-        <h2 className="title">
-          {hero.title.split(' ').slice(0, -1).join(' ')}<br />
-          <span style={{ color: 'var(--cyan)' }}>{hero.title.split(' ').slice(-1)}</span>
+        <h2 className="hero-title">
+          {hero.title || 'Clutch Arena'}
+          <span className="hero-title-accent"> Tournament</span>
         </h2>
 
-        <p className="subtitle">
-          {hero.mode} {hero.map ? `| ${hero.map}` : ''} {heroTime.date ? `| ${heroTime.date} · ${heroTime.time}` : ''}
+        <p className="hero-meta">
+          <span className="meta-pill"><i className="fa-solid fa-gamepad" /> {hero.mode || 'Solo'}</span>
+          <span className="meta-pill"><i className="fa-solid fa-map" /> {hero.map || 'Erangel'}</span>
+          <span className="meta-pill"><i className="fa-regular fa-clock" /> {heroTime.time}</span>
         </p>
 
-        {heroPhase !== 'completed' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
-            <button
-              className="hero-cta"
-              onClick={(e) => {
-                e.stopPropagation()
-                if (heroJoined) return
-                onJoin(hero.id)
-              }}
-              disabled={heroJoined}
-              style={{ opacity: heroJoined ? 0.6 : 1, cursor: heroJoined ? 'default' : 'pointer' }}
-            >
-              {heroJoined ? '✓ Joined' : 'Join Arena'}
-            </button>
-
-            {countdown > 0 && heroPhase === 'upcoming' && (
-              <div style={{
-                fontFamily: 'var(--font-number)', fontSize: 14, fontWeight: 700,
-                color: 'var(--cyan)', background: 'rgba(0,0,0,0.4)',
-                padding: '8px 16px', borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--glass-border)',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                <i className="fa-regular fa-clock" style={{ marginRight: 6, fontSize: 12 }} />
-                {cdFormat(countdown)}
-              </div>
+        <div className="hero-actions">
+          <button
+            className={`hero-cta ${heroJoined ? 'joined' : ''}`}
+            onClick={(e) => { e.stopPropagation(); if (!heroJoined) onJoin(hero.id) }}
+            disabled={heroJoined}
+          >
+            {heroJoined ? (
+              <><i className="fa-solid fa-check" /> Joined</>
+            ) : (
+              <><i className="fa-solid fa-bolt" /> Join Arena — {formatTK(hero.entryFee || 30)} TK</>
             )}
+          </button>
+
+          {countdown > 0 && heroPhase === 'upcoming' && (
+            <div className="hero-countdown">
+              <i className="fa-regular fa-clock" />
+              {cdFormat(countdown)}
+            </div>
+          )}
+        </div>
+
+        {/* Player avatars stack */}
+        <div className="hero-players">
+          <div className="avatar-stack">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="hero-avatar" style={{ zIndex: 5-i }}>
+                <div className="avatar-glow" />
+              </div>
+            ))}
+            <div className="avatar-more">+{Math.max((hero.maxPlayers || 50) - 4, 0)}</div>
           </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  WALLET VAULT CARD
-// ═══════════════════════════════════════════════════════════════════════
-function WalletVault({ balance, onDeposit, onWithdraw, onNavigate }) {
-  const animatedBalance = useAnimatedCounter(balance, 1500)
-
-  return (
-    <div
-      className="wallet-card fade-in"
-      onClick={() => onNavigate('wallet')}
-      style={{ animationDelay: '100ms', cursor: 'pointer' }}
-    >
-      <div className="label">Account Balance</div>
-      <div className="balance">
-        {formatTK(animatedBalance)}
-        <span style={{ fontSize: 16, marginLeft: 8, color: 'var(--cyan)', fontWeight: 700 }}>TK</span>
-      </div>
-
-      <div className="wallet-actions">
-        <button className="wallet-btn withdraw" onClick={(e) => { e.stopPropagation(); onWithdraw() }}>
-          <i className="fa-solid fa-arrow-up-from-bracket" /> Withdraw
-        </button>
-        <button className="wallet-btn add" onClick={(e) => { e.stopPropagation(); onDeposit() }}>
-          <i className="fa-solid fa-plus" /> Deposit
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  STAT CARD COMPONENT
-// ═══════════════════════════════════════════════════════════════════════
-function StatCard({ stat, index, onClick, delay }) {
-  return (
-    <div
-      className="fade-in"
-      onClick={onClick}
-      style={{
-        animationDelay: `${delay}ms`,
-        background: stat.highlight ? 'var(--glass-bg)' : 'var(--bg-raised)',
-        border: stat.highlight ? '1px solid rgba(0,240,255,0.15)' : '1px solid transparent',
-        borderRadius: 'var(--radius)', padding: '16px',
-        cursor: 'pointer', position: 'relative', overflow: 'hidden',
-        backdropFilter: stat.highlight ? 'var(--glass-blur)' : 'none',
-        transition: 'var(--transition)', WebkitTapHighlightColor: 'transparent',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-4px)'
-        e.currentTarget.style.borderColor = 'var(--glass-border-hover)'
-        e.currentTarget.style.boxShadow = 'var(--shadow)'
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.borderColor = stat.highlight ? 'rgba(0,240,255,0.15)' : 'transparent'
-        e.currentTarget.style.boxShadow = 'none'
-      }}
-    >
-      {stat.highlight && (
-        <i className="fa-solid fa-military-tech" style={{
-          position: 'absolute', right: -8, bottom: -8, fontSize: 64,
-          color: 'var(--cyan)', opacity: 0.06,
-        }} />
-      )}
-      <i className={stat.icon} style={{
-        fontSize: 20, color: stat.color || 'var(--cyan)', marginBottom: 14, display: 'block',
-        filter: stat.highlight ? 'drop-shadow(0 0 8px rgba(0,240,255,0.4))' : 'none',
-      }} />
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <p style={{
-          fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-          letterSpacing: '0.1em', color: 'var(--text-muted)', margin: 0,
-          fontFamily: 'var(--font-body)',
-        }}>
-          {stat.label}
-        </p>
-        <p style={{
-          fontFamily: stat.highlight ? 'var(--font-hero)' : 'var(--font-number)',
-          fontSize: 22, fontWeight: 800,
-          color: stat.highlight ? 'var(--cyan)' : 'var(--text)',
-          margin: 0, letterSpacing: stat.highlight ? '-0.03em' : 0,
-          fontStyle: stat.highlight ? 'italic' : 'normal',
-          textTransform: stat.highlight ? 'uppercase' : 'none',
-          textShadow: stat.highlight ? 'var(--cyan-glow)' : 'none',
-        }}>
-          {stat.value}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  SECTION HEADER
-// ═══════════════════════════════════════════════════════════════════════
-function SectionHeader({ title, count, link, onNavigate }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-      marginBottom: 14, borderBottom: '1px solid var(--glass-border)', paddingBottom: 12,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 4, height: 20, background: 'var(--cyan)', flexShrink: 0, boxShadow: 'var(--cyan-glow)' }} />
-        <h3 className="title-section" style={{ margin: 0, fontSize: 16 }}>{title}</h3>
-        {count !== undefined && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-number)', fontWeight: 600 }}>
-            ({count})
+          <span className="players-text">
+            {hero.participants?.length || 0}/{hero.maxPlayers || 50} warriors joined
           </span>
-        )}
+        </div>
       </div>
-      {link && (
-        <span
-          onClick={() => onNavigate(link)}
-          style={{
-            fontSize: 10, fontWeight: 700, color: 'var(--cyan)',
-            fontFamily: 'var(--font-body)',
-            textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer',
-            transition: 'var(--transition)',
-          }}
-          onMouseEnter={e => e.currentTarget.style.textShadow = 'var(--cyan-glow)'}
-          onMouseLeave={e => e.currentTarget.style.textShadow = 'none'}
-        >
-          View All
-        </span>
-      )}
+
+      {/* Decorative character silhouette */}
+      <div className="hero-character">
+        <div className="character-silhouette" />
+      </div>
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  MATCH CAROUSEL (Horizontal Scroll)
+//  WALLET VAULT V2 (With locked balance + quick actions)
 // ═══════════════════════════════════════════════════════════════════════
-function MatchCarousel({ matches, emptyMessage }) {
-  if (matches.length === 0) {
-    return (
-      <div style={{
-        textAlign: 'center', padding: '40px 20px',
-        background: 'var(--bg-raised)', borderRadius: 'var(--radius)',
-        border: '1px solid var(--glass-border)',
-      }}>
-        <i className="fa-solid fa-gamepad" style={{ fontSize: 32, color: 'var(--bg-elevated)', marginBottom: 12, display: 'block' }} />
-        <p style={{
-          fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700,
-          color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0,
-        }}>
-          {emptyMessage}
-        </p>
+function WalletVaultV2({ balance, lockedBalance, onDeposit, onWithdraw, onNavigate }) {
+  const animatedBalance = useAnimatedCounter(balance, 1500)
+  const animatedLocked = useAnimatedCounter(lockedBalance, 1500)
+
+  return (
+    <div className="wallet-v2" onClick={() => onNavigate('wallet')}>
+      <div className="wallet-glow" />
+      <div className="wallet-inner">
+        <div className="wallet-header">
+          <div className="wallet-label">
+            <i className="fa-solid fa-wallet" /> Available Balance
+          </div>
+          <div className="wallet-locked">
+            <i className="fa-solid fa-lock" /> {formatTK(animatedLocked)} TK locked
+          </div>
+        </div>
+
+        <div className="wallet-balance">
+          <span className="balance-currency">৳</span>
+          <span className="balance-amount">{formatTK(animatedBalance)}</span>
+          <span className="balance-unit">TK</span>
+        </div>
+
+        <div className="wallet-actions">
+          <button className="wallet-btn withdraw" onClick={(e) => { e.stopPropagation(); onWithdraw() }}>
+            <i className="fa-solid fa-arrow-up-from-bracket" /> Withdraw
+          </button>
+          <button className="wallet-btn deposit" onClick={(e) => { e.stopPropagation(); onDeposit() }}>
+            <i className="fa-solid fa-plus" /> Deposit
+          </button>
+        </div>
       </div>
-    )
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  QUICK ACTION V2 (Glowing hover)
+// ═══════════════════════════════════════════════════════════════════════
+function QuickActionV2({ icon, label, color, onClick, badge }) {
+  return (
+    <button className="quick-action-v2" onClick={onClick} style={{ '--qa-color': color }}>
+      {badge && <span className="qa-badge">{badge}</span>}
+      <div className="qa-icon">
+        <i className={icon} />
+      </div>
+      <span className="qa-label">{label}</span>
+    </button>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CLUTCH SPIN WHEEL (Daily lottery)
+// ═══════════════════════════════════════════════════════════════════════
+function ClutchSpin({ onSpin, canSpin, lastSpin }) {
+  const [spinning, setSpinning] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const prizes = [
+    { label: '5 TK', chance: 50, color: '#6b7280' },
+    { label: '10 TK', chance: 30, color: '#8b5cf6' },
+    { label: '15 TK', chance: 15, color: '#06b6d4' },
+    { label: '25 TK', chance: 4, color: '#f59e0b' },
+    { label: 'FREE MATCH', chance: 1, color: '#ef4444' },
+  ]
+
+  const handleSpin = () => {
+    if (!canSpin || spinning) return
+    setSpinning(true)
+    setTimeout(() => {
+      const rand = Math.random() * 100
+      let cum = 0
+      let won = prizes[0]
+      for (const p of prizes) {
+        cum += p.chance
+        if (rand <= cum) { won = p; break }
+      }
+      setResult(won)
+      setSpinning(false)
+      onSpin(won)
+    }, 2000)
   }
 
   return (
-    <div className="h-scroll" style={{ margin: '-4px -16px', padding: '4px 16px' }}>
-      {matches.map((m, i) => (
-        <div key={m.id} className="fade-in" style={{ animationDelay: `${i * 100}ms` }}>
-          <MatchCard match={m} />
+    <div className="clutch-spin">
+      <div className="spin-header">
+        <div className="spin-title">
+          <i className="fa-solid fa-diamond" style={{ color: '#f59e0b' }} />
+          <span>Clutch Spin</span>
         </div>
+        {canSpin ? (
+          <span className="spin-status ready">Ready!</span>
+        ) : (
+          <span className="spin-status wait">Come back tomorrow</span>
+        )}
+      </div>
+
+      <div className={`spin-wheel ${spinning ? 'spinning' : ''}`}>
+        <div className="wheel-center">
+          {spinning ? (
+            <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: 32, color: '#f59e0b' }} />
+          ) : result ? (
+            <div className="spin-result">
+              <span className="result-prize" style={{ color: result.color }}>{result.label}</span>
+              <span className="result-won">WON!</span>
+            </div>
+          ) : (
+            <i className="fa-solid fa-gift" style={{ fontSize: 28, color: '#f59e0b' }} />
+          )}
+        </div>
+        {prizes.map((p, i) => (
+          <div key={i} className="wheel-slice" style={{ '--slice-color': p.color, '--slice-index': i }}>
+            <span>{p.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <button
+        className={`spin-btn ${canSpin && !spinning ? 'active' : 'disabled'}`}
+        onClick={handleSpin}
+        disabled={!canSpin || spinning}
+      >
+        {spinning ? 'Spinning...' : canSpin ? 'SPIN NOW' : 'Already Spun Today'}
+      </button>
+
+      <div className="spin-odds">
+        {prizes.map(p => (
+          <span key={p.label} style={{ color: p.color }}>{p.chance}% {p.label}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  REFERRAL CARD
+// ═══════════════════════════════════════════════════════════════════════
+function ReferralCard({ referralCode, referralCount, onShare }) {
+  const [copied, setCopied] = useState(false)
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(`Join Clutch Arena BD! Use my code ${referralCode} and we both get 20 TK bonus: https://clutcharena.bd/ref/${referralCode}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const shareWhatsApp = () => {
+    const text = `🔥 Join Clutch Arena BD — Win Real Cash in PUBG/Free Fire!\n\nUse my referral code: *${referralCode}*\nWe both get 20 TK bonus! 💰\n\n👉 https://clutcharena.bd/ref/${referralCode}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+    onShare?.()
+  }
+
+  return (
+    <div className="referral-card">
+      <div className="referral-glow" />
+      <div className="referral-inner">
+        <div className="referral-header">
+          <i className="fa-solid fa-rocket" style={{ color: '#8b5cf6' }} />
+          <div>
+            <h4>Refer & Earn</h4>
+            <p>You & friend both get 20 TK</p>
+          </div>
+        </div>
+
+        <div className="referral-code-box" onClick={copyCode}>
+          <span className="ref-code">{referralCode || 'YOURCODE'}</span>
+          <button className="ref-copy">
+            <i className={copied ? 'fa-solid fa-check' : 'fa-regular fa-copy'} />
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+
+        <div className="referral-stats">
+          <div className="ref-stat">
+            <span className="ref-stat-value">{referralCount || 0}</span>
+            <span className="ref-stat-label">Friends Joined</span>
+          </div>
+          <div className="ref-stat">
+            <span className="ref-stat-value">{(referralCount || 0) * 20}</span>
+            <span className="ref-stat-label">TK Earned</span>
+          </div>
+        </div>
+
+        <button className="whatsapp-share" onClick={shareWhatsApp}>
+          <i className="fa-brands fa-whatsapp" /> Share on WhatsApp
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  AD REWARD BUTTON
+// ═══════════════════════════════════════════════════════════════════════
+function AdRewardButton({ onWatch, cooldown }) {
+  const [timeLeft, setTimeLeft] = useState(cooldown || 0)
+
+  useEffect(() => {
+    if (timeLeft <= 0) return
+    const interval = setInterval(() => setTimeLeft(t => Math.max(0, t - 1000)), 1000)
+    return () => clearInterval(interval)
+  }, [timeLeft])
+
+  const formatCooldown = (ms) => {
+    const m = Math.floor(ms / 60000)
+    const s = Math.floor((ms % 60000) / 1000)
+    return `${pad(m)}:${pad(s)}`
+  }
+
+  return (
+    <div className="ad-reward">
+      <div className="ad-icon">
+        <i className="fa-solid fa-play" />
+      </div>
+      <div className="ad-info">
+        <h4>Watch Ad & Earn</h4>
+        <p>Watch a 30s video → Get 5 TK instantly</p>
+      </div>
+      <button
+        className={`ad-btn ${timeLeft > 0 ? 'cooldown' : ''}`}
+        onClick={() => timeLeft <= 0 && onWatch()}
+        disabled={timeLeft > 0}
+      >
+        {timeLeft > 0 ? formatCooldown(timeLeft) : '+5 TK'}
+      </button>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SECTION HEADER V2
+// ═══════════════════════════════════════════════════════════════════════
+function SectionHeaderV2({ title, count, link, onNavigate, icon }) {
+  return (
+    <div className="section-header-v2">
+      <div className="section-title">
+        <i className={icon || 'fa-solid fa-bolt'} />
+        <h3>{title}</h3>
+        {count !== undefined && <span className="section-count">{count}</span>}
+      </div>
+      {link && (
+        <button className="section-link" onClick={() => onNavigate(link)}>
+          View All <i className="fa-solid fa-chevron-right" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MATCH FILTER TABS (Inspired by Gempod)
+// ═══════════════════════════════════════════════════════════════════════
+function MatchFilterTabs({ active, onChange }) {
+  const tabs = [
+    { id: 'all', label: 'All Games', icon: 'fa-solid fa-border-all' },
+    { id: 'solo', label: 'Solo', icon: 'fa-solid fa-user' },
+    { id: 'duo', label: 'Duo', icon: 'fa-solid fa-user-group' },
+    { id: 'squad', label: 'Squad', icon: 'fa-solid fa-users' },
+  ]
+  return (
+    <div className="match-tabs">
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          className={`match-tab ${active === tab.id ? 'active' : ''}`}
+          onClick={() => onChange(tab.id)}
+        >
+          <i className={tab.icon} />
+          <span>{tab.label}</span>
+        </button>
       ))}
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  MAIN DASHBOARD
+//  MAIN DASHBOARD V2
 // ═══════════════════════════════════════════════════════════════════════
 export default function Dashboard() {
   const { state, dispatch, navigate } = useApp()
   const { matches, currentUser } = state
 
+  const [filter, setFilter] = useState('all')
+  const [showSpin, setShowSpin] = useState(false)
+
   if (!currentUser) return null
 
-  // Gamification data (will come from state in future)
+  // Gamification data
   const streak = currentUser.streak || 3
   const level = currentUser.level || 5
   const xp = currentUser.xp || 340
   const nextLevelXP = currentUser.nextLevelXP || 500
+  const lockedBalance = currentUser.lockedBalance || 0
+  const referralCode = currentUser.referralCode || currentUser.id?.slice(0, 8).toUpperCase()
+  const referralCount = currentUser.referralCount || 0
+  const lastSpinDate = currentUser.lastSpinDate
+  const canSpin = !lastSpinDate || new Date(lastSpinDate).toDateString() !== new Date().toDateString()
+  const adCooldown = currentUser.adCooldown || 0
 
-  const liveMatches = matches.filter(m => m.status === 'live')
-  const upcomingMatches = matches
-    .filter(m => m.status === 'upcoming')
-    .sort((a, b) => {
-      const tA = a.startTime ? new Date(a.startTime.replace(' ', 'T')).getTime() : Infinity
-      const tB = b.startTime ? new Date(b.startTime.replace(' ', 'T')).getTime() : Infinity
-      return tA - tB
-    })
-  const completedMatches = matches.filter(m => m.status === 'completed')
+  // Filter matches
+  const allLive = matches.filter(m => m.status === 'live')
+  const allUpcoming = matches.filter(m => m.status === 'upcoming').sort((a, b) => {
+    const tA = a.startTime ? new Date(a.startTime.replace(' ', 'T')).getTime() : Infinity
+    const tB = b.startTime ? new Date(b.startTime.replace(' ', 'T')).getTime() : Infinity
+    return tA - tB
+  })
+  const allCompleted = matches.filter(m => m.status === 'completed')
+
+  const filterFn = m => filter === 'all' || m.mode?.toLowerCase() === filter
+  const liveMatches = allLive.filter(filterFn)
+  const upcomingMatches = allUpcoming.filter(filterFn)
+  const completedMatches = allCompleted.filter(filterFn)
+
   const myJoinedCount = matches.filter(m => m.participants?.includes(currentUser.id)).length
 
-  const hero = upcomingMatches[0] || liveMatches[0] || completedMatches[0]
+  const hero = allUpcoming[0] || allLive[0] || allCompleted[0]
   const heroPhase = hero ? getMatchPhase(hero) : 'unknown'
   const heroCountdown = hero ? getMatchCountdown(hero) : 0
   const heroJoined = hero ? hero.participants?.includes(currentUser.id) : false
   const heroTime = hero ? scheduledTime(hero.startTime) : { time: 'TBA', date: '' }
 
-  const stats = [
-    { label: 'Live Matches', value: liveMatches.length, icon: 'fa-solid fa-circle-play', color: 'var(--cyan)' },
-    { label: 'My Matches', value: myJoinedCount, icon: 'fa-solid fa-user-check', color: 'var(--purple)' },
-    { label: 'Win Rate', value: '68.4%', icon: 'fa-solid fa-check-double', color: 'var(--success)' },
-    { label: 'Rank', value: currentUser.rank || 'Unranked', icon: 'fa-solid fa-military-tech', color: 'var(--cyan)', highlight: true },
-  ]
+  // Stats for circular badges
+  const winRate = currentUser.winRate || 68.4
 
   const handleJoin = (matchId) => {
     dispatch({ type: 'SHOW_MODAL', payload: { type: 'join-match', matchId } })
   }
 
-  const handleDeposit = () => {
-    dispatch({ type: 'SHOW_MODAL', payload: { type: 'add-money' } })
+  const handleDeposit = () => dispatch({ type: 'SHOW_MODAL', payload: { type: 'add-money' } })
+  const handleWithdraw = () => dispatch({ type: 'SHOW_MODAL', payload: { type: 'withdraw' } })
+
+  const handleSpin = (prize) => {
+    dispatch({ type: 'SPIN_CLUTCH', payload: prize })
   }
 
-  const handleWithdraw = () => {
-    dispatch({ type: 'SHOW_MODAL', payload: { type: 'withdraw' } })
+  const handleWatchAd = () => {
+    dispatch({ type: 'WATCH_AD_REWARD' })
+  }
+
+  const handleReferralShare = () => {
+    dispatch({ type: 'REFERRAL_SHARED' })
   }
 
   return (
-    <div style={{ padding: '0 0 100px 0' }}>
+    <div className="dashboard-v2">
 
       {/* ═══ HERO BANNER ═══ */}
       <HeroBanner
@@ -518,106 +591,96 @@ export default function Dashboard() {
         onNavigate={navigate}
       />
 
-      {/* ═══ GAMIFICATION BAR (Streak + XP) ═══ */}
-      <div className="fade-in" style={{ animationDelay: '150ms' }}>
-        <StreakFlame streak={streak} />
+      {/* ═══ GAMIFICATION ROW ═══ */}
+      <div className="gamification-row">
+        <StreakBar streak={streak} />
         <XPBar xp={xp} level={level} nextLevelXP={nextLevelXP} />
       </div>
 
       {/* ═══ WALLET VAULT ═══ */}
-      <WalletVault
+      <WalletVaultV2
         balance={currentUser.balance || 0}
+        lockedBalance={lockedBalance}
         onDeposit={handleDeposit}
         onWithdraw={handleWithdraw}
         onNavigate={navigate}
       />
 
       {/* ═══ QUICK ACTIONS ═══ */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 24, marginTop: 16,
-      }}>
-        <QuickAction
-          icon="fa-solid fa-gamepad" label="Join" color="var(--cyan)"
-          onClick={() => navigate('matches')} delay={200}
-        />
-        <QuickAction
-          icon="fa-solid fa-trophy" label="Ranks" color="var(--purple)"
-          onClick={() => navigate('leaderboard')} delay={300}
-        />
-        <QuickAction
-          icon="fa-solid fa-clock-rotate-left" label="History" color="var(--success)"
-          onClick={() => navigate('profile')} delay={400}
-        />
-        <QuickAction
-          icon="fa-solid fa-share-nodes" label="Refer" color="var(--warning)"
-          onClick={() => navigate('settings')} delay={500}
-        />
+      <div className="quick-actions-grid">
+        <QuickActionV2 icon="fa-solid fa-gamepad" label="Join" color="#06b6d4" onClick={() => navigate('matches')} />
+        <QuickActionV2 icon="fa-solid fa-trophy" label="Ranks" color="#8b5cf6" onClick={() => navigate('leaderboard')} />
+        <QuickActionV2 icon="fa-solid fa-clock-rotate-left" label="History" color="#10b981" onClick={() => navigate('profile')} />
+        <QuickActionV2 icon="fa-solid fa-gift" label="Spin" color="#f59e0b" onClick={() => setShowSpin(!showSpin)} badge={canSpin ? '!' : null} />
       </div>
 
-      {/* ═══ STATS GRID ═══ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 24 }}>
-        {stats.map((s, i) => (
-          <StatCard
-            key={s.label}
-            stat={s}
-            index={i}
-            delay={600 + i * 100}
-            onClick={() => navigate(i === 3 ? 'leaderboard' : 'matches')}
-          />
-        ))}
+      {/* ═══ CLUTCH SPIN (Collapsible) ═══ */}
+      {showSpin && (
+        <ClutchSpin onSpin={handleSpin} canSpin={canSpin} lastSpin={lastSpinDate} />
+      )}
+
+      {/* ═══ AD REWARD ═══ */}
+      <AdRewardButton onWatch={handleWatchAd} cooldown={adCooldown} />
+
+      {/* ═══ REFERRAL CARD ═══ */}
+      <ReferralCard
+        referralCode={referralCode}
+        referralCount={referralCount}
+        onShare={handleReferralShare}
+      />
+
+      {/* ═══ CIRCULAR STATS (Inspired by Gambit CIS) ═══ */}
+      <div className="circular-stats-row">
+        <CircularStat value={liveMatches.length} label="Live" color="#06b6d4" icon="fa-solid fa-circle-play" />
+        <CircularStat value={myJoinedCount} label="My Matches" color="#8b5cf6" icon="fa-solid fa-user-check" />
+        <CircularStat value={winRate} label="Win Rate" color="#10b981" icon="fa-solid fa-percent" suffix="%" />
+        <CircularStat value={level} label="Level" color="#f59e0b" icon="fa-solid fa-military-tech" />
       </div>
+
+      {/* ═══ MATCH FILTER TABS ═══ */}
+      <MatchFilterTabs active={filter} onChange={setFilter} />
 
       {/* ═══ LIVE MATCHES ═══ */}
       {liveMatches.length > 0 && (
-        <div className="fade-in" style={{ marginBottom: 24, animationDelay: '800ms' }}>
-          <SectionHeader title="Live Now" count={liveMatches.length} link="matches" onNavigate={navigate} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {liveMatches.map(m => <MatchCard key={m.id} match={m} />)}
+        <div className="match-section">
+          <SectionHeaderV2 title="Live Now" count={liveMatches.length} link="matches" onNavigate={navigate} icon="fa-solid fa-tower-broadcast" />
+          <div className="match-list">
+            {liveMatches.map(m => <MatchCard key={m.id} match={m} variant="glow" />)}
           </div>
         </div>
       )}
 
-      {/* ═══ UPCOMING MATCHES — Horizontal Carousel ═══ */}
+      {/* ═══ UPCOMING MATCHES ═══ */}
       {upcomingMatches.length > 0 && (
-        <div className="fade-in" style={{ marginBottom: 24, animationDelay: '900ms' }}>
-          <SectionHeader title="Upcoming Arenas" count={upcomingMatches.length} link="matches" onNavigate={navigate} />
-          <MatchCarousel matches={upcomingMatches.slice(0, 5)} emptyMessage="No upcoming matches" />
+        <div className="match-section">
+          <SectionHeaderV2 title="Upcoming Arenas" count={upcomingMatches.length} link="matches" onNavigate={navigate} icon="fa-solid fa-calendar" />
+          <div className="match-list">
+            {upcomingMatches.slice(0, 5).map(m => <MatchCard key={m.id} match={m} variant="glow" />)}
+          </div>
         </div>
       )}
 
       {/* ═══ COMPLETED MATCHES ═══ */}
       {completedMatches.length > 0 && (
-        <div className="fade-in" style={{ marginBottom: 24, animationDelay: '1000ms' }}>
-          <SectionHeader title="Completed" count={completedMatches.length} onNavigate={navigate} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {completedMatches.slice(0, 3).map(m => <MatchCard key={m.id} match={m} />)}
+        <div className="match-section">
+          <SectionHeaderV2 title="Completed" count={completedMatches.length} onNavigate={navigate} icon="fa-solid fa-flag-checkered" />
+          <div className="match-list">
+            {completedMatches.slice(0, 3).map(m => <MatchCard key={m.id} match={m} variant="dim" />)}
           </div>
         </div>
       )}
 
       {/* ═══ EMPTY STATE ═══ */}
       {matches.length === 0 && (
-        <div className="fade-in" style={{
-          textAlign: 'center', padding: '60px 20px',
-          background: 'var(--bg-raised)', borderRadius: 'var(--radius)',
-          border: '1px solid var(--glass-border)',
-        }}>
-          <i className="fa-solid fa-gamepad" style={{ fontSize: 40, color: 'var(--bg-elevated)', marginBottom: 12, display: 'block' }} />
-          <p style={{
-            fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700,
-            color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0,
-          }}>
-            No matches available
-          </p>
-          <button
-            className="btn btn-primary"
-            onClick={() => navigate('matches')}
-            style={{ marginTop: 16 }}
-          >
-            Browse Matches
-          </button>
+        <div className="empty-state">
+          <i className="fa-solid fa-gamepad" />
+          <p>No matches available right now</p>
+          <button className="btn-primary" onClick={() => navigate('matches')}>Browse Matches</button>
         </div>
       )}
+
+      {/* Bottom spacer for mobile nav */}
+      <div style={{ height: 80 }} />
     </div>
   )
 }
