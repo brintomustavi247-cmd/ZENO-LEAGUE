@@ -5,9 +5,211 @@ import { approveAddMoneyRequest, rejectAddMoneyRequest, getPlatformProfitStats, 
 import { FF_MAPS, FF_MODES, FF_GAME_TYPES, KILL_REWARDS, RESULT_METHODS } from '../data'
 
 // ═══════════════════════════════════════════════════════════════════════
-// V7.0: Premium CSS loaded via admin-premium.css (no runtime injection)
+// V7.1: PREMIUM CSS — BOLD NEON GAMING AESTHETIC (injected at runtime)
 // ═══════════════════════════════════════════════════════════════════════
+if (typeof document !== 'undefined') {
+  const existingId = 'clutch-admin-v72-premium'
+  const old = document.getElementById(existingId)
+  if (old) old.remove()
+  const s = document.createElement('style')
+  s.id = existingId
+  s.textContent = `
+@keyframes v71Shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes v71Pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes v71Float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes v71Holo{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes v71BorderPulse{0%,100%{border-color:rgba(139,92,246,.3);box-shadow:0 0 15px rgba(139,92,246,.15)}50%{border-color:rgba(139,92,246,.7);box-shadow:0 0 35px rgba(139,92,246,.35)}}
+@keyframes v71GreenPulse{0%,100%{border-color:rgba(34,197,94,.3);box-shadow:0 0 15px rgba(34,197,94,.15)}50%{border-color:rgba(34,197,94,.7);box-shadow:0 0 35px rgba(34,197,94,.35)}}
+@keyframes v71CyanPulse{0%,100%{border-color:rgba(0,212,255,.3);box-shadow:0 0 15px rgba(0,212,255,.15)}50%{border-color:rgba(0,212,255,.7);box-shadow:0 0 35px rgba(0,212,255,.35)}}
+@keyframes v71BgShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes v71Scanline{0%{top:-10%}100%{top:110%}}
+@keyframes v71FadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes v71NeonFlicker{0%,100%{opacity:1}92%{opacity:1}93%{opacity:.4}94%{opacity:1}}
+@keyframes v71GlowText{0%,100%{text-shadow:0 0 8px rgba(139,92,246,.5),0 0 20px rgba(139,92,246,.2)}50%{text-shadow:0 0 16px rgba(139,92,246,.8),0 0 40px rgba(139,92,246,.4),0 0 60px rgba(99,102,241,.2)}}
+@keyframes v71Rainbow{0%{background-position:0% 50%}16%{background-position:100% 0%}33%{background-position:100% 100%}50%{background-position:0% 100%}66%{background-position:0% 0%}83%{background-position:100% 50%}100%{background-position:0% 50%}}
 
+/* ═══ ADMIN PANEL ═══ */
+.admin-panel{position:relative;min-height:100vh;background:rgba(8,8,24,.85)!important;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+.admin-panel::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background-image:linear-gradient(rgba(139,92,246,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(139,92,246,.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.admin-panel::after{content:'';position:fixed;top:-30%;right:-20%;width:70%;height:70%;background:radial-gradient(circle,rgba(139,92,246,.18) 0%,rgba(99,102,241,.08) 30%,transparent 70%);pointer-events:none;z-index:0;animation:v71BgShift 12s ease infinite;background-size:200% 200%}
+
+/* ═══ SCANLINE ═══ */
+.admin-scanline{position:fixed;left:0;width:100%;height:6px;background:linear-gradient(90deg,transparent 0%,rgba(139,92,246,.15) 30%,rgba(0,212,255,.2) 50%,rgba(139,92,246,.15) 70%,transparent 100%);z-index:1;pointer-events:none;animation:v71Scanline 6s linear infinite;box-shadow:0 0 20px rgba(139,92,246,.1),0 0 40px rgba(139,92,246,.05)}
+
+/* ═══ HEADER BANNER ═══ */
+.admin-header-banner{position:relative;display:flex;align-items:center;justify-content:space-between;padding:32px 36px!important;margin-bottom:32px;border-radius:20px!important;overflow:hidden;z-index:2;background:linear-gradient(135deg,rgba(139,92,246,.25) 0%,rgba(99,102,241,.2) 25%,rgba(0,212,255,.15) 50%,rgba(251,191,36,.1) 75%,rgba(139,92,246,.25) 100%)!important;background-size:400% 400%!important;animation:v71BgShift 8s ease infinite!important;border:2px solid rgba(139,92,246,.4)!important;box-shadow:0 0 30px rgba(139,92,246,.2),0 8px 40px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.1)!important}
+.admin-header-banner::before{content:'';position:absolute;top:0;left:-100%;width:300%;height:100%;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 40%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.06) 60%,transparent 100%);animation:v71Shimmer 4s ease-in-out infinite;pointer-events:none}
+.admin-header-banner::after{content:'PREMIUM v7.2';position:absolute;top:12px;right:16px;padding:3px 10px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:1.5px;color:#a78bfa;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);text-transform:uppercase;font-family:monospace;animation:v71NeonFlicker 4s ease infinite}
+
+/* ═══ TITLE ═══ */
+.admin-title{font-family:'Orbitron','Rajdhani',sans-serif!important;font-size:28px!important;font-weight:900!important;background:linear-gradient(135deg,#fff 0%,#c4b5fd 30%,#a78bfa 50%,#00f0ff 80%,#fff 100%)!important;background-size:200% 200%!important;animation:v71Rainbow 6s ease infinite!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important;background-clip:text!important;text-transform:uppercase!important;letter-spacing:3px!important;margin:0!important;position:relative;z-index:1}
+.admin-subtitle{font-size:13px!important;color:rgba(167,139,250,.7)!important;font-weight:700!important;letter-spacing:2px!important;text-transform:uppercase!important;margin-top:6px!important;position:relative;z-index:1;animation:v71GlowText 3s ease-in-out infinite}
+.admin-online-badge{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:999px;background:rgba(34,197,94,.2)!important;border:2px solid rgba(34,197,94,.5)!important;font-size:12px;font-weight:800;color:#4ade80!important;letter-spacing:.5px;position:relative;z-index:1;animation:v71Pulse 2s ease-in-out infinite;box-shadow:0 0 20px rgba(34,197,94,.15)!important}
+
+/* ═══ GLASS CARDS ═══ */
+.glass-card-premium{background:linear-gradient(180deg,rgba(255,255,255,.08) 0%,rgba(255,255,255,.02) 100%)!important;border:1.5px solid rgba(139,92,246,.2)!important;border-radius:20px!important;backdrop-filter:blur(20px)!important;-webkit-backdrop-filter:blur(20px)!important;box-shadow:0 8px 32px rgba(0,0,0,.4),0 0 0 1px rgba(139,92,246,.05)!important;overflow:hidden;transition:all .4s cubic-bezier(.34,1.56,.64,1)!important;position:relative;z-index:2;animation:v71FadeIn .5s ease forwards}
+.glass-card-premium:hover{border-color:rgba(139,92,246,.5)!important;box-shadow:0 16px 48px rgba(0,0,0,.5),0 0 30px rgba(139,92,246,.15),0 0 60px rgba(139,92,246,.08)!important;transform:translateY(-4px)!important}
+.glass-card-premium::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(139,92,246,.4),rgba(0,212,255,.4),rgba(139,92,246,.4),transparent);opacity:0;transition:opacity .3s}
+.glass-card-premium:hover::after{opacity:1}
+
+/* ═══ HOLO CARD ═══ */
+.holo-card{background:linear-gradient(135deg,rgba(139,92,246,.12) 0%,rgba(0,212,255,.08) 25%,rgba(251,191,36,.06) 50%,rgba(34,197,94,.08) 75%,rgba(139,92,246,.12) 100%)!important;background-size:200% 200%!important;animation:v71Holo 6s ease infinite!important;border:1.5px solid rgba(139,92,246,.25)!important;border-radius:16px!important;position:relative;overflow:hidden}
+.holo-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 20%,rgba(139,92,246,.1) 40%,rgba(0,212,255,.08) 60%,transparent 80%);background-size:200% 200%;animation:v71Holo 4s ease infinite reverse;pointer-events:none}
+
+/* ═══ TILT CARD ═══ */
+.tilt-card{transition:transform .4s cubic-bezier(.34,1.56,.64,1)!important;transform-style:preserve-3d!important;will-change:transform}
+.tilt-card:hover{transform:perspective(800px) rotateY(4deg) rotateX(-3deg) translateY(-6px) scale(1.02)!important;box-shadow:0 24px 60px rgba(0,0,0,.4),0 0 40px rgba(139,92,246,.15)!important}
+
+/* ═══ GLOW BORDERS ═══ */
+.glow-border-purple{border:2px solid rgba(139,92,246,.4)!important;animation:v71BorderPulse 2.5s ease-in-out infinite!important}
+.glow-border-green{border:2px solid rgba(34,197,94,.4)!important;animation:v71GreenPulse 2.5s ease-in-out infinite!important}
+.glow-border-cyan{border:2px solid rgba(0,212,255,.4)!important;animation:v71CyanPulse 2.5s ease-in-out infinite!important}
+.glow-border-gold{border:2px solid rgba(251,191,36,.4)!important;box-shadow:0 0 25px rgba(251,191,36,.2),inset 0 1px 0 rgba(255,255,255,.08)!important;animation:v71BorderPulse 2.5s ease-in-out infinite!important}
+.glow-border-red{border:2px solid rgba(239,68,68,.4)!important;box-shadow:0 0 25px rgba(239,68,68,.2),inset 0 1px 0 rgba(255,255,255,.08)!important;animation:v71BorderPulse 2.5s ease-in-out infinite!important}
+
+/* ═══ STAT CARD PREMIUM ═══ */
+.stat-card-premium{position:relative!important;overflow:hidden!important;background:rgba(255,255,255,.04)!important;border:1px solid rgba(139,92,246,.15)!important;border-radius:16px!important;border-left:4px solid rgba(139,92,246,.6)!important;backdrop-filter:blur(12px)!important;transition:all .4s cubic-bezier(.34,1.56,.64,1)!important}
+.stat-card-premium:hover{transform:translateY(-4px) scale(1.02)!important;border-color:rgba(139,92,246,.4)!important;border-left-color:rgba(139,92,246,.8)!important;box-shadow:0 12px 40px rgba(139,92,246,.2),inset 0 1px 0 rgba(255,255,255,.08)!important}
+
+/* ═══ ANIMATIONS ═══ */
+.counter-roll{animation:v71FadeIn .6s cubic-bezier(.34,1.56,.64,1) forwards!important}
+.float-anim{animation:v71Float 3s ease-in-out infinite!important}
+.admin-online-pulse{animation:v71Pulse 2s ease-in-out infinite!important}
+
+/* ═══ INPUTS & FOCUS ═══ */
+.admin-panel input:focus,.admin-panel select:focus{border-color:rgba(139,92,246,.6)!important;box-shadow:0 0 0 3px rgba(139,92,246,.15),0 0 20px rgba(139,92,246,.1)!important;outline:none!important}
+
+/* ═══ BUTTONS ═══ */
+.admin-panel button{transition:all .3s cubic-bezier(.34,1.56,.64,1)!important}
+.admin-panel button:hover{transform:translateY(-2px)!important;box-shadow:0 4px 16px rgba(139,92,246,.15)!important}
+.admin-panel button:active{transform:translateY(0) scale(.97)!important}
+
+/* ═══ TAB SYSTEM ═══ */
+.tab-pill-container{display:flex!important;flex-wrap:wrap!important;gap:6px!important;margin-bottom:28px!important;padding:10px!important;border-radius:16px!important;background:rgba(0,0,0,.4)!important;border:1.5px solid rgba(139,92,246,.15)!important;backdrop-filter:blur(16px)!important;box-shadow:0 4px 24px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.05)!important;position:relative;z-index:2}
+.tab-pill{display:flex!important;align-items:center!important;gap:8px!important;padding:11px 22px!important;border-radius:12px!important;border:1.5px solid transparent!important;background:rgba(255,255,255,.03)!important;color:rgba(160,160,180,.8)!important;font-weight:700!important;font-size:12px!important;cursor:pointer!important;white-space:nowrap!important;transition:all .3s cubic-bezier(.34,1.56,.64,1)!important;font-family:'Rajdhani',sans-serif!important;letter-spacing:.5px!important;position:relative;overflow:hidden}
+.tab-pill:hover{background:rgba(255,255,255,.08)!important;color:#fff!important;transform:translateY(-2px)!important;border-color:rgba(255,255,255,.1)!important}
+.tab-pill.active{background:linear-gradient(135deg,var(--tab-color,rgba(139,92,246,.25)),var(--tab-color-2,rgba(139,92,246,.1)))!important;border-color:var(--tab-border,rgba(139,92,246,.5))!important;color:var(--tab-text,#c4b5fd)!important;box-shadow:0 4px 24px var(--tab-shadow,rgba(139,92,246,.25)),inset 0 1px 0 rgba(255,255,255,.08)!important;transform:translateY(-2px)!important}
+.tab-pill.active::after{content:'';position:absolute;bottom:0;left:15%;width:70%;height:3px;background:linear-gradient(90deg,transparent,var(--tab-text,#a78bfa),transparent);border-radius:2px}
+
+/* ═══ SMART ALERTS ═══ */
+.smart-alert-card{display:flex!important;align-items:center!important;gap:12px!important;padding:14px 18px!important;border-radius:12px!important;margin-bottom:8px!important;transition:all .3s ease!important;backdrop-filter:blur(8px)!important}
+.smart-alert-card:hover{transform:translateX(4px)!important}
+.smart-alert-btn{padding:6px 14px!important;border-radius:8px!important;border:none!important;cursor:pointer!important;font-weight:800!important;font-size:10px!important;text-transform:uppercase!important;letter-spacing:.8px!important;transition:all .2s ease!important;white-space:nowrap!important;flex-shrink:0!important}
+.smart-alert-btn:hover{transform:scale(1.05)!important}
+.tier-badge-mini{display:inline-flex!important;align-items:center!important;gap:4px!important;padding:3px 10px!important;border-radius:6px!important;font-size:9px!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:.5px!important;white-space:nowrap!important}
+
+/* ═══ SECTION CARDS ═══ */
+.admin-panel div[style*="border-radius: 20px"],.admin-panel div[style*="border-radius:20px"]{backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;border:1.5px solid rgba(139,92,246,.12)!important;position:relative;z-index:2;animation:v71FadeIn .5s ease forwards}
+.admin-panel div[style*="rgba(255,255,255,0.055)"],.admin-panel div[style*="rgba(255, 255, 255, 0.055)"]{border:1.5px solid rgba(139,92,246,.18)!important;box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06)!important}
+.admin-panel div[style*="rgba(34,197,94,0.12)"],.admin-panel div[style*="rgba(34, 197, 94, 0.12)"]{border:2px solid rgba(34,197,94,.4)!important;box-shadow:0 8px 40px rgba(34,197,94,.15),0 0 60px rgba(34,197,94,.08),inset 0 1px 0 rgba(255,255,255,.08)!important;animation:v71GreenPulse 3s ease-in-out infinite!important}
+.admin-panel div[style*="rgba(0,212,255,0.08)"],.admin-panel div[style*="rgba(0, 212, 255, 0.08)"]{border:1.5px solid rgba(0,212,255,.3)!important;box-shadow:0 4px 24px rgba(0,212,255,.12),0 0 40px rgba(0,212,255,.06)!important}
+
+/* ═══ SCROLLBAR ═══ */
+.admin-panel::-webkit-scrollbar{width:6px}
+.admin-panel::-webkit-scrollbar-track{background:transparent}
+.admin-panel::-webkit-scrollbar-thumb{background:rgba(139,92,246,.4);border-radius:3px}
+.admin-panel::-webkit-scrollbar-thumb:hover{background:rgba(139,92,246,.7)}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   V7.2: MOBILE PERFORMANCE — Kill all heavy animations on mobile
+   ═══════════════════════════════════════════════════════════════════════ */
+@media(max-width:768px){
+  /* Kill animated backgrounds */
+  .admin-panel::before,.admin-panel::after{display:none!important}
+
+  /* Kill scanline entirely */
+  .admin-scanline{display:none!important}
+
+  /* Kill header animations, shimmer, flicker badge */
+  .admin-header-banner{
+    animation:none!important;
+    background-size:100% 100%!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+    padding:20px 18px!important;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:12px;
+  }
+  .admin-header-banner::before{display:none!important}
+  .admin-header-banner::after{display:none!important}
+  .admin-header-banner .admin-title{font-size:20px!important}
+
+  /* Kill title animations */
+  .admin-title{animation:none!important;background-size:100% 100%!important}
+  .admin-subtitle{animation:none!important;text-shadow:none!important}
+  .admin-online-badge{animation:none!important}
+  .admin-online-pulse{animation:none!important}
+  .float-anim{animation:none!important}
+
+  /* Kill backdrop-filter on ALL cards — huge GPU savings */
+  .glass-card-premium{
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+    animation:none!important;
+    contain:layout style paint;
+  }
+  .glass-card-premium:hover{transform:none!important}
+  .glass-card-premium::after{display:none!important}
+
+  /* Kill holo card animations */
+  .holo-card{animation:none!important;background-size:100% 100%!important}
+  .holo-card::before{display:none!important}
+
+  /* Kill all glow border pulse animations */
+  .glow-border-purple,.glow-border-green,.glow-border-cyan,.glow-border-gold,.glow-border-red{
+    animation:none!important;
+    box-shadow:none!important;
+  }
+
+  /* Kill smart alert backdrop */
+  .smart-alert-card{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+
+  /* Kill tab container backdrop */
+  .tab-pill-container{
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+    flex-wrap:nowrap!important;
+    gap:4px!important;
+    padding:8px!important;
+    margin-bottom:16px!important;
+    overflow-x:auto!important;
+    scrollbar-width:none!important;
+  }
+  .tab-pill-container::-webkit-scrollbar{display:none!important}
+  .tab-pill{padding:8px 12px!important;min-width:fit-content!important}
+  .tab-pill:hover{transform:none!important}
+
+  /* Kill section card backdrop + animations */
+  .admin-panel div[style*="border-radius: 20px"],
+  .admin-panel div[style*="border-radius:20px"]{
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+    animation:none!important;
+  }
+  .admin-panel div[style*="rgba(34,197,94,0.12)"],
+  .admin-panel div[style*="rgba(34, 197, 94, 0.12)"]{
+    animation:none!important;
+  }
+
+  /* Kill stat card backdrop */
+  .stat-card-premium{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  .stat-card-premium:hover{transform:none!important}
+
+  /* Prevent 300ms tap delay on all interactive elements */
+  .admin-panel button,
+  .admin-panel input,
+  .admin-panel select,
+  .admin-panel textarea{
+    touch-action:manipulation;
+  }
+
+  /* Prevent text selection on tabs */
+  .tab-pill{user-select:none;-webkit-user-select:none}
+}
+  `
+  document.head.appendChild(s)
+}
 // ★ Inline fallback — remove this after updating utils.js
 function isTeamMode(mode) {
  return mode === 'Duo' || mode === 'Squad' || mode === 'Clash Squad'
@@ -331,7 +533,171 @@ function SmartAlertCard({ alert, onAction }) {
     </div>
   )
 }
+// ═══════════════════════════════════════════════════════════════════════
+// V7.2: BALANCE ADJUST BOTTOM SHEET — Replaces native prompt()
+// ═══════════════════════════════════════════════════════════════════════
+function BalanceAdjustSheet({ user, open, onClose, onConfirm, dispatch }) {
+  const [action, setAction] = useState('add')
+  const [amount, setAmount] = useState('')
 
+  useEffect(() => {
+    if (open) { setAction('add'); setAmount('') }
+  }, [open, user?.id])
+
+  const handleConfirm = () => {
+    const num = Number(amount)
+    if (!amount || num <= 0) return showToast(dispatch, 'Enter a valid amount!', 'error')
+    onConfirm(user.id, action, num)
+    onClose()
+  }
+
+  if (!user) return null
+
+  const isAdd = action === 'add'
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+          zIndex: 9998, opacity: open ? 1 : 0, visibility: open ? 'visible' : 'hidden',
+          transition: 'opacity 0.2s, visibility 0.2s',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999,
+        background: '#14141f',
+        borderTopLeftRadius: 22, borderTopRightRadius: 22,
+        border: '1px solid rgba(139,92,246,0.15)',
+        borderBottom: 'none',
+        padding: '10px 20px 0',
+        transform: open ? 'translateY(0)' : 'translateY(100%)',
+        transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
+        willChange: 'transform',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.5)',
+        paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+      }}>
+        {/* Handle bar */}
+        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 14px' }} />
+
+        {/* Title */}
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 2, letterSpacing: '-0.3px' }}>Adjust Balance</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Add or deduct balance from this user</div>
+
+        {/* User info card */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 14px', background: 'rgba(255,255,255,0.03)',
+          borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)',
+          marginBottom: 18,
+        }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #6c8cff, #a78bfa)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, fontWeight: 800, color: '#fff', flexShrink: 0,
+          }}>
+            {(user.name || user.displayName || user.username || '?').charAt(0)}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.name || user.displayName || user.username}
+            </div>
+            <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 700, marginTop: 1 }}>
+              Current Balance: {formatTK(user.balance ?? user.wallet ?? 0)}
+            </div>
+          </div>
+        </div>
+
+        {/* Action toggle */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+          <button
+            onClick={() => setAction('add')}
+            style={{
+              padding: '14px', borderRadius: 12,
+              border: isAdd ? '2px solid #22c55e' : '1px solid rgba(255,255,255,0.06)',
+              background: isAdd ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.02)',
+              color: isAdd ? '#22c55e' : '#64748b',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'all 0.12s', WebkitTapHighlightColor: 'transparent',
+              fontFamily: 'var(--font-heading, sans-serif)',
+            }}
+          >
+            <i className="fa-solid fa-plus" style={{ fontSize: 12 }} /> Add Money
+          </button>
+          <button
+            onClick={() => setAction('deduct')}
+            style={{
+              padding: '14px', borderRadius: 12,
+              border: !isAdd ? '2px solid #ef4444' : '1px solid rgba(255,255,255,0.06)',
+              background: !isAdd ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.02)',
+              color: !isAdd ? '#ef4444' : '#64748b',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'all 0.12s', WebkitTapHighlightColor: 'transparent',
+              fontFamily: 'var(--font-heading, sans-serif)',
+            }}
+          >
+            <i className="fa-solid fa-minus" style={{ fontSize: 12 }} /> Deduct
+          </button>
+        </div>
+
+        {/* Amount input */}
+        <div style={{ marginBottom: 18 }}>
+          <label style={{
+            fontSize: 11, fontWeight: 700, color: '#64748b',
+            textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, display: 'block',
+          }}>
+            Amount (TK)
+          </label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="0"
+              style={{
+                width: '100%', height: 56,
+                background: 'rgba(0,0,0,0.3)',
+                border: `2px solid ${isAdd ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                borderRadius: 14,
+                padding: '0 50px 0 18px',
+                color: '#fff', fontSize: 22, fontWeight: 800,
+                fontFamily: 'var(--font-number, monospace)',
+                outline: 'none', WebkitAppearance: 'none',
+              }}
+            />
+            <span style={{
+              position: 'absolute', right: 18, top: '50%', transform: 'translateY(-50%)',
+              fontSize: 15, fontWeight: 700, color: '#64748b',
+            }}>TK</span>
+          </div>
+        </div>
+
+        {/* Confirm button */}
+        <button
+          onClick={handleConfirm}
+          style={{
+            width: '100%', height: 52, borderRadius: 14, border: 'none',
+            background: isAdd ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, #ef4444, #dc2626)',
+            color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: isAdd ? '0 4px 20px rgba(34,197,94,0.25)' : '0 4px 20px rgba(239,68,68,0.25)',
+            transition: 'all 0.12s', WebkitTapHighlightColor: 'transparent',
+            fontFamily: 'var(--font-heading, sans-serif)',
+          }}
+        >
+          <i className={isAdd ? 'fa-solid fa-check' : 'fa-solid fa-minus'} />
+          {isAdd ? 'Add Balance' : 'Deduct Balance'}
+        </button>
+      </div>
+    </>
+  )
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // V6.0: PROFIT DASHBOARD — Smart Alerts + DAU + Locked Balance + Referral Cost
@@ -1701,8 +2067,21 @@ function AdminUsers() {
  const { state, dispatch } = useApp()
  const { users } = state
  const mobile = useIsMobile()
+ const [balanceSheetUser, setBalanceSheetUser] = useState(null)
 
  const currentUserId = state.currentUser?.id || state.currentUserId
+
+ const handleBalanceConfirm = (userId, action, amount) => {
+  dispatch({ type: 'ADJUST_BALANCE', payload: { userId, action, amount } })
+  const u = users.find(x => x.id === userId)
+  adminAction(
+    dispatch,
+    `${action === 'add' ? 'Added' : 'Deducted'} balance`,
+    u?.name || u?.username,
+    `${action === 'add' ? '+' : '-'}${formatTK(amount)} ${action === 'add' ? 'added to' : 'deducted from'} ${u?.name || u?.username}`,
+    action === 'add' ? 'success' : 'error'
+  )
+ }
 
  const duplicateIGNs = useMemo(() => {
   const ignCounts = {}
@@ -1736,8 +2115,6 @@ function AdminUsers() {
       borderRadius: 14,
       padding: '14px 18px',
       marginBottom: 20,
-      backdropFilter: 'blur(4px)',
-      boxShadow: '0 4px 16px rgba(239,68,68,0.08)'
     }}>
       <div style={{ fontWeight: 700, fontSize: 13, color: '#ef4444', marginBottom: 4 }}>
        <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }}></i>
@@ -1746,7 +2123,7 @@ function AdminUsers() {
       <div style={{ fontSize: 11, color: '#f87171' }}>
        {[...duplicateIGNs].join(', ')} — Possible multi-accounting
       </div>
-     </div>
+    </div>
     )}
 
     <div>
@@ -1754,11 +2131,9 @@ function AdminUsers() {
       const isSelf = u.id === currentUserId
       const hasDupIGN = isDuplicateIGN(u)
       const dupCount = getDuplicateCount(u)
-      // ═══ V6.0: Extract user V6.0 fields ═══
       const lockedBal = u.lockedBalance || 0
       const repScore = u.reputation?.score || 5
       const clanTag = u.clan?.tag || null
-      // ═══ END V6.0 ═══
       return (
        <div key={u.id} style={S.mCard}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -1774,9 +2149,7 @@ function AdminUsers() {
            <span style={{ color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#a78bfa' : 'var(--text-muted)', fontWeight: 700 }}>
             {u.role === 'owner' ? 'OWNER' : u.role === 'admin' ? 'ADMIN' : 'USER'}
            </span>
-           {/* ═══ V6.0: Tier badge (mobile) ═══ */}
            {u.role === 'user' && <TierBadgeMini user={u} />}
-           {/* ═══ V6.0: Clan tag (mobile) ═══ */}
            {clanTag && (
             <span style={{ fontSize: 9, fontWeight: 800, color: '#a78bfa', background: 'rgba(168,85,247,0.12)', padding: '1px 6px', borderRadius: 4, border: '1px solid rgba(168,85,247,0.2)' }}>
               [{clanTag}]
@@ -1794,7 +2167,6 @@ function AdminUsers() {
          )}
          {!hasDupIGN && <span style={{ marginLeft: 8 }}>IGN: {u.ign || '—'}</span>}
         </div>
-        {/* ═══ V6.0: Enhanced stats grid (mobile) ═══ */}
         <div style={{ display: 'grid', gridTemplateColumns: lockedBal > 0 ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
          <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Balance</div>
@@ -1815,13 +2187,12 @@ function AdminUsers() {
           <div style={{ fontWeight: 900, fontSize: 14, color: repScore < 3 ? '#ef4444' : '#22c55e' }}>{repScore.toFixed(1)}</div>
          </div>
         </div>
-        {/* ═══ END V6.0 ═══ */}
         {isSelf ? (
          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0' }}>
           Cannot adjust own balance
          </div>
         ) : (
-         <button style={{ ...S.btnGhost, width: '100%', marginBottom: 6 }} onClick={() => dispatch({ type: 'ADJUST_BALANCE', payload: { userId: u.id } })}>
+         <button style={{ ...S.btnGhost, width: '100%', marginBottom: 6 }} onClick={() => setBalanceSheetUser(u)}>
           <i className="fa-solid fa-scale-balanced"></i> Adjust Balance
          </button>
         )}
@@ -1835,6 +2206,14 @@ function AdminUsers() {
       )
      })}
     </div>
+
+    <BalanceAdjustSheet
+      user={balanceSheetUser}
+      open={!!balanceSheetUser}
+      onClose={() => setBalanceSheetUser(null)}
+      onConfirm={handleBalanceConfirm}
+      dispatch={dispatch}
+    />
    </div>
   )
  }
@@ -1868,13 +2247,11 @@ function AdminUsers() {
       <tr>
        <th style={{ ...S.th, width: '18%' }}>User</th>
        <th style={S.th}>IGN</th>
-       {/* ═══ V6.0: New columns ═══ */}
        <th style={{ ...S.th, width: '8%' }}>Tier</th>
        <th style={{ ...S.th, width: '9%' }}>Balance</th>
        <th style={{ ...S.th, width: '7%' }}>🔒 Locked</th>
        <th style={{ ...S.th, width: '5%' }}>Rep</th>
        <th style={{ ...S.th, width: '6%' }}>Clan</th>
-       {/* ═══ END V6.0 ═══ */}
        <th style={S.th}>Role</th>
        <th style={S.th}>Matches</th>
        <th style={S.th}>Status</th>
@@ -1886,11 +2263,9 @@ function AdminUsers() {
        const isSelf = u.id === currentUserId
        const hasDupIGN = isDuplicateIGN(u)
        const dupCount = getDuplicateCount(u)
-       // ═══ V6.0: Extract fields ═══
        const lockedBal = u.lockedBalance || 0
        const repScore = u.reputation?.score || 5
        const clanTag = u.clan?.tag || null
-       // ═══ END V6.0 ═══
        return (
         <tr key={u.id}>
          <td style={S.td}>
@@ -1915,15 +2290,12 @@ function AdminUsers() {
            </span>
           )}
          </td>
-         {/* ═══ V6.0: Tier column (desktop) ═══ */}
          <td style={S.td}>
           {u.role === 'user' ? <TierBadgeMini user={u} /> : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>}
          </td>
-         {/* ═══ V6.0: Balance column (desktop) ═══ */}
          <td style={S.td}>
           <span style={{ fontWeight: 700, fontSize: 13 }}>{formatTK(u.balance ?? u.wallet ?? 0)}</span>
          </td>
-         {/* ═══ V6.0: Locked balance column (desktop) ═══ */}
          <td style={S.td}>
           {lockedBal > 0 ? (
            <span style={{ fontWeight: 700, fontSize: 12, color: '#fbbf24' }}>
@@ -1934,7 +2306,6 @@ function AdminUsers() {
            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>—</span>
           )}
          </td>
-         {/* ═══ V6.0: Reputation column (desktop) ═══ */}
          <td style={S.td}>
           <span style={{
             fontSize: 12, fontWeight: 700,
@@ -1943,7 +2314,6 @@ function AdminUsers() {
             {repScore.toFixed(1)}
           </span>
          </td>
-         {/* ═══ V6.0: Clan column (desktop) ═══ */}
          <td style={S.td}>
           {clanTag ? (
            <span style={{ fontSize: 10, fontWeight: 800, color: '#a78bfa', background: 'rgba(168,85,247,0.12)', padding: '2px 8px', borderRadius: 6, border: '1px solid rgba(168,85,247,0.2)', whiteSpace: 'nowrap' }}>
@@ -1953,7 +2323,6 @@ function AdminUsers() {
            <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>—</span>
           )}
          </td>
-         {/* ═══ END V6.0 ═══ */}
          <td style={S.td}>
           <span style={{ fontSize: 11, fontWeight: 700, color: u.role === 'owner' ? '#fbbf24' : u.role === 'admin' ? '#a78bfa' : 'var(--text-muted)' }}>
            {u.role === 'owner' ? 'OWNER' : u.role === 'admin' ? 'ADMIN' : 'USER'}
@@ -1971,7 +2340,7 @@ function AdminUsers() {
           {isSelf ? (
            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Self</span>
           ) : (
-           <button style={S.btnGhost} onClick={() => dispatch({ type: 'ADJUST_BALANCE', payload: { userId: u.id } })}>
+           <button style={S.btnGhost} onClick={() => setBalanceSheetUser(u)}>
             <i className="fa-solid fa-scale-balanced"></i> Adjust
            </button>
           )}
@@ -1987,10 +2356,17 @@ function AdminUsers() {
      </tbody>
     </table>
    </div>
+
+   <BalanceAdjustSheet
+     user={balanceSheetUser}
+     open={!!balanceSheetUser}
+     onClose={() => setBalanceSheetUser(null)}
+     onConfirm={handleBalanceConfirm}
+     dispatch={dispatch}
+   />
   </div>
  )
 }
-
 
 // ═══════════════════════════════════════════════════════════
 // 6. FINANCE PANEL — UNCHANGED
@@ -3085,7 +3461,7 @@ const ADMIN_TABS = [
 const VALID_ADMIN_TABS = new Set(ADMIN_TABS.map(t => t.id))
 
 export default function Admin() {
- const { state, dispatch, navigate } = useApp()
+ const { state, navigate } = useApp()
  const mobile = useIsMobile()
 
  const currentUser = state.currentUser || state.users.find(u => u.id === state.currentUserId)
@@ -3115,39 +3491,9 @@ export default function Admin() {
      <div className="admin-title">Clutch Arena</div>
      <div className="admin-subtitle">Admin Control Center</div>
     </div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-     <div className="admin-online-badge">
-      <span style={{ marginRight: 4 }}>Online</span>
-      <i className="fa-solid fa-signal" style={{ fontSize: 10 }} />
-     </div>
-     <button
-      style={{ ...S.btnGhost, padding: '8px 12px' }}
-      onClick={() => navigate('profile')}
-     >
-      <span style={{
-       width: 22,
-       height: 22,
-       borderRadius: '50%',
-       background: 'rgba(255,255,255,0.12)',
-       display: 'inline-flex',
-       alignItems: 'center',
-       justifyContent: 'center',
-       fontSize: 11,
-       fontWeight: 800,
-       color: '#fff',
-      }}>
-       {(currentUser?.displayName || currentUser?.name || 'A').charAt(0).toUpperCase()}
-      </span>
-      <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-       {currentUser?.displayName || currentUser?.name || 'Admin'}
-      </span>
-     </button>
-     <button
-      style={{ ...S.btnGhost, padding: '8px 12px', color: '#f87171' }}
-      onClick={() => { dispatch({ type: 'LOGOUT' }); navigate('login') }}
-     >
-      <i className="fa-solid fa-right-from-bracket"></i> Logout
-     </button>
+    <div className="admin-online-badge">
+     <span style={{ marginRight: 4 }}>Online</span>
+     <i className="fa-solid fa-signal" style={{ fontSize: 10 }} />
     </div>
    </div>
 
@@ -3170,6 +3516,39 @@ export default function Admin() {
        >
         <i className={t.icon}></i>
         {t.label}
+       </button>
+      )
+     })}
+    </div>
+  )}
+
+   {mobile && (
+    <div className="tab-pill-container" style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 16, paddingBottom: 4 }}>
+     {visibleTabs.map(t => {
+      const active = activeTab === t.id
+      return (
+       <button
+        key={t.id}
+        className={`tab-pill ${active ? 'active' : ''}`}
+        onClick={() => handleTab(t.id)}
+        style={{
+         '--tab-color': `${t.color}25`,
+         '--tab-color-2': `${t.color}10`,
+         '--tab-border': `${t.color}50`,
+         '--tab-text': t.color,
+         '--tab-shadow': `${t.color}25`,
+         display: 'flex',
+         flexDirection: 'column',
+         alignItems: 'center',
+         gap: 4,
+         padding: '8px 14px',
+         minWidth: 64,
+         flexShrink: 0,
+         fontSize: 10,
+        }}
+       >
+        <i className={t.icon} style={{ fontSize: 16 }}></i>
+        <span>{t.label}</span>
        </button>
       )
      })}
