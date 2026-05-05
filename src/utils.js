@@ -384,3 +384,37 @@ export function getTierProgress(elo) {
   const range = tier.max - tier.min
   return Math.min(100, Math.round((progress / range) * 100))
 }
+
+
+// ====================================================================
+// 📱 WHATSAPP SHARE
+// ====================================================================
+export function shareToWhatsApp(match) {
+  if (!match) return;
+  const text = [
+    `🎮 *${match.title || 'Clutch Arena Match'}*`,
+    `📍 Map: ${match.map || 'TBA'}`,
+    `⚔️ Mode: ${match.mode || 'TBA'}`,
+    `💰 Entry: ${formatTK(match.entryFee)}`,
+    `🏆 Prize Pool: ${formatTK(match.prizePool || 0)}`,
+    `👥 ${match.joinedCount || 0}/${match.maxSlots || 0} Joined`,
+    '',
+    `🔗 Join now on Clutch Arena BD!`,
+  ].join('\n');
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
+}
+
+export function shareReferralLink(referralCode) {
+  if (!referralCode) return;
+  const text = [
+    `🔥 *Join Clutch Arena BD — Free Fire Tournament Platform!*`,
+    '',
+    `Use my referral code: *${referralCode}*`,
+    `Get 20 TK bonus on signup!`,
+    '',
+    `🔗 Download and play now!`,
+  ].join('\n');
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
+}

@@ -2,10 +2,10 @@ import { useApp } from '../context'
 
 const NAV_ITEMS = [
   { id: 'dashboard', icon: 'fa-solid fa-house', label: 'Home' },
-  { id: 'matches', icon: 'fa-solid fa-gamepad', label: 'Browse' },
-  { id: 'agents', icon: 'fa-solid fa-users', label: 'Agents' },
-  { id: 'weapons', icon: 'fa-solid fa-crosshairs', label: 'Weapons' },
-  { id: 'maps', icon: 'fa-solid fa-map', label: 'Maps' },
+  { id: 'matches', icon: 'fa-solid fa-gamepad', label: 'Matches' },
+  { id: 'wallet', icon: 'fa-solid fa-wallet', label: 'Wallet' },
+  { id: 'leaderboard', icon: 'fa-solid fa-ranking-star', label: 'Rankings' },
+  { id: 'notifications', icon: 'fa-solid fa-bell', label: 'Notifications' },
 ]
 
 const BOTTOM_ITEMS = [
@@ -41,6 +41,9 @@ export default function Sidebar() {
             <span className="sidebar-label">{item.label}</span>
             {item.id === 'matches' && notifications?.matches > 0 && (
               <span className="sidebar-badge">{notifications.matches}</span>
+            )}
+            {item.id === 'notifications' && (state.notifications?.filter(n => !n.read).length || 0) > 0 && (
+              <span className="sidebar-badge">{state.notifications?.filter(n => !n.read).length || 0}</span>
             )}
           </button>
         ))}

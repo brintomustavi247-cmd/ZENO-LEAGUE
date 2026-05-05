@@ -1,0 +1,803 @@
+import { useState, useEffect } from 'react'
+import { useApp } from '../context'
+import { formatTK, formatTKShort, showToast } from '../utils'
+import MatchCard from '../components/MatchCard'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  V6.0: DASHBOARD PAGE — TIER BADGE + STREAKS + HERO MATCH + DAILY QUESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function scheduledTime(unixTs) {
+  if (!unixTs) return 'SOON'
+  const d = new Date(unixTs)
+  const now = new Date()
+  const diff = d - now
+  if (diff < 0) return 'LIVE'
+  const h = Math.floor(diff / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  if (h === 0) return `${m}m`
+  if (h < 24) return `${h}h`
+  const days = Math.floor(h / 24)
+  return `${days}d`
+}
+
+function cdFormat(ms) {
+  if (ms <= 0) return '00:00:00'
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms % 3600000) / 60000)
+  const s = Math.floor((ms % 60000) / 1000)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function useAnimatedCounter(targetValue, duration = 1500) {
+  const [displayValue, setDisplayValue] = useState(0)
+
+  useEffect(() => {
+    if (targetValue === displayValue) return
+
+    const startTime = Date.now()
+    const diff = targetValue - displayValue
+    const startValue = displayValue
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const easeOut = 1 - Math.pow(1 - progress, 3)
+      setDisplayValue(Math.round(startValue + diff * easeOut))
+
+      if (progress < 1) requestAnimationFrame(animate)
+    }
+
+    requestAnimationFrame(animate)
+  }, [targetValue, duration, displayValue])
+
+  return displayValue
+}
+
+function StatusBar({ currentUser, tierInfo }) {
+  const animatedXp = useAnimatedCounter(currentUser?.xp || 0)
+  const hasStreak = (currentUser?.streak || 0) > 0
+  const hasReferral = (currentUser?.referral?.count || 0) > 0
+
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 10,
+      padding: '12px 14px',
+      background: 'rgba(255,255,255,0.03)',
+      border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: 12,
+      marginBottom: 16,
+      flexWrap: 'wrap',
+      alignItems: 'center',
+    }}>
+      {/* Live Badge */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 11,
+        fontWeight: 700,
+        color: '#4ade80',
+        textTransform: 'uppercase',
+      }}>
+        <span style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: '#4ade80',
+          animation: 'pulse 1.5s infinite',
+        }} />
+        Live
+      </div>
+
+      {/* Divider */}
+      <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)' }} />
+
+      {/* My Matches Count */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#e5e1e4',
+      }}>
+        <i className="fa-solid fa-crosshairs" style={{ color: '#6c8cff' }} />
+        {(currentUser?.myMatches || []).length} matches
+      </div>
+
+      {/* Divider */}
+      <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)' }} />
+
+      {/* Win Rate */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#e5e1e4',
+      }}>
+        <i className="fa-solid fa-trophy" style={{ color: '#fbbf24' }} />
+        {Math.round(currentUser?.winRate || 0)}% WR
+      </div>
+
+      {/* Divider */}
+      <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)' }} />
+
+      {/* Level */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 11,
+        fontWeight: 600,
+        color: tierInfo?.color || '#a855f7',
+      }}>
+        <i className="fa-solid fa-star" />
+        Lv {tierInfo?.level || 1}
+      </div>
+
+      {/* Referral Status */}
+      {hasReferral && (
+        <>
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)' }} />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#a855f7',
+          }}>
+            <i className="fa-solid fa-code" />
+            {currentUser?.referral?.count || 0} refs
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function BalanceCard({ currentUser, onDeposit, onWithdraw }) {
+  const realBalance = currentUser?.balance || 0
+  const lockedBalance = currentUser?.lockedBalance || 0
+  const total = realBalance + lockedBalance
+
+  return (
+    <div style={{
+      padding: '16px 18px',
+      background: 'linear-gradient(135deg, rgba(34,197,94,0.08), rgba(74,222,128,0.04))',
+      border: '1px solid rgba(34,197,94,0.2)',
+      borderRadius: 12,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    }}>
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>
+          Available Balance
+        </div>
+        <div style={{
+          fontSize: 20,
+          fontWeight: 800,
+          color: '#22c55e',
+          fontFamily: 'var(--font-mono)',
+        }}>
+          {formatTKShort(realBalance)}
+          <span style={{ fontSize: 13, marginLeft: 6, opacity: 0.7 }}>TK</span>
+        </div>
+        <div style({ fontSize: 9, color: 'var(--text-dim)', marginTop: 3 }}>
+          +{formatTK(lockedBalance)} TK locked for matches
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
+        <button
+          onClick={onDeposit}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: 'none',
+            background: '#22c55e',
+            color: '#000',
+            fontWeight: 700,
+            fontSize: 11,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            textTransform: 'uppercase',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-1px)'
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(34,197,94,0.3)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = 'none'
+          }}
+        >
+          Deposit
+        </button>
+
+        {realBalance >= 50 && (
+          <button
+            onClick={onWithdraw}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid #888',
+              background: 'transparent',
+              color: '#e5e1e4',
+              fontWeight: 700,
+              fontSize: 11,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              textTransform: 'uppercase',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = '#e5e1e4'
+              e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = '#888'
+              e.currentTarget.style.background = 'transparent'
+            }}
+          >
+            Withdraw
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function HeroMatchCard({ match, currentUser, onJoin }) {
+  if (!match) return null
+
+  const isFull = (match.players || []).length >= (match.maxPlayers || 4)
+  const canJoin = !isFull && !match.players.find(p => p.uid === currentUser?.uid)
+  const hasJoined = match.players.find(p => p.uid === currentUser?.uid)
+
+  return (
+    <div style={{
+      padding: '24px',
+      background: `linear-gradient(135deg, ${match.tier?.color || '#a855f7'}20, ${match.tier?.color || '#a855f7'}05)`,
+      border: `2px solid ${match.tier?.color || '#a855f7'}40`,
+      borderRadius: 16,
+      marginBottom: 24,
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Background Glow */}
+      <div style={{
+        position: 'absolute',
+        top: -100,
+        right: -100,
+        width: 300,
+        height: 300,
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${match.tier?.color || '#a855f7'}20, transparent)`,
+        filter: 'blur(100px)',
+        pointerEvents: 'none',
+      }} />
+
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, gap: 16 }}>
+          <div>
+            <div style={{
+              display: 'inline-block',
+              padding: '4px 10px',
+              borderRadius: 6,
+              background: `${match.tier?.color || '#a855f7'}30`,
+              fontSize: 10,
+              fontWeight: 700,
+              color: match.tier?.color || '#a855f7',
+              textTransform: 'uppercase',
+              marginBottom: 10,
+            }}>
+              ⭐ Featured {match.tier?.name || 'Tournament'}
+            </div>
+
+            <h2 style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: 24,
+              fontWeight: 800,
+              color: '#fff',
+              margin: '0 0 10px',
+              letterSpacing: '-0.025em',
+            }}>
+              {match.title || match.matchType || 'Tournament'}
+            </h2>
+
+            <div style={{
+              fontSize: 13,
+              color: 'var(--text-muted)',
+              marginBottom: 10,
+            }}>
+              {scheduledTime(match.scheduledTime)} away • {(match.players || []).length}/{match.maxPlayers || 4} players
+            </div>
+
+            <div style({
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+              gap: 12,
+              marginTop: 14,
+            }}>
+              <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>Entry Fee</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#fbbf24', fontFamily: 'var(--font-mono)' }}>
+                  {formatTK(match.entryFee || 0)}
+                </div>
+              </div>
+              <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>Prize Pool</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#4ade80', fontFamily: 'var(--font-mono)' }}>
+                  {formatTK(match.prizePool || 0)}
+                </div>
+              </div>
+              {match.status === 'LIVE' && (
+                <div style={{ padding: '8px 12px', background: 'rgba(34,197,94,0.1)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase' }}>Status</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#4ade80', fontFamily: 'var(--font-mono)' }}>
+                    🔴 LIVE
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Join Button */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {hasJoined ? (
+              <button
+                disabled
+                style={{
+                  padding: '14px 24px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  color: '#fff',
+                  fontFamily: 'var(--font-heading)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textTransform: 'uppercase',
+                  cursor: 'default',
+                  boxShadow: '0 4px 16px rgba(34,197,94,0.3)',
+                }}
+              >
+                ✓ Joined
+              </button>
+            ) : isFull ? (
+              <button
+                disabled
+                style={{
+                  padding: '14px 24px',
+                  borderRadius: 12,
+                  border: '1px solid #666',
+                  background: 'rgba(255,255,255,0.02)',
+                  color: '#888',
+                  fontFamily: 'var(--font-heading)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textTransform: 'uppercase',
+                  cursor: 'not-allowed',
+                }}
+              >
+                FULL
+              </button>
+            ) : (
+              <button
+                onClick={() => onJoin(match.id)}
+                style={{
+                  padding: '14px 24px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: `linear-gradient(135deg, ${match.tier?.color || '#a855f7'}, ${match.tier?.colorDim || '#7c3aed'})`,
+                  color: '#fff',
+                  fontFamily: 'var(--font-heading)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  boxShadow: `0 4px 16px ${match.tier?.color || '#a855f7'}40`,
+                  transition: 'all 0.3s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-2px)'
+                  e.currentTarget.style.boxShadow = `0 8px 24px ${match.tier?.color || '#a855f7'}60`
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = `0 4px 16px ${match.tier?.color || '#a855f7'}40`
+                }}
+              >
+                Join Now
+              </button>
+            )}
+
+            <button
+              onClick={() => onJoin(match.id, true)}
+              style={{
+                padding: '10px 16px',
+                borderRadius: 10,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                fontFamily: 'var(--font-body)',
+                fontWeight: 600,
+                fontSize: 11,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              <i className="fa-solid fa-info-circle" style={{ marginRight: 6 }} /> Details
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RecentWinnersPanel({ matches }) {
+  const recentWins = matches
+    .filter(m => m.status === 'COMPLETED' && m.winner)
+    .sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0))
+    .slice(0, 5)
+
+  if (recentWins.length === 0) {
+    return null
+  }
+
+  return (
+    <div style={{
+      padding: '16px 20px',
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: 14,
+      marginBottom: 20,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <i className="fa-solid fa-crown" style={{ fontSize: 14, color: '#fbbf24' }} />
+        <h3 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#fff',
+          margin: 0,
+          textTransform: 'uppercase',
+        }}>
+          Recent Winners
+        </h3>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {recentWins.map(m => (
+          <div key={m.id} style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 10px',
+            background: 'rgba(255,255,255,0.02)',
+            borderRadius: 8,
+            fontSize: 11,
+          }}>
+            <span style={{ color: '#e5e1e4' }}>
+              {m.winner.name || 'Unknown'} won {m.title}
+            </span>
+            <span style={{ color: '#fbbf24', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+              +{formatTK(m.prizePool || 0)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function FillingFastPanel({ matches, currentUser, onJoin }) {
+  const filling = matches
+    .filter(m => m.status === 'FILLING' && !m.players?.find(p => p.uid === currentUser?.uid))
+    .sort((a, b) => (b.players?.length || 0) - (a.players?.length || 0))
+    .slice(0, 2)
+
+  if (filling.length === 0) {
+    return null
+  }
+
+  return (
+    <div style={{
+      padding: '16px 20px',
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: 14,
+      marginBottom: 20,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <i className="fa-solid fa-fire" style={{ fontSize: 14, color: '#f59e0b' }} />
+        <h3 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#fff',
+          margin: 0,
+          textTransform: 'uppercase',
+        }}>
+          Filling Fast
+        </h3>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {filling.map(m => (
+          <div key={m.id} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 12px',
+            background: 'rgba(255,255,255,0.02)',
+            borderRadius: 8,
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#e5e1e4', marginBottom: 4 }}>
+                {m.title}
+              </div>
+              <div style({ fontSize: 10, color: 'var(--text-dim)' }}>
+                {(m.players || []).length}/{m.maxPlayers || 4} • {formatTK(m.entryFee || 0)}
+              </div>
+            </div>
+            <button
+              onClick={() => onJoin(m.id)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: '#f59e0b',
+                color: '#000',
+                fontWeight: 700,
+                fontSize: 10,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Join
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function YourStatsGrid({ currentUser }) {
+  const stats = [
+    { label: 'Total Wins', value: currentUser?.wins || 0, icon: 'fa-solid fa-trophy', color: '#fbbf24' },
+    { label: 'Total Kills', value: currentUser?.kills || 0, icon: 'fa-solid fa-crosshairs', color: '#6c8cff' },
+    { label: 'Earnings', value: formatTKShort(currentUser?.earnings || 0), icon: 'fa-solid fa-coins', color: '#4ade80', isFormatted: true },
+    { label: 'Streak', value: currentUser?.streak || 0, icon: 'fa-solid fa-fire', color: '#f59e0b' },
+  ]
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+      gap: 12,
+      marginBottom: 20,
+    }}>
+      {stats.map((stat, i) => (
+        <div key={i} style={{
+          padding: '16px 14px',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: 12,
+          textAlign: 'center',
+        }}>
+          <i className={stat.icon} style={{ fontSize: 18, color: stat.color, marginBottom: 8, display: 'block' }} />
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
+            {stat.label}
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: stat.color, fontFamily: 'var(--font-mono)' }}>
+            {stat.isFormatted ? stat.value : useAnimatedCounter(stat.value)}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AdminNoticePanel() {
+  return (
+    <div style={{
+      padding: '14px 16px',
+      background: 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(236,72,153,0.05))',
+      border: '1px solid rgba(168,85,247,0.2)',
+      borderRadius: 12,
+      marginBottom: 20,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+    }}>
+      <i className="fa-solid fa-bell" style={{ fontSize: 16, color: '#a855f7', flexShrink: 0 }} />
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 2 }}>
+          🏆 Season 1 Prize Pool: 50,000 TK
+        </div>
+        <div style({ fontSize: 10, color: 'var(--text-muted)' }}>
+          Top 10 ranked players get seasonal rewards
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DailyQuestsBanner({ quests, onViewAll }) {
+  if (!quests || quests.length === 0) {
+    return null
+  }
+
+  const completed = quests.filter(q => q.progress >= q.target).length
+  const completionRate = Math.round((completed / quests.length) * 100)
+
+  return (
+    <div
+      onClick={onViewAll}
+      style={{
+        padding: '14px 16px',
+        background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(74,222,128,0.05))',
+        border: '1px solid rgba(34,197,94,0.2)',
+        borderRadius: 12,
+        marginBottom: 20,
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(74,222,128,0.08))'
+        e.currentTarget.style.borderColor = 'rgba(34,197,94,0.4)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(74,222,128,0.05))'
+        e.currentTarget.style.borderColor = 'rgba(34,197,94,0.2)'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <i className="fa-solid fa-clipboard-list" style={{ fontSize: 16, color: '#22c55e', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 2 }}>
+              Daily Quests
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+              {completed}/{quests.length} completed • {completionRate}% done
+            </div>
+          </div>
+        </div>
+        <i className="fa-solid fa-chevron-right" style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }} />
+      </div>
+    </div>
+  )
+}
+
+export default function Dashboard() {
+  const { state, dispatch } = useApp()
+  const { currentUser, matches, tierInfo, dailyQuests } = state
+
+  if (!currentUser) {
+    return <div style={{ padding: 20, color: '#999' }}>Loading...</div>
+  }
+
+  const heroMatch = matches?.[0]
+  const allMatches = matches || []
+
+  const handleJoinMatch = (matchId, showDetail = false) => {
+    if (showDetail) {
+      dispatch({ type: 'SHOW_MODAL', payload: 'match-detail', matchId })
+    } else {
+      dispatch({ type: 'SHOW_MODAL', payload: 'join-match', matchId })
+    }
+  }
+
+  const handleDeposit = () => {
+    dispatch({ type: 'SHOW_MODAL', payload: 'add-money' })
+  }
+
+  const handleWithdraw = () => {
+    const lockedBalance = currentUser?.lockedBalance || 0
+    if (lockedBalance > 0) {
+      dispatch({ type: 'SHOW_TOAST', payload: {
+        id: 'withdraw_locked_' + Date.now(),
+        type: 'warning',
+        text: `You have ${formatTK(lockedBalance)} TK locked in Arena Credit. Use it in matches first!`,
+        removing: false,
+      }})
+      return
+    }
+    dispatch({ type: 'SHOW_MODAL', payload: 'withdraw' })
+  }
+
+  const handleViewQuests = () => {
+    dispatch({ type: 'NAVIGATE', payload: { path: '/profile', tab: 'quests' } })
+  }
+
+  return (
+    <div style={{ padding: '0 0 100px 0' }}>
+      {/* ═══ STATUS BAR ═══ */}
+      <StatusBar currentUser={currentUser} tierInfo={tierInfo} />
+
+      {/* ═══ BALANCE CARD ═══ */}
+      <BalanceCard
+        currentUser={currentUser}
+        onDeposit={handleDeposit}
+        onWithdraw={handleWithdraw}
+      />
+
+      {/* ═══ HERO FEATURED MATCH ═══ */}
+      {heroMatch && (
+        <HeroMatchCard
+          match={heroMatch}
+          currentUser={currentUser}
+          onJoin={handleJoinMatch}
+        />
+      )}
+
+      {/* ═══ RECENT WINNERS ═══ */}
+      <RecentWinnersPanel matches={allMatches} />
+
+      {/* ═══ FILLING FAST ═══ */}
+      <FillingFastPanel
+        matches={allMatches}
+        currentUser={currentUser}
+        onJoin={handleJoinMatch}
+      />
+
+      {/* ═══ YOUR STATS GRID ═══ */}
+      <YourStatsGrid currentUser={currentUser} />
+
+      {/* ═══ ADMIN NOTICE ═══ */}
+      <AdminNoticePanel />
+
+      {/* ═══ DAILY QUESTS BANNER ═══ */}
+      <DailyQuestsBanner quests={dailyQuests} onViewAll={handleViewQuests} />
+
+      {/* ═══ RECOMMENDED MATCHES ═══ */}
+      {allMatches.length > 1 && (
+        <div>
+          <h2 style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: 14,
+            fontWeight: 700,
+            color: '#fff',
+            margin: '0 0 14px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}>
+            Recommended For You
+          </h2>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 14,
+          }}>
+            {allMatches.slice(1, 4).map(m => (
+              <MatchCard
+                key={m.id}
+                match={m}
+                currentUser={currentUser}
+                onJoin={() => handleJoinMatch(m.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

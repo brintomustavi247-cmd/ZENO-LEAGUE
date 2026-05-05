@@ -1,0 +1,740 @@
+import { useState, useEffect } from 'react'
+import { useApp } from '../context'
+import { formatTK, formatTKShort, showToast } from '../utils'
+import { watchAdReward, getAdCooldownRemaining, spinClutchWheel, canSpinToday } from '../database'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  V6.0: WALLET PAGE — SPLIT BALANCE + REFERRAL UNLOCKING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function WalletStatCard({ label, value, color, icon, sublabel, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        padding: '16px 20px',
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'all 0.3s ease',
+      }}
+      onMouseEnter={e => {
+        if (!onClick) return
+        e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+        e.currentTarget.style.borderColor = `${color}20`
+      }}
+      onMouseLeave={e => {
+        if (!onClick) return
+        e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+      }}
+    >
+      <div style={{
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        background: `${color}15`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        <i className={icon} style={{ fontSize: 18, color }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: 'var(--text-muted)',
+          marginBottom: 4,
+        }}>
+          {label}
+        </div>
+        <div style={{
+          fontSize: 18,
+          fontWeight: 800,
+          color,
+          fontFamily: 'var(--font-mono)',
+          lineHeight: 1.2,
+        }}>
+          {value}
+        </div>
+        {sublabel && (
+          <div style={{
+            marginTop: 3,
+            fontSize: 9,
+            color: 'var(--text-dim)',
+            fontWeight: 600,
+          }}>
+            {sublabel}
+          </div>
+        )}
+      </div>
+      {onClick && (
+        <i className="fa-solid fa-chevron-right" style={{ color: 'var(--text-muted)', fontSize: 12 }} />
+      )}
+    </div>
+  )
+}
+
+function BalanceBreakdown({ balance, lockedBalance }) {
+  const total = (balance || 0) + (lockedBalance || 0)
+  const realPct = total > 0 ? Math.round((balance / total) * 100) : 0
+  const lockedPct = total > 0 ? Math.round((lockedBalance / total) * 100) : 0
+
+  return (
+    <div style={{
+      padding: '20px 24px',
+      borderRadius: 16,
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.06)',
+    }}>
+      <h3 style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#fff',
+        margin: '0 0 16px',
+      }}>
+        Balance Composition
+      </h3>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+        <div style={{ textAlign: 'center', padding: '12px', borderRadius: 10, background: 'rgba(74,222,128,0.08)' }}>
+          <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
+            Real Balance
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#22c55e', fontFamily: 'var(--font-mono)' }}>
+            {formatTKShort(balance || 0)}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 10, color: '#16a34a' }}>
+            {realPct}% of total
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', padding: '12px', borderRadius: 10, background: 'rgba(251,191,36,0.08)' }}>
+          <div style={{ fontSize: 11, color: '#fbbf24', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
+            Locked Balance
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#fbbf24', fontFamily: 'var(--font-mono)' }}>
+            {formatTKShort(lockedBalance || 0)}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 10, color: '#d97706' }}>
+            {lockedPct}% of total
+          </div>
+        </div>
+      </div>
+
+      {/* Stacked bar chart */}
+      <div style={{
+        height: 24,
+        borderRadius: 12,
+        overflow: 'hidden',
+        background: 'rgba(255,255,255,0.03)',
+        display: 'flex',
+      }}>
+        {realPct > 0 && (
+          <div style={{
+            width: `${realPct}%`,
+            background: 'linear-gradient(90deg, #22c55e, #16a34a)',
+            transition: 'width 0.5s ease',
+          }} />
+        )}
+        {lockedPct > 0 && (
+          <div style={{
+            width: `${lockedPct}%`,
+            background: 'linear-gradient(90deg, #fbbf24, #d97706)',
+            transition: 'width 0.5s ease',
+          }} />
+        )}
+        {realPct === 0 && lockedPct === 0 && (
+          <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)' }} />
+        )}
+      </div>
+
+      <div style({ fontSize: 10, color: 'var(--text-muted)', marginTop: 12, textAlign: 'center' }}>
+        💡 Use locked balance for match entries. Real balance can be withdrawn.
+      </div>
+    </div>
+  )
+}
+
+function ReferralMilestoneTracker({ referralStats, currentUser }) {
+  const code = referralStats?.code || currentUser.referral?.code || 'N/A'
+  const locked = referralStats?.lockedBalance || currentUser.referral?.totalLocked || currentUser.lockedBalance || 0
+  const unlocked = referralStats?.earnings || currentUser.referral?.totalUnlocked || currentUser.referralEarnings || 0
+
+  const milestones = [
+    { match: 1, amount: 5, label: '1st Match' },
+    { match: 3, amount: 7, label: '3rd Match' },
+    { match: 5, amount: 8, label: '5th Match' },
+  ]
+
+  return (
+    <div style={{
+      padding: '20px 24px',
+      borderRadius: 16,
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.06)',
+    }}>
+      <h3 style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#fff',
+        margin: '0 0 16px',
+      }}>
+        🎁 Referral Milestone Unlocking
+      </h3>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+        gap: 10,
+        marginBottom: 14,
+      }}>
+        <div style={{ textAlign: 'center', padding: '10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>
+            Locked
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#fbbf24', fontFamily: 'var(--font-mono)' }}>
+            {formatTKShort(locked)}
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', padding: '10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>
+            Unlocked
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#22c55e', fontFamily: 'var(--font-mono)' }}>
+            {formatTKShort(unlocked)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, fontStyle: 'italic' }}>
+        Commission unlocks as your referrals join matches:
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {milestones.map((m, i) => {
+          const totalUnlockedNeeded = milestones.slice(0, i + 1).reduce((s, x) => s + x.amount, 0)
+          const isUnlocked = unlocked >= totalUnlockedNeeded
+          return (
+            <div key={i} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '10px 12px',
+              borderRadius: 8,
+              background: isUnlocked ? 'rgba(34,197,94,0.05)' : 'rgba(255,255,255,0.01)',
+              border: isUnlocked ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(255,255,255,0.04)',
+            }}>
+              <i className={isUnlocked ? 'fa-solid fa-check-circle' : 'fa-solid fa-lock'} style={{
+                fontSize: 12,
+                color: isUnlocked ? '#22c55e' : '#666',
+                flexShrink: 0,
+              }} />
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: isUnlocked ? '#22c55e' : '#e5e1e4',
+                }}>
+                  Referred plays {m.label} → +{m.amount} TK unlocked
+                </div>
+              </div>
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: isUnlocked ? '#22c55e' : '#555',
+                textTransform: 'uppercase',
+                background: isUnlocked ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.05)',
+                padding: '3px 8px',
+                borderRadius: 4,
+              }}>
+                {isUnlocked ? '✓ Unlocked' : 'Locked'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function TransactionList({ transactions, currentUser }) {
+  const txIcon = (type) => {
+    switch (type) {
+      case 'add': return { icon: 'fa-solid fa-plus', color: '#4ade80' }
+      case 'win': return { icon: 'fa-solid fa-trophy', color: '#fbbf24' }
+      case 'join': return { icon: 'fa-solid fa-crosshairs', color: '#6c8cff' }
+      case 'withdraw': return { icon: 'fa-solid fa-arrow-up-from-bracket', color: '#ec4899' }
+      case 'referral_bonus': return { icon: 'fa-solid fa-gift', color: '#a855f7' }
+      case 'referral_unlock': return { icon: 'fa-solid fa-unlock', color: '#22c55e' }
+      case 'ad_reward': return { icon: 'fa-solid fa-tv', color: '#00d4ff' }
+      case 'spin_reward': return { icon: 'fa-solid fa-circle-notch', color: '#f59e0b' }
+      default: return { icon: 'fa-solid fa-arrow-right-arrow-left', color: '#888' }
+    }
+  }
+
+  const txStatus = (status) => {
+    switch (status) {
+      case 'completed': return { label: '✓ Completed', color: '#22c55e' }
+      case 'pending': return { label: '⏳ Pending', color: '#fbbf24' }
+      case 'rejected': return { label: '✕ Rejected', color: '#ef4444' }
+      default: return { label: status, color: '#888' }
+    }
+  }
+
+  const recentTx = transactions.slice(0, 15)
+
+  return (
+    <div style={{
+      borderRadius: 16,
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.06)',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '16px 20px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        <i className="fa-solid fa-history" style={{ fontSize: 16, color: '#a855f7' }} />
+        <h3 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: 14,
+          fontWeight: 700,
+          color: '#fff',
+          margin: 0,
+        }}>
+          Recent Transactions
+          <span style={{
+            marginLeft: 8,
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            fontFamily: 'var(--font-body)',
+            fontWeight: 600,
+          }}>
+            ({recentTx.length})
+          </span>
+        </h3>
+      </div>
+
+      {recentTx.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+          <i className="fa-solid fa-inbox" style={{ fontSize: 24, marginBottom: 10, display: 'block', opacity: 0.5 }} />
+          No transactions yet
+        </div>
+      ) : (
+        <div style={{ padding: '8px 0' }}>
+          {recentTx.map(tx => {
+            const icon = txIcon(tx.type)
+            const status = txStatus(tx.status)
+            return (
+              <div
+                key={tx.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '12px 16px',
+                  borderBottom: '1px solid rgba(255,255,255,0.03)',
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: `${icon.color}15`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <i className={icon.icon} style={{ fontSize: 14, color: icon.color }} />
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#e5e1e4',
+                    marginBottom: 2,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    {tx.desc || tx.type}
+                  </div>
+                  <div style={{
+                    fontSize: 10,
+                    color: 'var(--text-dim)',
+                    fontFamily: 'var(--font-mono)',
+                  }}>
+                    {tx.date || 'N/A'}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: icon.color,
+                    fontFamily: 'var(--font-mono)',
+                  }}>
+                    {tx.type === 'withdraw' ? '-' : '+'}{formatTK(tx.amount)}
+                  </div>
+                  <div style={{
+                    fontSize: 10,
+                    color: status.color,
+                    fontWeight: 700,
+                    marginTop: 2,
+                    textTransform: 'uppercase',
+                  }}>
+                    {status.label}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function Wallet() {
+  const { state, dispatch, handleWatchAd, handleSpinClutch } = useApp()
+  const { currentUser, transactions, adCooldown, canSpin, referralStats } = state
+
+  if (!currentUser) return null
+
+  const realBalance = currentUser.balance || 0
+  const lockedBalance = currentUser.lockedBalance || 0
+  const totalBalance = realBalance + lockedBalance
+
+  const handleDeposit = () => {
+    dispatch({ type: 'SHOW_MODAL', payload: 'add-money' })
+  }
+
+  const handleWithdraw = () => {
+    if (lockedBalance > 0) {
+      dispatch({ type: 'SHOW_TOAST', payload: {
+        id: 'withdraw_locked_' + Date.now(),
+        type: 'warning',
+        text: `You have ${formatTK(lockedBalance)} TK locked in Arena Credit. Use it in matches first!`,
+        removing: false,
+      }})
+      return
+    }
+    if (realBalance < 50) {
+      dispatch({ type: 'SHOW_TOAST', payload: {
+        id: 'withdraw_min_' + Date.now(),
+        type: 'warning',
+        text: 'Minimum withdrawal is 50 TK',
+        removing: false,
+      }})
+      return
+    }
+    dispatch({ type: 'SHOW_MODAL', payload: 'withdraw' })
+  }
+
+  const handleAdClick = async () => {
+    if (adCooldown > 0) {
+      dispatch({ type: 'SHOW_TOAST', payload: {
+        id: 'ad_cooldown_' + Date.now(),
+        type: 'warning',
+        text: `⏳ Wait ${adCooldown}s before next ad`,
+        removing: false,
+      }})
+      return
+    }
+    await handleWatchAd()
+  }
+
+  const handleSpinClick = async () => {
+    if (!canSpin) {
+      dispatch({ type: 'SHOW_TOAST', payload: {
+        id: 'spin_done_' + Date.now(),
+        type: 'info',
+        text: '🎰 You already spun today! Come back tomorrow.',
+        removing: false,
+      }})
+      return
+    }
+    await handleSpinClutch()
+  }
+
+  return (
+    <div style={{ padding: '0 0 100px 0' }}>
+      {/* ═══ PAGE HEADER ═══ */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: 28,
+          fontWeight: 700,
+          color: '#fff',
+          margin: '0 0 6px',
+          letterSpacing: '-0.025em',
+          textTransform: 'uppercase',
+        }}>
+          Wallet
+        </h1>
+        <p style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
+          color: 'var(--text-muted)',
+          margin: 0,
+          fontWeight: 500,
+        }}>
+          Manage your funds and balance
+        </p>
+      </div>
+
+      {/* ═══ BALANCE HERO CARD ═══ */}
+      <div style={{
+        padding: '28px 24px',
+        borderRadius: 18,
+        background: 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(236,72,153,0.05))',
+        border: '1px solid rgba(168,85,247,0.2)',
+        marginBottom: 24,
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: -50,
+          right: -50,
+          width: 200,
+          height: 200,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(168,85,247,0.1), transparent)',
+          filter: 'blur(60px)',
+          pointerEvents: 'none',
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: '#a855f7',
+            marginBottom: 6,
+          }}>
+            Total Balance
+          </div>
+          <div style({
+            fontSize: 14,
+            fontWeight: 800,
+            color: '#fff',
+            fontFamily: 'var(--font-mono)',
+            lineHeight: 1.4,
+          }}>
+            <span style={{ fontSize: 40, marginRight: 8 }}>{formatTKShort(totalBalance)}</span>
+            <span style={{ fontSize: 18, opacity: 0.8 }}>TK</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ QUICK STATS ═══ */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        gap: 12,
+        marginBottom: 24,
+      }}>
+        <WalletStatCard
+          label="Real Balance"
+          value={formatTKShort(realBalance)}
+          color="#22c55e"
+          icon="fa-solid fa-wallet"
+          sublabel="Can withdraw"
+        />
+        <WalletStatCard
+          label="Arena Credit"
+          value={formatTKShort(lockedBalance)}
+          color="#fbbf24"
+          icon="fa-solid fa-lock"
+          sublabel="Match entry only"
+        />
+        <WalletStatCard
+          label="Pending"
+          value={transactions.filter(t => t.status === 'pending').length}
+          color="#6c8cff"
+          icon="fa-solid fa-hourglass-end"
+          sublabel="Transactions"
+        />
+      </div>
+
+      {/* ═══ QUICK ACTIONS ═══ */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gap: 12,
+        marginBottom: 24,
+      }}>
+        <button
+          onClick={handleDeposit}
+          style={{
+            padding: '14px 18px',
+            borderRadius: 12,
+            border: 'none',
+            background: 'linear-gradient(135deg, #4ade80, #22c55e)',
+            color: '#fff',
+            fontFamily: 'var(--font-heading)',
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            boxShadow: '0 4px 16px rgba(74,222,128,0.3)',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)'
+            e.currentTarget.style.boxShadow = '0 6px 24px rgba(74,222,128,0.4)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(74,222,128,0.3)'
+          }}
+        >
+          <i className="fa-solid fa-plus" /> Deposit
+        </button>
+
+        <button
+          onClick={handleWithdraw}
+          style={{
+            padding: '14px 18px',
+            borderRadius: 12,
+            border: 'none',
+            background: 'linear-gradient(135deg, #ec4899, #be185d)',
+            color: '#fff',
+            fontFamily: 'var(--font-heading)',
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            boxShadow: '0 4px 16px rgba(236,72,153,0.3)',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)'
+            e.currentTarget.style.boxShadow = '0 6px 24px rgba(236,72,153,0.4)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(236,72,153,0.3)'
+          }}
+        >
+          <i className="fa-solid fa-arrow-up" /> Withdraw
+        </button>
+
+        <button
+          onClick={handleAdClick}
+          disabled={adCooldown > 0}
+          style={{
+            padding: '14px 18px',
+            borderRadius: 12,
+            border: 'none',
+            background: adCooldown > 0 ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #00d4ff, #0ea5e9)',
+            color: adCooldown > 0 ? '#555' : '#fff',
+            fontFamily: 'var(--font-heading)',
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            cursor: adCooldown > 0 ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            boxShadow: adCooldown > 0 ? 'none' : '0 4px 16px rgba(0,212,255,0.3)',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={e => {
+            if (adCooldown > 0) return
+            e.currentTarget.style.transform = 'translateY(-2px)'
+            e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,212,255,0.4)'
+          }}
+          onMouseLeave={e => {
+            if (adCooldown > 0) return
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,212,255,0.3)'
+          }}
+        >
+          <i className="fa-solid fa-tv" />
+          {adCooldown > 0 ? `${adCooldown}s` : 'Watch Ad'}
+        </button>
+
+        <button
+          onClick={handleSpinClick}
+          disabled={!canSpin}
+          style={{
+            padding: '14px 18px',
+            borderRadius: 12,
+            border: 'none',
+            background: !canSpin ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #f59e0b, #d97706)',
+            color: !canSpin ? '#555' : '#fff',
+            fontFamily: 'var(--font-heading)',
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            cursor: !canSpin ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            boxShadow: !canSpin ? 'none' : '0 4px 16px rgba(245,158,11,0.3)',
+            transition: 'all 0.3s ease',
+          }}
+          onMouseEnter={e => {
+            if (!canSpin) return
+            e.currentTarget.style.transform = 'translateY(-2px)'
+            e.currentTarget.style.boxShadow = '0 6px 24px rgba(245,158,11,0.4)'
+          }}
+          onMouseLeave={e => {
+            if (!canSpin) return
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(245,158,11,0.3)'
+          }}
+        >
+          <i className="fa-solid fa-circle-notch" />
+          {canSpin ? 'Spin' : 'Done Today'}
+        </button>
+      </div>
+
+      {/* ═══ BALANCE BREAKDOWN ═══ */}
+      <div style={{ marginBottom: 24 }}>
+        <BalanceBreakdown balance={realBalance} lockedBalance={lockedBalance} />
+      </div>
+
+      {/* ═══ REFERRAL MILESTONES ═══ */}
+      <div style={{ marginBottom: 24 }}>
+        <ReferralMilestoneTracker referralStats={referralStats} currentUser={currentUser} />
+      </div>
+
+      {/* ═══ TRANSACTION HISTORY ═══ */}
+      <TransactionList transactions={transactions} currentUser={currentUser} />
+    </div>
+  )
+}

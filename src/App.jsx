@@ -16,6 +16,7 @@ import Admin from './views/Admin'
 import Login from './views/Login'
 import Profile from './views/Profile'
 import Settings from './views/Settings'
+import './admin-premium.css'
 
 function LoadingSkeleton() {
   return (
@@ -122,6 +123,8 @@ function ViewRouter() {
       case 'admin-payments':
       case 'admin-owners':
       case 'admin-activity':
+      case 'admin-profit':
+      case 'admin-add-money':
         if (!isAdmin) return <Dashboard />
         return <Admin />
 

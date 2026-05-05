@@ -44,6 +44,33 @@ function startOfMonth() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  TIER SYSTEM (V6.0)
+// ═══════════════════════════════════════════════════════════════════════
+export const TIERS = [
+  { name: 'Bronze', color: '#cd7f32', minXP: 0, maxXP: 99 },
+  { name: 'Silver', color: '#c0c0c0', minXP: 100, maxXP: 299 },
+  { name: 'Gold', color: '#fbbf24', minXP: 300, maxXP: 599 },
+  { name: 'Platinum', color: '#6c8cff', minXP: 600, maxXP: 999 },
+  { name: 'Diamond', color: '#a78bfa', minXP: 1000, maxXP: 1499 },
+  { name: 'Master', color: '#f87171', minXP: 1500, maxXP: 2499 },
+  { name: 'Grandmaster', color: '#00f0ff', minXP: 2500, maxXP: Infinity },
+]
+
+export function getTierFromXP(xp) {
+  const numXP = Number(xp) || 0;
+  const tier = TIERS.find(t => numXP >= t.minXP && numXP <= t.maxXP);
+  return tier || TIERS[0];
+}
+
+export function getTierProgress(xp) {
+  const numXP = Number(xp) || 0;
+  const tier = getTierFromXP(numXP);
+  const progress = numXP - tier.minXP;
+  const total = tier.maxXP === Infinity ? 100 : tier.maxXP - tier.minXP;
+  return { tier, progress, total, percentage: Math.min(100, (progress / total) * 100) };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  USER DOCUMENTS
 // ═══════════════════════════════════════════════════════════════════════
 

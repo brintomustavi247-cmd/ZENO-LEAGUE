@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { id: 'matches', label: 'Matches', icon: 'fa-solid fa-gamepad' },
   { id: 'wallet', label: 'Wallet', icon: 'fa-solid fa-wallet' },
   { id: 'leaderboard', label: 'Rank', icon: 'fa-solid fa-ranking-star' },
+  { id: 'notifications', label: 'Alerts', icon: 'fa-solid fa-bell' },
   { id: 'profile', label: 'Profile', icon: 'fa-solid fa-user' },
 ]
 
@@ -23,7 +24,8 @@ const ADMIN_NAV_ITEMS = [
 export default function MobileNav() {
   const { state, navigate, isAdmin } = useApp()
   const { currentView } = state
-    const pendingFinance = (state.pendingWithdrawals?.length || 0) + (state.pendingAddMoneyRequests?.length || 0)
+  const pendingFinance = (state.pendingWithdrawals?.length || 0) + (state.pendingAddMoneyRequests?.length || 0)
+  const unreadNotifications = state.notifications?.filter(n => !n.read).length || 0
     
 
   // ═══ ADMIN MOBILE NAV — horizontal scroll (your old slide system) ═══
@@ -209,6 +211,28 @@ export default function MobileNav() {
                     filter: on ? 'drop-shadow(0 0 6px rgba(6,214,240,0.4))' : 'none',
                   }}
                 />
+                {item.id === 'notifications' && unreadNotifications > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -10,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    background: '#ef4444',
+                    color: '#fff',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    fontFamily: "'Inter', sans-serif",
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 4px',
+                    boxShadow: '0 2px 6px rgba(239,68,68,0.4)',
+                  }}>
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </span>
+                )}
               </div>
               <span style={{
                 fontSize: on ? 10 : 9,

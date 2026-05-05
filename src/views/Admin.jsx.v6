@@ -1,0 +1,759 @@
+import { useState, useEffect } from 'react'
+import { useApp } from '../context'
+import { formatTK, formatTKShort } from '../utils'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  V6.0: ADMIN PAGE — GLASSMORPHISM DASHBOARD + SMART ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const PERM_MAP = {
+  can_create_match: { label: 'Create Matches', icon: 'fa-solid fa-plus-circle' },
+  can_manage_users: { label: 'Manage Users', icon: 'fa-solid fa-users' },
+  can_manage_finance: { label: 'Finance Control', icon: 'fa-solid fa-wallet' },
+  can_manage_seasons: { label: 'Manage Seasons', icon: 'fa-solid fa-calendar' },
+  can_view_profits: { label: 'View Profits', icon: 'fa-solid fa-chart-line' },
+  can_promote_match: { label: 'Promote Matches', icon: 'fa-solid fa-bullhorn' },
+  can_approve_withdrawals: { label: 'Approve Withdrawals', icon: 'fa-solid fa-check-double' },
+  can_ban_users: { label: 'Ban Users', icon: 'fa-solid fa-ban' },
+  is_owner: { label: 'Full Owner Access', icon: 'fa-solid fa-crown' },
+}
+
+const ALL_PERMISSIONS = Object.keys(PERM_MAP)
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+  return isMobile
+}
+
+const S = {
+  dashCard: {
+    padding: '20px 22px',
+    borderRadius: 14,
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.06)',
+    backdropFilter: 'blur(10px)',
+  },
+  dashValue: {
+    fontSize: 28,
+    fontWeight: 800,
+    fontFamily: 'var(--font-mono)',
+    marginBottom: 6,
+  },
+  dashLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#a0a0a0',
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+  },
+  dashUnit: {
+    fontSize: 12,
+    color: '#888',
+    marginLeft: 6,
+  },
+}
+
+function MetricCard({ label, value, unit, color, icon, trend, trendValue }) {
+  return (
+    <div style={S.dashCard}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <div style={{
+          width: 40,
+          height: 40,
+          borderRadius: 10,
+          background: `${color}15`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <i className={icon} style={{ fontSize: 18, color }} />
+        </div>
+        <div>
+          <div style={S.dashLabel}>{label}</div>
+          {trend && (
+            <div style={{
+              fontSize: 10,
+              color: trend === 'up' ? '#22c55e' : '#ef4444',
+              marginTop: 2,
+              fontWeight: 600,
+            }}>
+              {trend === 'up' ? '↑' : '↓'} {trendValue}
+            </div>
+          )}
+        </div>
+      </div>
+      <div>
+        <span style={{ ...S.dashValue, color }}>{value}</span>
+        {unit && <span style={S.dashUnit}>{unit}</span>}
+      </div>
+    </div>
+  )
+}
+
+function SmartAlert({ type, title, message, actions }) {
+  const colors = {
+    warning: { bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.3)', icon: '#fbbf24', iconClass: 'fa-exclamation-triangle' },
+    danger: { bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', icon: '#ef4444', iconClass: 'fa-times-circle' },
+    info: { bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.3)', icon: '#3b82f6', iconClass: 'fa-info-circle' },
+    success: { bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.3)', icon: '#22c55e', iconClass: 'fa-check-circle' },
+  }
+
+  const config = colors[type] || colors.info
+
+  return (
+    <div style={{
+      padding: '16px 18px',
+      background: config.bg,
+      border: `1px solid ${config.border}`,
+      borderRadius: 12,
+      marginBottom: 12,
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 12,
+    }}>
+      <i className={`fa-solid ${config.iconClass}`} style={{ fontSize: 16, color: config.icon, marginTop: 2, flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: actions ? 10 : 0 }}>
+          {message}
+        </div>
+
+        {actions && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {actions.map((action, i) => (
+              <button
+                key={i}
+                onClick={action.onClick}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: config.icon,
+                  color: action.isDanger ? '#fff' : '#000',
+                  fontWeight: 700,
+                  fontSize: 10,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  opacity: action.isDanger ? 0.9 : 1,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-1px)'
+                  e.currentTarget.style.boxShadow = `0 4px 12px ${config.icon}40`
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ProfitDashboard({ stats, currentUser }) {
+  const dailyMetrics = {
+    revenue: stats?.dailyRevenue || 0,
+    matches: stats?.matchesCreatedToday || 0,
+    fullMatches: stats?.matchesCompleted || 0,
+    netProfit: (stats?.dailyRevenue || 0) - (stats?.dailySpending || 0),
+    dau: stats?.dailyActiveUsers || 0,
+  }
+
+  const monthlyMetrics = {
+    revenue: stats?.monthlyRevenue || 0,
+    spending: stats?.monthlySpending || 0,
+    netProfit: (stats?.monthlyRevenue || 0) - (stats?.monthlySpending || 0),
+  }
+
+  return (
+    <div>
+      {/* ═══ DAILY METRICS ═══ */}
+      <h2 style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#fff',
+        margin: '0 0 14px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
+        Today's Metrics
+      </h2>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gap: 12,
+        marginBottom: 24,
+      }}>
+        <MetricCard
+          label="Revenue"
+          value={formatTKShort(dailyMetrics.revenue)}
+          unit="TK"
+          color="#4ade80"
+          icon="fa-solid fa-coins"
+          trend="up"
+          trendValue="+12%"
+        />
+        <MetricCard
+          label="Matches Created"
+          value={dailyMetrics.matches}
+          unit=""
+          color="#6c8cff"
+          icon="fa-solid fa-gamepad"
+          trend="up"
+          trendValue="+5"
+        />
+        <MetricCard
+          label="Full Matches"
+          value={dailyMetrics.fullMatches}
+          unit=""
+          color="#fbbf24"
+          icon="fa-solid fa-check-circle"
+        />
+        <MetricCard
+          label="Net Profit"
+          value={formatTKShort(Math.max(dailyMetrics.netProfit, 0))}
+          unit="TK"
+          color="#a855f7"
+          icon="fa-solid fa-arrow-trending-up"
+          trend={dailyMetrics.netProfit > 0 ? 'up' : 'down'}
+          trendValue={dailyMetrics.netProfit > 0 ? '+18%' : '-3%'}
+        />
+        <MetricCard
+          label="Active Users"
+          value={dailyMetrics.dau}
+          unit=""
+          color="#00d4ff"
+          icon="fa-solid fa-users"
+        />
+      </div>
+
+      {/* ═══ MONTHLY SUMMARY ═══ */}
+      <h2 style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#fff',
+        margin: '0 0 14px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
+        Monthly Summary
+      </h2>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        gap: 12,
+        marginBottom: 24,
+      }}>
+        <MetricCard
+          label="Total Revenue"
+          value={formatTKShort(monthlyMetrics.revenue)}
+          unit="TK"
+          color="#4ade80"
+          icon="fa-solid fa-chart-line"
+        />
+        <MetricCard
+          label="Total Spending"
+          value={formatTKShort(monthlyMetrics.spending)}
+          unit="TK"
+          color="#ef4444"
+          icon="fa-solid fa-chart-bar"
+        />
+        <MetricCard
+          label="Net Profit"
+          value={formatTKShort(Math.max(monthlyMetrics.netProfit, 0))}
+          unit="TK"
+          color="#a855f7"
+          icon="fa-solid fa-trophy"
+        />
+      </div>
+
+      {/* ═══ SMART ALERTS ═══ */}
+      <h2 style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#fff',
+        margin: '0 0 14px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
+        Smart Alerts & Actions
+      </h2>
+
+      {monthlyMetrics.netProfit > 100000 && (
+        <SmartAlert
+          type="success"
+          title="🎯 Strong Performance"
+          message="Monthly net profit exceeded 100,000 TK! Great month!"
+          actions={[
+            { label: 'View Details', onClick: () => {} },
+            { label: 'Share', onClick: () => {} },
+          ]}
+        />
+      )}
+
+      <SmartAlert
+        type="warning"
+        title="📊 Low Match Volume"
+        message="Only {dailyMetrics.matches} matches created today. Consider promotional boost."
+        actions={[
+          { label: 'PROMOTE', onClick: () => {} },
+          { label: 'Analytics', onClick: () => {} },
+        ]}
+      />
+
+      {stats?.pendingWithdrawals > 0 && (
+        <SmartAlert
+          type="danger"
+          title="💳 Pending Withdrawals"
+          message={`${stats.pendingWithdrawals} withdrawal request(s) awaiting approval`}
+          actions={[
+            { label: 'PAY_NOW', onClick: () => {}, isDanger: true },
+            { label: 'Review', onClick: () => {} },
+          ]}
+        />
+      )}
+
+      <SmartAlert
+        type="info"
+        title="👥 Community Growth"
+        message="Referral unlocking events happening today (+8% engagement)"
+        actions={[
+          { label: 'View Stats', onClick: () => {} },
+        ]}
+      />
+    </div>
+  )
+}
+
+function MatchManager({ matches, currentUser }) {
+  const [filterStatus, setFilterStatus] = useState('all')
+
+  const filtered = filterStatus === 'all'
+    ? matches
+    : matches.filter(m => m.status === filterStatus)
+
+  return (
+    <div>
+      <h2 style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#fff',
+        margin: '0 0 14px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
+        Match Manager
+      </h2>
+
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        marginBottom: 14,
+        flexWrap: 'wrap',
+      }}>
+        {['all', 'LIVE', 'FILLING', 'SCHEDULED', 'COMPLETED'].map(status => (
+          <button
+            key={status}
+            onClick={() => setFilterStatus(status)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: filterStatus === status ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              background: filterStatus === status ? 'rgba(168,85,247,0.3)' : 'transparent',
+              color: '#e5e1e4',
+              fontWeight: 700,
+              fontSize: 11,
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {status}
+          </button>
+        ))}
+      </div>
+
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        overflow: 'hidden',
+      }}>
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+            No matches found
+          </div>
+        ) : (
+          <div style={{ padding: '8px 0' }}>
+            {filtered.map(match => (
+              <div key={match.id} style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid rgba(255,255,255,0.03)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                justifyContent: 'space-between',
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#fff',
+                    marginBottom: 4,
+                  }}>
+                    {match.title}
+                  </div>
+                  <div style={{
+                    fontSize: 10,
+                    color: 'var(--text-dim)',
+                    display: 'flex',
+                    gap: 12,
+                  }}>
+                    <span>{(match.players || []).length}/{match.maxPlayers || 4}</span>
+                    <span>{formatTK(match.entryFee || 0)} entry</span>
+                    <span>{formatTK(match.prizePool || 0)} prize</span>
+                  </div>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    background: match.status === 'LIVE' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.05)',
+                    color: match.status === 'LIVE' ? '#22c55e' : '#a0a0a0',
+                  }}>
+                    {match.status === 'LIVE' && '🔴'} {match.status}
+                  </span>
+
+                  {match.status === 'FILLING' && (
+                    <button
+                      onClick={() => {}}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: '#f59e0b',
+                        color: '#000',
+                        fontWeight: 700,
+                        fontSize: 10,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      PROMOTE
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function UserManagementPanel({ currentUser, users, onBanUser, onAdjustBalance }) {
+  return (
+    <div>
+      <h2 style={{
+        fontFamily: 'var(--font-heading)',
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#fff',
+        margin: '0 0 14px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
+        User Management
+      </h2>
+
+      <div style={{
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        overflow: 'hidden',
+      }}>
+        {(users || []).slice(0, 10).map(user => (
+          <div key={user.id} style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid rgba(255,255,255,0.03)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            justifyContent: 'space-between',
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#fff',
+                marginBottom: 2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {user.name || user.uid}
+              </div>
+              <div style={{
+                fontSize: 10,
+                color: 'var(--text-dim)',
+              }}>
+                {formatTK(user.balance || 0)} • {user.xp || 0} XP • L{user.tier?.level || 1}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => onAdjustBalance(user.id)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 4,
+                  border: '1px solid #666',
+                  background: 'transparent',
+                  color: '#888',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Adjust
+              </button>
+              {!user.isBanned && (
+                <button
+                  onClick={() => onBanUser(user.id)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    border: '1px solid #ef4444',
+                    background: 'rgba(239,68,68,0.1)',
+                    color: '#ef4444',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Ban
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function Admin() {
+  const { state, dispatch } = useApp()
+  const { currentUser, matches, profitStats, users } = state
+  const [activeTab, setActiveTab] = useState('overview')
+  const isMobile = useIsMobile()
+
+  if (!currentUser?.permissions?.is_owner) {
+    return (
+      <div style={{
+        padding: '40px 20px',
+        textAlign: 'center',
+        color: 'var(--text-muted)',
+      }}>
+        <i className="fa-solid fa-lock" style={{ fontSize: 32, marginBottom: 16, display: 'block', opacity: 0.5 }} />
+        <h2 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: 18,
+          fontWeight: 700,
+          color: '#fff',
+          margin: '0 0 10px',
+        }}>
+          Owner Access Required
+        </h2>
+        <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+          Only admins can access this page
+        </p>
+      </div>
+    )
+  }
+
+  const tabs = [
+    { id: 'overview', label: 'Profit Dashboard', icon: 'fa-chart-bar' },
+    { id: 'matches', label: 'Match Manager', icon: 'fa-gamepad' },
+    { id: 'users', label: 'User Management', icon: 'fa-users' },
+    { id: 'finance', label: 'Finance', icon: 'fa-wallet' },
+    { id: 'activity', label: 'Activity Log', icon: 'fa-history' },
+  ]
+
+  return (
+    <div style={{ padding: '0 0 100px 0' }}>
+      {/* ═══ PAGE HEADER ═══ */}
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: 28,
+          fontWeight: 700,
+          color: '#fff',
+          margin: '0 0 6px',
+          letterSpacing: '-0.025em',
+          textTransform: 'uppercase',
+        }}>
+          Admin Dashboard
+        </h1>
+        <p style={{
+          fontSize: 13,
+          color: 'var(--text-muted)',
+          margin: 0,
+          fontWeight: 500,
+        }}>
+          Platform management & financial control
+        </p>
+      </div>
+
+      {/* ═══ TAB NAVIGATION ═══ */}
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        marginBottom: 20,
+        overflowX: 'auto',
+        paddingBottom: 8,
+      }}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: 'none',
+              background: activeTab === tab.id ? 'rgba(168,85,247,0.2)' : 'rgba(255,255,255,0.05)',
+              color: activeTab === tab.id ? '#a855f7' : 'var(--text-muted)',
+              fontWeight: 700,
+              fontSize: 11,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={e => {
+              if (activeTab !== tab.id) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+              }
+            }}
+            onMouseLeave={e => {
+              if (activeTab !== tab.id) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+              }
+            }}
+          >
+            <i className={`fa-solid ${tab.icon}`} style={{ fontSize: 12 }} />
+            {!isMobile && tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══ TAB CONTENT ═══ */}
+      <div>
+        {activeTab === 'overview' && (
+          <ProfitDashboard stats={profitStats} currentUser={currentUser} />
+        )}
+
+        {activeTab === 'matches' && (
+          <MatchManager matches={matches || []} currentUser={currentUser} />
+        )}
+
+        {activeTab === 'users' && (
+          <UserManagementPanel
+            currentUser={currentUser}
+            users={users}
+            onBanUser={(userId) => {
+              dispatch({ type: 'SHOW_MODAL', payload: 'admin-ban-user', userId })
+            }}
+            onAdjustBalance={(userId) => {
+              dispatch({ type: 'SHOW_MODAL', payload: 'admin-adjust-balance', userId })
+            }}
+          />
+        )}
+
+        {activeTab === 'finance' && (
+          <div>
+            <h2 style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#fff',
+              margin: '0 0 14px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}>
+              Finance & Withdrawals
+            </h2>
+
+            <div style={{
+              padding: '20px 22px',
+              borderRadius: 14,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+            }}>
+              <i className="fa-solid fa-chart-pie" style={{ fontSize: 32, marginBottom: 10, display: 'block', opacity: 0.5 }} />
+              Finance dashboard coming soon...
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'activity' && (
+          <div>
+            <h2 style={{
+              fontFamily: 'var(--font-heading)',
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#fff',
+              margin: '0 0 14px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}>
+              Activity Log
+            </h2>
+
+            <div style={{
+              padding: '20px 22px',
+              borderRadius: 14,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+            }}>
+              <i className="fa-solid fa-list" style={{ fontSize: 32, marginBottom: 10, display: 'block', opacity: 0.5 }} />
+              Activity log coming soon...
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
