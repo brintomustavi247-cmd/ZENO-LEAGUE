@@ -1932,7 +1932,13 @@ function AdminUsers() {
           Cannot adjust own balance
          </div>
         ) : (
-         <button style={{ ...S.btnGhost, width: '100%', marginBottom: 6 }} onClick={() => dispatch({ type: 'ADJUST_BALANCE', payload: { userId: u.id } })}>
+         <button style={{ ...S.btnGhost, width: '100%', marginBottom: 6 }} onClick={() => {
+          const act = prompt('Enter action type:', 'add')
+          if (act !== 'add' && act !== 'deduct') return alert('Type add or deduct')
+          const amount = prompt('Enter amount (TK):')
+          if (!amount || Number(amount) <= 0) return alert('Invalid amount')
+          dispatch({ type: 'ADJUST_BALANCE', payload: { userId: u.id, action: act, amount: Number(amount) } })
+         }}>
           <i className="fa-solid fa-scale-balanced"></i> Adjust Balance
          </button>
         )}
@@ -2082,7 +2088,13 @@ function AdminUsers() {
           {isSelf ? (
            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Self</span>
           ) : (
-           <button style={S.btnGhost} onClick={() => dispatch({ type: 'ADJUST_BALANCE', payload: { userId: u.id } })}>
+           <button style={S.btnGhost} onClick={() => {
+            const act = prompt('Enter action type:', 'add')
+            if (act !== 'add' && act !== 'deduct') return alert('Type add or deduct')
+            const amount = prompt('Enter amount (TK):')
+            if (!amount || Number(amount) <= 0) return alert('Invalid amount')
+            dispatch({ type: 'ADJUST_BALANCE', payload: { userId: u.id, action: act, amount: Number(amount) } })
+           }}>
             <i className="fa-solid fa-scale-balanced"></i> Adjust
            </button>
           )}
@@ -3226,9 +3238,39 @@ export default function Admin() {
      <div className="admin-title">Clutch Arena</div>
      <div className="admin-subtitle">Admin Control Center</div>
     </div>
-    <div className="admin-online-badge">
-     <span style={{ marginRight: 4 }}>Online</span>
-     <i className="fa-solid fa-signal" style={{ fontSize: 10 }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+     <div className="admin-online-badge">
+      <span style={{ marginRight: 4 }}>Online</span>
+      <i className="fa-solid fa-signal" style={{ fontSize: 10 }} />
+     </div>
+     <button
+      style={{ ...S.btnGhost, padding: '8px 12px' }}
+      onClick={() => navigate('profile')}
+     >
+      <span style={{
+       width: 22,
+       height: 22,
+       borderRadius: '50%',
+       background: 'rgba(255,255,255,0.12)',
+       display: 'inline-flex',
+       alignItems: 'center',
+       justifyContent: 'center',
+       fontSize: 11,
+       fontWeight: 800,
+       color: '#fff',
+      }}>
+       {(currentUser?.displayName || currentUser?.name || 'A').charAt(0).toUpperCase()}
+      </span>
+      <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+       {currentUser?.displayName || currentUser?.name || 'Admin'}
+      </span>
+     </button>
+     <button
+      style={{ ...S.btnGhost, padding: '8px 12px', color: '#f87171' }}
+      onClick={() => { dispatch({ type: 'LOGOUT' }); navigate('login') }}
+     >
+      <i className="fa-solid fa-right-from-bracket"></i> Logout
+     </button>
     </div>
    </div>
 
@@ -3251,39 +3293,6 @@ export default function Admin() {
        >
         <i className={t.icon}></i>
         {t.label}
-       </button>
-      )
-     })}
-    </div>
-  )}
-
-   {mobile && (
-    <div className="tab-pill-container" style={{ overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 16, paddingBottom: 4 }}>
-     {visibleTabs.map(t => {
-      const active = activeTab === t.id
-      return (
-       <button
-        key={t.id}
-        className={`tab-pill ${active ? 'active' : ''}`}
-        onClick={() => handleTab(t.id)}
-        style={{
-         '--tab-color': `${t.color}25`,
-         '--tab-color-2': `${t.color}10`,
-         '--tab-border': `${t.color}50`,
-         '--tab-text': t.color,
-         '--tab-shadow': `${t.color}25`,
-         display: 'flex',
-         flexDirection: 'column',
-         alignItems: 'center',
-         gap: 4,
-         padding: '8px 14px',
-         minWidth: 64,
-         flexShrink: 0,
-         fontSize: 10,
-        }}
-       >
-        <i className={t.icon} style={{ fontSize: 16 }}></i>
-        <span>{t.label}</span>
        </button>
       )
      })}

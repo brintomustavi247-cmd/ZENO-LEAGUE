@@ -701,8 +701,35 @@ function reducer(state, action) {
       }
     }
 
+    case 'BAN_USER': {
+      const userId = action.payload
+      updateUser(userId, { banned: true, status: 'banned' }).catch(e =>
+        console.error('Ban failed:', e)
+      )
+      return {
+        ...state,
+        users: state.users.map(u =>
+          u.id === userId ? { ...u, banned: true, status: 'banned' } : u
+        ),
+      }
+    }
+
+    case 'UNBAN_USER': {
+      const userId = action.payload
+      updateUser(userId, { banned: false, status: 'active' }).catch(e =>
+        console.error('Unban failed:', e)
+      )
+      return {
+        ...state,
+        users: state.users.map(u =>
+          u.id === userId ? { ...u, banned: false, status: 'active' } : u
+        ),
+      }
+    }
+
     case 'PROMOTE_TO_ADMIN': {
       const userId = action.payload
+      updateUser(userId, { role: 'admin', permissions: [] }).catch(e => console.error('Promote failed:', e))
       return {
         ...state,
         users: state.users.map(u =>
@@ -713,6 +740,7 @@ function reducer(state, action) {
 
     case 'DEMOTE_TO_USER': {
       const userId = action.payload
+      updateUser(userId, { role: 'user', permissions: [] }).catch(e => console.error('Demote failed:', e))
       return {
         ...state,
         users: state.users.map(u =>
@@ -733,41 +761,27 @@ function reducer(state, action) {
 
     case 'ADJUST_BALANCE': {
       const { userId, action: act, amount } = action.payload
-      if (userId === state.currentUser?.id) return { ...state }
-      return {
-        ...state,
-        pendingBalanceAdjust: { userId, action: act, amount, reason: action.payload.reason || 'Balance adjustment' },
-        loading: true,
-      }
+      const numAmount = Number(amount)
+      if (!userId) return state
+      if (!numAmount || numAmount <= 0 || !act) return state
+      adminAdjustBalance(userId, act, numAmount, action.payload.reason || 'Balance adjustment').then(() => {
+        dispatch({ type: 'BALANCE_ADJUST_SUCCESS', payload: { userId, newBalance } })
+      }).catch(err => {
+        console.error('Adjust balance failed:', err)
+        dispatch({ type: 'BALANCE_ADJUST_ERROR' })
+      })
+      return { ...state, pendingBalanceAdjust: { userId, action: act, amount: numAmount, reason: action.payload.reason || 'Balance adjustment' }, loading: true }
     }
 
     case 'BALANCE_ADJUST_SUCCESS': {
       const { userId, newBalance } = action.payload
-      const pending = state.pendingBalanceAdjust
-      const updatedUsers = state.users.map(u =>
-        u.id === userId ? { ...u, balance: newBalance } : u
-      )
-      const updatedCurrentUser = state.currentUser?.id === userId
-        ? { ...state.currentUser, balance: newBalance }
-        : state.currentUser
-      const adjustTx = {
-        id: 'tx_adj_' + Date.now(),
-        type: pending?.action === 'add' ? 'adjust_add' : 'adjust_deduct',
-        amount: pending?.amount || 0,
-        desc: `Admin ${pending?.action === 'add' ? 'added' : 'deducted'} ${pending?.amount || 0} TK — ${pending?.reason || 'No reason'}`,
-        date: getTimeStr(0),
-        status: 'completed',
-        userId: userId,
-        adminId: state.currentUser?.id,
-        adminName: state.currentUser?.displayName || state.currentUser?.name,
-      }
       return {
         ...state,
-        users: updatedUsers,
-        currentUser: updatedCurrentUser,
         loading: false,
         pendingBalanceAdjust: null,
-        transactions: [adjustTx, ...state.transactions],
+        users: state.users.map(u =>
+          u.id === userId ? { ...u, balance: newBalance } : u
+        ),
       }
     }
 
