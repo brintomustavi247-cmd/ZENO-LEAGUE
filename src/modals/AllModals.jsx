@@ -1316,140 +1316,347 @@ export function ResultModal({ matchId }) {
 export function AdjustBalanceModal({ userId }) {
   const { state, dispatch } = useApp()
   const user = state.users.find(u => u.id === userId)
+
+  // NEW STATE: Replace prompt() with proper modal state
+  const [step, setStep] = useState(1) // 1=select action, 2=enter amount, 3=enter reason, 4=confirm
   const [action, setAction] = useState('add')
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
 
   if (!user) return null
 
-  const handleSubmit = () => {
-    const amt = parseFloat(amount)
-    if (!amt || amt <= 0) return showToast(dispatch, 'Enter a valid amount', 'error')
-    // ═══ PHASE 1.10: Reason is required — every balance change must be logged ═══
-    if (!reason.trim()) return showToast(dispatch, 'Reason is required for all balance adjustments', 'error')
-    // ═══ END PHASE 1.10 ═══
-    
-    dispatch({
-      type: 'ADJUST_BALANCE',
-      payload: {
-        userId,
-        action,
-        amount: amt,
-        reason: reason.trim(),
-      },
-    })
-    dispatch({ type: 'CLOSE_MODAL' })
-    showToast(dispatch, `Balance ${action === 'add' ? 'added' : 'deducted'} for ${user.name}`, 'success')
+  // STEP HANDLER
+  const nextStep = () => {
+    if (step === 1 && !action) return showToast(dispatch, 'Select Add or Deduct!', 'error')
+    if (step === 2 && (!amount || parseFloat(amount) <= 0)) return showToast(dispatch, 'Enter valid amount!', 'error')
+    if (step === 3 && !reason.trim()) return showToast(dispatch, 'Reason is required!', 'error')
+    if (step === 4) {
+      const amt = parseFloat(amount)
+      dispatch({
+        type: 'ADJUST_BALANCE',
+        payload: { userId, action, amount: amt, reason: reason.trim() || 'Admin adjustment' },
+      })
+      showToast(dispatch, `✅ ${action === 'add' ? 'Added' : 'Deducted'} ${formatTK(amt)} for ${user.name}`, 'success')
+      dispatch({ type: 'CLOSE_MODAL' })
+      setStep(1) // Reset for next use
+    }
   }
 
   return (
     <div>
+      {/* ═══ HEADER — Premium styled like AddMoneyModal ═══ */}
       <div style={{
-        borderRadius: 10, padding: '18px 16px', marginBottom: 14, textAlign: 'center',
+        borderRadius: 14,
+        padding: '18px 16px',
+        marginBottom: 14,
         background: 'linear-gradient(135deg, rgba(97,205,255,0.08) 0%, rgba(97,205,255,0.02) 60%), #1c1b1d',
         border: '1px solid rgba(97,205,255,0.12)',
         borderLeft: '4px solid #61cdff',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+        textAlign: 'center',
       }}>
         <div style={{
-          fontSize: 10, color: '#555555',
+          fontSize: 10,
           fontFamily: "'Plus Jakarta Sans', sans-serif",
-          letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6, fontWeight: 700,
+          fontWeight: 700,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: '#555555',
+          marginBottom: 6,
         }}>
-          {user.name} — Current Balance
+          <i className="fa-solid fa-scale-balanced" style={{ marginRight: 6 }} />
+          Adjust Balance
         </div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 28, fontWeight: 700, color: '#61cdff' }}>
+        <div style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 26,
+          fontWeight: 700,
+          color: '#61cdff',
+        }}>
           {formatTK(user.balance)}
+        </div>
+        <div style={{
+          fontSize: 11,
+          color: '#889299',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontWeight: 500,
+          marginTop: 2,
+        }}>
+          Current Balance
         </div>
       </div>
 
-      <div style={M.fullRow}>
-        <label style={M.label}>Action</label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {['add', 'deduct'].map(a => {
-            const active = action === a
-            const c = a === 'add' ? '#4ade80' : '#f87171'
-            return (
+      {/* ═══ STEP 1: Action Selection ═══ */}
+      {step === 1 && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 10,
+          marginBottom: 14,
+        }}>
+          {['add', 'deduct'].map(a => (
+            <button
+              key={a}
+              onClick={() => { setAction(a); setStep(2) }}
+              style={{
+                padding: '14px 0',
+                borderRadius: 12,
+                border: `1px solid ${action === 'add' ? '#4ade80' : '#353437'}`,
+                background: action === 'add' 
+                  ? 'linear-gradient(135deg, rgba(74,222,128,0.15) 0%, rgba(74,222,128,0.03) 70%)' 
+                  : '#1c1b1d',
+                color: action === 'add' ? '#fff' : '#888',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                WebkitTapHighlightColor: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                minHeight: 52,
+              }}
+            >
+              <i className={`fa-solid ${a === 'add' ? 'fa-plus' : 'fa-minus'}`} 
+                style={{ fontSize: 16 }} />
+              {a === 'add' ? 'Add Money' : 'Deduct Money'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ═══ STEP 2: Amount Input ═══ */}
+      {step >= 2 && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{
+            display: 'block',
+            fontFamily: "'Lexend', sans-serif",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: '#c6c6c6',
+            marginBottom: 8,
+          }}>
+            Enter Amount (TK) *
+          </label>
+          <div style={{ position: 'relative', background: '#1c1b1d', borderRadius: 12 }}>
+            <span style={{
+              position: 'absolute',
+              left: 16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 18,
+              fontWeight: 700,
+              color: '#61cdff',
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}>৳</span>
+            <input
+              style={{
+                width: '100%',
+                height: 56,
+                borderRadius: 12,
+                border: `1px solid ${action === 'add' ? '#4ade80' : '#353437'}`,
+                background: `${action === 'add' ? 'rgba(97,205,255,0.08)' : 'transparent'}`,
+                paddingLeft: 40,
+                paddingRight: 16,
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 20,
+                fontWeight: 700,
+                color: '#e5e1e4',
+                outline: 'none',
+                boxSizing: 'border-box',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+              placeholder="0"
+              type="number"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              autoFocus
+            />
+          </div>
+          {/* Quick preset buttons */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            {[100, 200, 500, 1000, 5000].map(preset => (
               <button
-                key={a}
-                onClick={() => setAction(a)}
+                onClick={() => { setAmount(String(preset)); setStep(3) }}
                 style={{
-                  padding: '12px 0', borderRadius: 10,
-                  border: `1px solid ${active ? c : '#353437'}`,
-                  background: active ? c : '#1c1b1d',
-                  fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, fontWeight: 700,
-                  color: active ? '#fff' : '#555555',
-                  cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase',
+                  flex: 1,
+                  padding: '10px 0',
+                  borderRadius: 8,
+                  border: '1px solid rgba(97,205,255,0.2)',
+                  background: 'rgba(97,205,255,0.06)',
+                  color: '#61cdff',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
                   WebkitTapHighlightColor: 'transparent',
                 }}
               >
-                <i className={`fa-solid ${a === 'add' ? 'fa-plus' : 'fa-minus'}`} style={{ marginRight: 6 }} />
-                {a === 'add' ? 'Add' : 'Deduct'}
+                {preset >= 1000 ? '1K+' : preset+' TK'}
               </button>
-            )
-          })}
-        </div>
-      </div>
-
-      <div style={M.fullRow}>
-        <label style={M.label}>Amount (TK)</label>
-        <input style={M.input} type="number" placeholder="0" min="1" value={amount} onChange={e => setAmount(e.target.value)} />
-      </div>
-
-      <div style={M.fullRow}>
-        {/* ═══ PHASE 1.10: Reason field now marked required ═══ */}
-        <label style={{ ...M.label, color: reason.trim() ? '#555555' : '#f87171' }}>
-          Reason *
-        </label>
-        <input
-          style={{
-            ...M.input,
-            border: reason.trim() ? '1px solid #353437' : '1px solid rgba(248,113,113,0.3)',
-          }}
-          placeholder="Bonus / Correction / Penalty"
-          value={reason}
-          onChange={e => setReason(e.target.value)}
-        />
-        {/* ═══ END PHASE 1.10 ═══ */}
-      </div>
-
-      {/* ═══ PHASE 1.10: Required reason reminder ═══ */}
-      {!reason.trim() && (
-        <div style={{
-          ...M.infoBox, marginBottom: 14,
-          background: 'linear-gradient(135deg, rgba(248,113,113,0.06) 0%, rgba(248,113,113,0.01) 60%), #201f21',
-          border: '1px solid rgba(248,113,113,0.1)', color: '#f87171',
-        }}>
-          <i className="fa-solid fa-pen" style={{ fontSize: 10, marginTop: 2, flexShrink: 0 }} />
-          Reason is mandatory — this creates a transaction record visible in Finance.
-        </div>
-      )}
-      {/* ═══ END PHASE 1.10 ═══ */}
-
-      {amount && parseFloat(amount) > 0 && (
-        <div style={{
-          ...M.infoBox, marginBottom: 14,
-          background: `linear-gradient(135deg, ${action === 'add' ? 'rgba(74,222,128,0.06)' : 'rgba(248,113,113,0.06)'} 0%, ${action === 'add' ? 'rgba(74,222,128,0.01)' : 'rgba(248,113,113,0.01)'} 60%), #201f21`,
-          border: `1px solid ${action === 'add' ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)'}`,
-          color: action === 'add' ? '#4ade80' : '#f87171',
-          textAlign: 'center',
-        }}>
-          New Balance: <strong style={{ fontFamily: "'Inter', sans-serif", fontSize: 14 }}>
-            {formatTK(action === 'add' ? user.balance + parseFloat(amount) : user.balance - parseFloat(amount))}
-          </strong>
+            ))}
+          </div>
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <button style={M.btnGhost} onClick={() => dispatch({ type: 'CLOSE_MODAL' })}>Cancel</button>
-        <button style={{
-          ...M.btnPrimary,
-          background: action === 'add' ? '#4ade80' : '#f87171',
-          color: action === 'add' ? '#052e16' : '#450a0a',
-        }} onClick={handleSubmit}>
-          <i className="fa-solid fa-check" /> Update
-        </button>
-      </div>
+      {/* ═══ STEP 3: Reason Input ═══ */}
+      {step >= 3 && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{
+            display: 'block',
+            fontFamily: "'Lexend', sans-serif",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: '#c6c6c6',
+            marginBottom: 8,
+          }}>
+            Reason for Adjustment *
+          </label>
+          <div style={{ position: 'relative', background: '#1c1b1d', borderRadius: 12 }}>
+            <i className="fa-solid fa-pen" style={{
+              position: 'absolute',
+              left: 16,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#facc15',
+              pointerEvents: 'none',
+              zIndex: 1,
+              fontSize: 14,
+            }}></i>
+            <textarea
+              style={{
+                width: '100%',
+                minHeight: '80px',
+                borderRadius: 12,
+                border: `1px solid ${reason?.trim() ? '#facc15' : '#353437'}`,
+                background: `${reason?.trim() ? 'rgba(250,204,21,0.05)' : 'transparent'}`,
+                padding: '14px 40px 14px 16px',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 14,
+                fontWeight: 400,
+                color: '#e5e1e4',
+                outline: 'none',
+                resize: 'vertical',
+                WebkitTapHighlightColor: 'transparent',
+                boxSizing: 'border-box',
+              }}
+              placeholder="Why are you adjusting? (Optional but recommended)"
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              rows={3}
+            />
+            {!reason?.trim() && (
+              <p style={{
+                fontSize: 10,
+                color: '#f87171',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontWeight: 600,
+                marginTop: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <i className="fa-solid fa-exclamation-triangle" />
+                Reason is required!
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ STEP 4: Confirmation & Preview ═══ */}
+      {step >= 4 && (
+        <>
+          {/* Preview Card */}
+          <div style={{
+            borderRadius: 12,
+            padding: '14px 16px',
+            marginBottom: 16,
+            background: `linear-gradient(135deg, ${action === 'add' ? 'rgba(74,222,128,0.06)' : 'rgba(248,113,113,0.06)'} 0%, ${action === 'add' ? 'rgba(74,222,128,0.01)' : 'rgba(248,113,113,0.01)'} 60%)`,
+            border: `1px solid ${action === 'add' ? '#4ade80' : '#f87171'}`,
+            textAlign: 'center',
+          }}>
+            <div style={{
+              fontSize: 11,
+              color: action === 'add' ? '#4ade80' : '#f87171',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              marginBottom: 8,
+            }}>
+              New Balance Preview
+            </div>
+            <div style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 32,
+              fontWeight: 900,
+              color: action === 'add' ? '#4ade80' : '#f87171',
+              lineHeight: 1,
+            }}>
+              {action === 'add' ? formatTK(user.balance + parseFloat(amount)) : formatTK(user.balance - parseFloat(amount))}
+            </div>
+            <div style={{
+              fontSize: 12,
+              color: '#889299',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              marginTop: 4,
+            }}>
+              Current: {formatTK(user.balance)} → New: {action === 'add' ? '+' : '-'}{formatTK(amount)}
+            </div>
+          </div>
+
+          {/* Confirm Button */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+            margin: '18px 0 0',
+          }}>
+            <button
+              onClick={() => { setStep(1) }}
+              style={{
+                ...M.btnGhost,
+                height: 52,
+                fontSize: 13,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              ← Back
+            </button>
+            <button
+              onClick={nextStep}
+              style={{
+                ...M.btnPrimary,
+                background: action === 'add' 
+                  ? 'linear-gradient(135deg, #4ade80, #22c55e)' 
+                  : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                color: '#fff',
+                height: 52,
+                fontSize: 14,
+                fontWeight: 800,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                boxShadow: `0 4px 20px ${action === 'add' ? 'rgba(74,222,128,0.35)' : 'rgba(239,68,68,0.25)'}`,
+              }}
+            >
+              <i className={`fa-solid ${action === 'add' ? 'fa-plus' : 'fa-minus'}`} 
+                style={{ marginRight: 8 }} />
+              {action === 'add' ? 'Confirm Add' : 'Confirm Deduct'}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
