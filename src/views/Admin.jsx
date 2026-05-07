@@ -563,7 +563,7 @@ function AdminProfit() {
  const exportCSV = () => {
  if (!stats) return
  const rows = [
- ['CLUTCH ARENA BD — FINANCIAL REPORT'],
+ ['ZENO LEAGUE — FINANCIAL REPORT'],
  ['Generated', new Date().toLocaleString('en-BD')],
  [''],
  ['TODAY\'S DATA'],
@@ -605,7 +605,7 @@ function AdminProfit() {
  const url = URL.createObjectURL(blob)
  const a = document.createElement('a')
  a.href = url
- a.download = `clutch-profit-${new Date().toISOString().split('T')[0]}.csv`
+ a.download = `zeno−league−profit-${new Date().toISOString().split('T')[0]}.csv`
  a.click()
  URL.revokeObjectURL(url)
  }
@@ -3354,7 +3354,7 @@ export default function Admin() {
    {/* ═══ Header Banner ═══ */}
    <div className="admin-header-banner glass-card-premium tilt-card">
     <div>
-     <div className="admin-title">Clutch Arena</div>
+     <div className="admin-title">Zeno League</div>
      <div className="admin-subtitle">Admin Control Center</div>
     </div>
     <div className="admin-online-badge">

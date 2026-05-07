@@ -200,13 +200,17 @@ function ViewRouter() {
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        <div style={{
-          padding: '16px',
-          maxWidth: admin ? 1400 : 900,
-          margin: '0 auto',
-          width: '100%',
-          boxSizing: 'border-box',
-        }}>
+        <div
+          className="main-content"
+          style={{
+            padding: '16px',
+            paddingBottom: '80px',
+            maxWidth: admin ? 1400 : 900,
+            margin: '0 auto',
+            width: '100%',
+            boxSizing: 'border-box',
+          }}
+        >
           {renderView()}
         </div>
       </main>

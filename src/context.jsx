@@ -307,13 +307,14 @@ function reducer(state, action) {
     //  PROFILE
     // ════════════════════════════════════════
     case 'UPDATE_PROFILE': {
-      const updated = { ...state.currentUser, ...action.payload }
-      return {
-        ...state,
-        currentUser: updated,
-        users: state.users.map(u => u.id === updated.id ? { ...u, ...action.payload } : u),
-      }
-    }
+const updated = { ...state.currentUser, ...action.payload }
+updateUser(updated.id, action.payload).catch(err => console.error('Profile update failed:', err))
+return {
+...state,
+currentUser: updated,
+users: state.users.map(u => u.id === updated.id ? { ...u, ...action.payload } : u),
+}
+}
     case 'SET_AVATAR': {
       const updated = { ...state.currentUser, avatar: action.payload }
       return {
@@ -438,9 +439,15 @@ function reducer(state, action) {
         ign: state.currentUser.ign || ''
       }).catch(() => {})
 
-      unlockReferralBonus(state.currentUser.id).catch(() => {})
+    unlockReferralBonus(state.currentUser.id).catch(() => {})
+    updateUser(state.currentUser.id, {
+      balance: newBalance,
+      lockedBalance: newLockedBalance,
+      matchesPlayed: updatedUser.matchesPlayed,
+      teamName: updatedUser.teamName,
+    }).catch(err => console.error('Failed to update user match join data in DB:', err))
 
-      return {
+    return {
         ...state,
         joinBlocked: null,
         matches: state.matches.map(m => m.id === matchId ? updatedMatch : m),
@@ -457,8 +464,13 @@ function reducer(state, action) {
     case 'SET_ROOM_CREDENTIALS': {
       const match = state.matches.find(m => m.id === action.payload.matchId)
       if (!match) return state
-      const minRequired = match.minPlayers || Math.ceil(match.maxSlots * 0.6)
-      if (match.joinedCount < minRequired) return { ...state }
+      // Persist to Firestore so all admins see the same room credentials
+      updateMatchInDb(action.payload.matchId, {
+        roomId: action.payload.roomId.trim(),
+        roomPassword: action.payload.roomPassword.trim(),
+        roomUpdatedAt: new Date().toISOString(),
+      }).catch(err => console.error('Failed to save room credentials:', err))
+
       return {
         ...state,
         matches: state.matches.map(m => m.id === action.payload.matchId

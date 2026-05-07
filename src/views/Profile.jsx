@@ -707,7 +707,6 @@ export default function Profile() {
             style={{
               padding: '10px 20px',
               borderRadius: 12,
-              border: 'none',
               background: activeTab === tab 
                 ? 'linear-gradient(135deg, rgba(168,85,247,0.2), rgba(244,114,182,0.15))' 
                 : 'rgba(255,255,255,0.03)',

@@ -520,6 +520,22 @@ body {
   backdrop-filter: blur(10px);
 }
 
+/* Mobile content padding to prevent bottom nav overlap */
+@media (max-width: 768px) {
+  .main-content {
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* Admin profile bar z-index fix */
+.admin-profile-bar {
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  background: rgba(8, 8, 22, 0.95);
+  backdrop-filter: blur(12px);
+}
+
 .btn-hero-secondary:hover {
   background: rgba(255,255,255,0.1);
   border-color: rgba(139, 92, 246, 0.3);

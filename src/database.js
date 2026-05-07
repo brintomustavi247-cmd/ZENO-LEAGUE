@@ -223,9 +223,12 @@ export async function fetchPendingAddMoneyRequests() {
 
 export function subscribeToAddMoneyRequests(onUpdate) {
   const col = collection(db, 'addMoneyRequests');
-  const q = query(col, where('status', '==', 'pending'), orderBy('createdAt', 'desc'));
+  // Simple query — no composite index needed. Filter pending in callback.
+  const q = query(col, orderBy('createdAt', 'desc'));
   const unsubscribe = onSnapshot(q, (snap) => {
-    const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const results = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => r.status === 'pending');
     onUpdate(results);
   }, (error) => {
     console.error('[DB] Add money requests subscription error:', error);
@@ -938,16 +941,20 @@ export async function adminAdjustBalance(userId, amount, reason, adminName) {
 // ═══════════════════════════════════════════════════════════════════════
 
 export async function addJoinToMatch(matchId, joinEntry) {
-  const matchRef = doc(db, 'matches', matchId);
-  const matchSnap = await getDoc(matchRef);
-  if (!matchSnap.exists()) return;
-  const existing = matchSnap.data().joined || [];
-  const safeEntry = { ...joinEntry, teamName: sanitize(joinEntry.teamName) };
+const matchRef = doc(db, 'matches', matchId);
+const matchSnap = await getDoc(matchRef);
+if (!matchSnap.exists()) return;
+const matchData = matchSnap.data();
+const existing = matchSnap.data().joined || [];
+const existingParticipants = matchSnap.data().participants || [];
+const safeEntry = { ...joinEntry, teamName: sanitize(joinEntry.teamName) };
 
-  await updateDoc(matchRef, {
-    joined: [...existing, safeEntry],
-    joinedCount: (matchSnap.data().joinedCount || 0) + 1,
-  });
+await updateDoc(matchRef, {
+joined: [...existing, safeEntry],
+joinedCount: (matchData.joinedCount || 0) + 1,
+participants: [...existingParticipants, joinEntry.userId],
+'escrow.collected': (matchData.escrow?.collected || 0) + (matchData.entryFee || 0),
+});
 }
 
 export async function addWithdrawalToCloud(withdrawalData) {

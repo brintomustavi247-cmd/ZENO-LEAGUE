@@ -371,14 +371,14 @@ export default function Login({ mode: initialMode }) {
                 color: showForgot ? '#fbbf24' : '#00f0ff', letterSpacing: 2,
                 textShadow: `0 0 20px ${showForgot ? 'rgba(251,191,36,0.3)' : 'rgba(0,240,255,0.3)'}`,
               }}>
-                CA
+                ZL
               </span>
             </div>
             <h1 style={{
               fontFamily: 'var(--font-heading)', fontSize: showForgot ? 20 : 24, fontWeight: 800,
               color: '#fff', margin: '0 0 4px', letterSpacing: 1,
             }}>
-              {showForgot ? 'Reset Password' : 'Clutch Arena BD'}
+              {showForgot ? 'Reset Password' : 'Zeno League'}
             </h1>
             <p style={{
               fontSize: 12, color: 'var(--text-muted, #666)',
@@ -1117,7 +1117,7 @@ export default function Login({ mode: initialMode }) {
                 borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 20,
               }}>
                 <p style={{ fontSize: 11, color: 'var(--text-muted, #555)', fontFamily: 'var(--font-body)', margin: '0 0 6px' }}>
-                  🔥 Powered by Clutch Arena BD
+                  🔥 Powered by Zeno League
                 </p>
                 <p style={{ fontSize: 10, color: 'var(--text-muted, #444)', fontFamily: 'var(--font-body)', margin: 0 }}>
                   Free Fire is a trademark of Garena. Not affiliated.
