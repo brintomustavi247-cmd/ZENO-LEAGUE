@@ -315,14 +315,15 @@ currentUser: updated,
 users: state.users.map(u => u.id === updated.id ? { ...u, ...action.payload } : u),
 }
 }
-    case 'SET_AVATAR': {
-      const updated = { ...state.currentUser, avatar: action.payload }
-      return {
-        ...state,
-        currentUser: updated,
-        users: state.users.map(u => u.id === updated.id ? { ...u, avatar: action.payload } : u),
-      }
-    }
+   case 'SET_AVATAR': {
+  const updated = { ...state.currentUser, avatar: action.payload }
+  updateUser(updated.id, { avatar: action.payload }).catch(err => console.error('Avatar update failed:', err))
+  return {
+    ...state,
+    currentUser: updated,
+    users: state.users.map(u => u.id === updated.id ? { ...u, avatar: action.payload } : u),
+  }
+}
     case 'CHANGE_PASSWORD': {
       const { userId, newPassword } = action.payload
       return {
@@ -1410,18 +1411,18 @@ export function AppProvider({ children }) {
   }, [state.currentUser?.firebaseUid])
 
   return (
-    <AppContext.Provider value={{
-      state,
-      dispatch,
-      navigate,
-      isAdmin,
-      isOwner,
-      t,
-      // v5.0 async helpers
-      processReferralCode,
-      handleWatchAd,
-      handleSpinClutch,
-    }}>
+  <AppContext.Provider value={{
+    state,
+    dispatch,
+    navigate,
+    isAdmin,
+    isOwner,
+    t,
+    updateUser,
+    processReferralCode,
+    handleWatchAd,
+    handleSpinClutch,
+  }}>
       {children}
     </AppContext.Provider>
   )
