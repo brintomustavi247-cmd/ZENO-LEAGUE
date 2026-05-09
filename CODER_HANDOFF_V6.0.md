@@ -9,7 +9,7 @@
 
 ## MISSION BRIEF
 
-Implement Clutch Arena BD V6.0 game economy architecture following the ADR blueprint. Transform the current 1000-line context reducer into a scalable, domain-driven system supporting 50K+ concurrent users.
+Implement ZENO LEAGUE V6.0 game economy architecture following the ADR blueprint. Transform the current 1000-line context reducer into a scalable, domain-driven system supporting 50K+ concurrent users.
 
 **Success Criteria:**
 - ✅ All domain services implemented (TierService, ReferralService, ClanService, QuestService, EngagementOrchestrator)

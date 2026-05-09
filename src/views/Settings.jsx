@@ -108,7 +108,7 @@ export default function Settings() {
 
   const handleClearData = () => {
     if (confirm('This will delete all your saved data. Continue?')) {
-      localStorage.removeItem('clutch_arena_bd')
+      localStorage.removeItem('zeno_league')
       window.location.reload()
     }
   }
@@ -383,7 +383,7 @@ export default function Settings() {
             fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 700,
             color: '#fff', margin: '0 0 4px',
           }}>
-            Clutch Arena BD
+            ZENO LEAGUE
           </h3>
           <p style={{
             fontSize: 11, color: 'var(--text-muted, #555)',
@@ -428,7 +428,7 @@ export default function Settings() {
           }}>
             <p style={{ margin: '0 0 4px' }}>🔥 Built for esports tournament management</p>
             <p style={{ margin: '0 0 4px' }}>📱 Mobile-first design for on-the-go admin control</p>
-            <p style={{ margin: 0 }}>© 2025 Clutch Arena BD. All rights reserved.</p>
+            <p style={{ margin: 0 }}>© 2025 ZENO LEAGUE. All rights reserved.</p>
           </div>
         </div>
       </div>

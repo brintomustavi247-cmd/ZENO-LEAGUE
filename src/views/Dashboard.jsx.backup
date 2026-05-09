@@ -375,13 +375,13 @@ function ReferralCard({ referralCode, referralCount, onShare }) {
   const [copied, setCopied] = useState(false)
 
   const copyCode = () => {
-    navigator.clipboard.writeText(`Join Clutch Arena BD! Use my code ${referralCode} and we both get 20 TK bonus: https://clutcharena.bd/ref/${referralCode}`)
+    navigator.clipboard.writeText(`Join ZENO LEAGUE! Use my code ${referralCode} and we both get 20 TK bonus: https://zeno-league.vercel.app/ref/${referralCode}`)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const shareWhatsApp = () => {
-    const text = `🔥 Join Clutch Arena BD — Win Real Cash in PUBG/Free Fire!\n\nUse my referral code: *${referralCode}*\nWe both get 20 TK bonus! 💰\n\n👉 https://clutcharena.bd/ref/${referralCode}`
+    const text = `🔥 Join ZENO LEAGUE — Win Real Cash in PUBG/Free Fire!\n\nUse my referral code: *${referralCode}*\nWe both get 20 TK bonus! 💰\n\n👉 https://zeno-league.vercel.app/ref/${referralCode}`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
     onShare?.()
   }

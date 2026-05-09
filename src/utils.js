@@ -1,5 +1,5 @@
 // ============================
-// 🔥 CLUTCH ARENA BD — CORE ENGINE v2.1
+// 🔥 ZENO LEAGUE — CORE ENGINE v2.1
 // ============================
 
 // ===== CURRENCY FORMATTING (ONLY "TK", NO ICONS) =====
@@ -399,7 +399,7 @@ export function shareToWhatsApp(match) {
     `🏆 Prize Pool: ${formatTK(match.prizePool || 0)}`,
     `👥 ${match.joinedCount || 0}/${match.maxSlots || 0} Joined`,
     '',
-    `🔗 Join now on Clutch Arena BD!`,
+    `🔗 Join now on ZENO LEAGUE!`,
   ].join('\n');
   const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, '_blank');
@@ -408,7 +408,7 @@ export function shareToWhatsApp(match) {
 export function shareReferralLink(referralCode) {
   if (!referralCode) return;
   const text = [
-    `🔥 *Join Clutch Arena BD — Free Fire Tournament Platform!*`,
+    `🔥 *Join ZENO LEAGUE — Free Fire Tournament Platform!*`,
     '',
     `Use my referral code: *${referralCode}*`,
     `Get 20 TK bonus on signup!`,

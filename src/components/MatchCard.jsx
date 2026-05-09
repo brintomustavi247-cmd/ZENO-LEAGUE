@@ -158,13 +158,13 @@ function ParticleBurst({ trigger }) {
 function WhatsAppShare({ match, onShare }) {
   const handleShare = (e) => {
     e.stopPropagation()
-    const text = `🔥 *${match.title}* on Clutch Arena BD!\n\n` +
+    const text = `🔥 *${match.title}* on ZENO LEAGUE!\n\n` +
       `🎮 Mode: ${match.mode}\n` +
       `🗺️ Map: ${match.map}\n` +
       `💰 Prize Pool: ${formatTK(match.prizePool || match.entryFee * match.maxSlots * 0.8)} TK\n` +
       `🎫 Entry: ${formatTK(match.entryFee)} TK\n` +
       `👥 ${match.joinedCount || 0}/${match.maxSlots} Joined\n\n` +
-      `Join now: https://clutcharena.bd/match/${match.id}`
+      `Join now: https://zeno-league.vercel.app/match/${match.id}`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
     onShare?.()
   }

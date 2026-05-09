@@ -7,7 +7,7 @@ try {
   VitePWA = (await import('vite-plugin-pwa')).VitePWA
 } catch (e) {
   console.log(
-    '%c[CABD]%c PWA plugin not installed — skipping. Enable in Phase 7: npm i -D vite-plugin-pwa',
+    '%c[ZENO]%c PWA plugin not installed — skipping. Enable in Phase 7: npm i -D vite-plugin-pwa',
     'color:#06d6f0;font-weight:bold',
     'color:#94a3b8'
   )
@@ -22,8 +22,8 @@ export default defineConfig({
             registerType: 'autoUpdate',
             includeAssets: ['**/*.png', '**/*.jpg', '**/*.svg', '**/*.webp'],
             manifest: {
-              name: 'Clutch Arena BD',
-              short_name: 'Clutch Arena',
+              name: 'ZENO LEAGUE',
+              short_name: 'ZENO',
               description: 'Free Fire Custom Room Tournament Platform',
               theme_color: '#0a0a1a',
               background_color: '#0a0a1a',

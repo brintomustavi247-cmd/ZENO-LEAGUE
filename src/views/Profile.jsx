@@ -393,7 +393,7 @@ function ReferralTreeMini({ referralStats, currentUser }) {
         </div>
         <button
           onClick={() => {
-            navigator.clipboard.writeText(`Join Clutch Arena BD! Use code ${code}: https://clutch-arena-bd.vercel.app/ref/${code}`)
+            navigator.clipboard.writeText(`Join ZENO LEAGUE! Use code ${code}: https://zeno-league.vercel.app/ref/${code}`)
           }}
           style={{
             padding: '6px 12px', borderRadius: 8,
@@ -1146,15 +1146,15 @@ const [activeTab, setActiveTab] = useState('overview')
                   </div>
 
                   {/* Action Buttons */}
-                  <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                    <ParticleButton onClick={saveEdit} variant="primary">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                    <ParticleButton onClick={saveEdit} variant="primary" className="pf-btn">
                       {saving ? (
                         <><i className="fa-solid fa-spinner fa-spin" style={{ marginRight: 6 }} /> Saving...</>
                       ) : (
                         <><i className="fa-solid fa-check" style={{ marginRight: 6 }} /> Save Profile</>
                       )}
                     </ParticleButton>
-                    <ParticleButton onClick={() => setEditing(false)} variant="secondary">
+                    <ParticleButton onClick={() => setEditing(false)} variant="secondary" className="pf-btn">
                       Cancel
                     </ParticleButton>
                   </div>
@@ -1308,7 +1308,7 @@ const [activeTab, setActiveTab] = useState('overview')
               </div>
             </div>
 
-            <div style={{ textAlign: 'right', minWidth: 140 }}>
+            <div style={{ textAlign: 'right', minWidth: 0, flexShrink: 0 }}>
               <div style={{
                 fontSize: 11,
                 color: 'var(--text-muted)',
@@ -1345,6 +1345,8 @@ const [activeTab, setActiveTab] = useState('overview')
               marginBottom: 24,
               borderBottom: '1px solid rgba(255,255,255,0.06)',
               paddingBottom: 12,
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
             }}>
               {tabs.map(tab => (
                 <button
@@ -1676,14 +1678,14 @@ const [activeTab, setActiveTab] = useState('overview')
           )}
 
           {!editing && (
-            <div style={{ marginTop: 24, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <ParticleButton onClick={startEdit} variant="primary">
+            <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <ParticleButton onClick={startEdit} variant="primary" className="pf-btn">
                 <i className="fa-solid fa-pen" style={{ marginRight: 6 }} /> Edit Profile
               </ParticleButton>
-              <ParticleButton onClick={() => navigate('settings')} variant="secondary">
+              <ParticleButton onClick={() => navigate('settings')} variant="secondary" className="pf-btn">
                 <i className="fa-solid fa-gear" style={{ marginRight: 6 }} /> Settings
               </ParticleButton>
-              <ParticleButton onClick={handleLogout} variant="danger">
+              <ParticleButton onClick={handleLogout} variant="danger" className="pf-btn">
                 <i className="fa-solid fa-right-from-bracket" style={{ marginRight: 6 }} /> Logout
               </ParticleButton>
             </div>
@@ -1692,6 +1694,12 @@ const [activeTab, setActiveTab] = useState('overview')
       </HolographicCard>
 
       <style>{`
+        .pf-btn {
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+          justify-content: center !important;
+        }
         @keyframes shimmer {
           0% { background-position: 0% 50%; }
           100% { background-position: 300% 50%; }

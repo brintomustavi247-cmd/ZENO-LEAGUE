@@ -1,5 +1,5 @@
 // ============================
-// 🔥 CLUTCH ARENA BD — MOCK DATA & CONFIGURATION v2.0
+// 🔥 ZENO LEAGUE — MOCK DATA & CONFIGURATION v2.0
 // ============================
 
 // ===== FREE FIRE CONSTANTS =====
