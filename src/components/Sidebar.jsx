@@ -28,7 +28,9 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">ZL</div>
+      <div className="sidebar-logo" style={{ background: 'none', boxShadow: 'none', overflow: 'visible' }}>
+        <img src="/logo.png" alt="ZL" style={{ width: 40, height: 40, objectFit: 'contain' }} />
+      </div>
 
       <nav className="sidebar-nav">
         {NAV_ITEMS.map(item => (

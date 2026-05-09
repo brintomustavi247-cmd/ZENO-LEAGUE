@@ -3,20 +3,20 @@ import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged } 
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyADV3HOJODpgYyZfJmof16DM6T9IJ6GgBI",
+  apiKey: "AIzaSyBdWyyDkq8cSeDQaApPw9KKcUcnPUWqVNw",
   authDomain: "zeno-league.firebaseapp.com",
   projectId: "zeno-league",
   storageBucket: "zeno-league.firebasestorage.app",
-  messagingSenderId: "173752162789",
-  appId: "1:173752162789:web:1af9399599095de518f70c",
-  measurementId: "G-4BPNGYRYM5"
+  messagingSenderId: "321430657372",
+  appId: "1:321430657372:web:bc996a439cc2faaec48999",
+  measurementId: "G-R1X7XYQ2ES"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ✅ Wait for persistence before doing anything
+// Wait for persistence before doing anything
 export const firebaseReady = setPersistence(auth, browserLocalPersistence)
   .then(() => true)
   .catch(() => true);
