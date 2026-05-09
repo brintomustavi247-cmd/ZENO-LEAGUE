@@ -237,9 +237,9 @@ export default function App() {
     return (
       <div style={{ display: 'flex', minHeight: '100dvh', alignItems: 'center', justifyContent: 'center', background: '#0e0e10' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 900, color: '#00f0ff', letterSpacing: 3, marginBottom: 12 }}>CA</div>
-          <div className="skeleton" style={{ width: 180, height: 6, margin: '0 auto 12px', borderRadius: 3 }}></div>
-          <div style={{ fontSize: 12, color: '#555', fontFamily: 'var(--font-body)' }}>Checking session... v2</div>
+         <img src="/logo.png" alt="ZENO LEAGUE" style={{ height: 80, marginBottom: 16, objectFit: 'contain' }} />
+<div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: '#00f0ff', letterSpacing: 4, marginBottom: 12 }}>ZENO LEAGUE</div>
+<div style={{ fontSize: 12, color: '#555', fontFamily: 'var(--font-body)' }}>Checking session...</div>
         </div>
       </div>
     )

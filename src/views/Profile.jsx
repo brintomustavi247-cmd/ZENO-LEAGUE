@@ -393,7 +393,7 @@ function ReferralTreeMini({ referralStats, currentUser }) {
         </div>
         <button
           onClick={() => {
-            navigator.clipboard.writeText(`Join ZENO LEAGUE! Use code ${code}: https://zeno-league.vercel.app/ref/${code}`)
+           navigator.clipboard.writeText(`Join ZENO LEAGUE! Use code ${code}: https://zeno-league.vercel.app/ref/${code}`)
           }}
           style={{
             padding: '6px 12px', borderRadius: 8,
