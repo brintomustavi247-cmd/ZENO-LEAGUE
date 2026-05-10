@@ -358,21 +358,13 @@ export default function Login({ mode: initialMode }) {
           {/* Logo */}
           <div style={{ textAlign: 'center', marginBottom: showForgot ? 20 : 28 }}>
             <div style={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 64, height: 64, borderRadius: 18, marginBottom: 14,
-              background: showForgot
-                ? 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(239,68,68,0.08))'
-                : 'linear-gradient(135deg, rgba(0,240,255,0.12), rgba(167,139,250,0.08))',
-              border: `1px solid ${showForgot ? 'rgba(251,191,36,0.15)' : 'rgba(0,240,255,0.15)'}`,
-              boxShadow: `0 8px 32px ${showForgot ? 'rgba(251,191,36,0.1)' : 'rgba(0,240,255,0.1)'}`,
-            }}>
-              <span style={{
-                fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 900,
-                color: showForgot ? '#fbbf24' : '#00f0ff', letterSpacing: 2,
-                textShadow: `0 0 20px ${showForgot ? 'rgba(251,191,36,0.3)' : 'rgba(0,240,255,0.3)'}`,
-              }}>
-                ZL
-              </span>
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: 80, height: 80, borderRadius: 18, marginBottom: 14,
+  background: 'rgba(255,255,255,0.08)',
+  border: '1px solid rgba(255,255,255,0.12)',
+  boxShadow: '0 0 20px rgba(0,240,255,0.1)',
+}}>
+              <img src="/logo.png" alt="ZENO LEAGUE" style={{ width: 80, height: 80, objectFit: 'contain' }} />
             </div>
             <h1 style={{
               fontFamily: 'var(--font-heading)', fontSize: showForgot ? 20 : 24, fontWeight: 800,
