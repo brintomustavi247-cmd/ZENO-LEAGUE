@@ -5,6 +5,7 @@ import { approveAddMoneyRequest, rejectAddMoneyRequest, getPlatformProfitStats, 
 import { FF_MAPS, FF_MODES, FF_GAME_TYPES, KILL_REWARDS, RESULT_METHODS } from '../data'
 import { auth } from '../firebase'
 import '../admin-premium.css'
+import ResultInput from '../components/ResultInput'
 // ★ Inline fallback — remove this after updating utils.js
 function isTeamMode(mode) {
  return mode === 'Duo' || mode === 'Squad' || mode === 'Clash Squad'
@@ -1490,369 +1491,330 @@ function AdminRooms() {
 // 4. RESULT PANEL — UNCHANGED
 // ═══════════════════════════════════════
 function AdminResults() {
- const { state, dispatch } = useApp()
- const { matches } = state
- const mobile = useIsMobile()
- const activeMatches = matches.filter(m => m.status === 'live' || m.status === 'upcoming')
- const completedWithResult = matches.filter(m => m.status === 'completed' && m.result)
+  const { state, dispatch } = useApp()
+  const { matches } = state
+  const mobile = useIsMobile()
+  const activeMatches = matches.filter(m =>
+  (m.status === 'live' || m.status === 'upcoming' || m.status === 'completed') && !m.result
+)
+  const completedWithResult = matches.filter(m => m.status === 'completed' && m.result)
 
- const [selectedId, setSelectedId] = useState('')
- const [method, setMethod] = useState('manual')
- const [players, setPlayers] = useState([{ ign: '', kills: 0, position: 1 }])
- const [editingResultId, setEditingResultId] = useState(null)
+  const [method, setMethod] = useState('pointcalc')
+  const [selectedId, setSelectedId] = useState('')
+  const [showInput, setShowInput] = useState(false)
+  const [players, setPlayers] = useState([{ ign: '', kills: 0, position: 1 }])
+  const [editingResultId, setEditingResultId] = useState(null)
 
- const selected = matches.find(m => m.id === selectedId)
- const teamMode = selected ? isTeamMode(selected.mode) : false
+  const selected = matches.find(m => m.id === selectedId)
+  const teamMode = selected ? isTeamMode(selected.mode) : false
 
- const teamMapping = useMemo(() => {
-  if (!selected || !teamMode || !selected.joined?.length) return null
-  const map = {}
-  selected.joined.forEach(j => {
-   const team = j.teamName || 'No Team Name'
-   if (!map[team]) map[team] = []
-   map[team].push(j)
-  })
-  return Object.keys(map).length > 0 ? map : null
- }, [selected, teamMode])
+  const teamMapping = useMemo(() => {
+    if (!selected || !teamMode || !selected.joined?.length) return null
+    const map = {}
+    selected.joined.forEach(j => {
+      const team = j.teamName || 'No Team Name'
+      if (!map[team]) map[team] = []
+      map[team].push(j)
+    })
+    return Object.keys(map).length > 0 ? map : null
+  }, [selected, teamMode])
 
- const findTeamMembers = (teamName) => {
-  if (!teamMapping || !teamName) return null
-  return teamMapping[teamName] || null
- }
-
- const eco = selected ? calculateMatchEconomics(selected.entryFee, selected.maxSlots, selected.gameType, selected.include4th, selected.include5th) : null
- const resultsWithPrizes = selected ? calculateAllResultPrizes(players, selected.perKill || 0, eco.prizes, selected.gameType) : []
-
- const emptyRow = (pos = 1) => teamMode
-  ? { ign: '', teamName: '', points: 0, kills: 0, position: pos }
-  : { ign: '', kills: 0, position: pos }
-
- const addPlayer = () => setPlayers(p => [...p, emptyRow(p.length + 1)])
- const removePlayer = (i) => { if (players.length > 1) setPlayers(p => p.filter((_, idx) => idx !== i)) }
- const updatePlayer = (i, k, v) => setPlayers(p => p.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
-
- const handleEditResult = (matchId) => {
-  const match = matches.find(m => m.id === matchId)
-  if (!match || !match.result) return
-
-  setEditingResultId(matchId)
-  setSelectedId(matchId)
-  setMethod(match.result.method || 'manual')
-
-  if (match.result.method === 'manual' && match.result.players?.length > 0) {
-   setPlayers(match.result.players.map((p, i) => ({
-    ign: p.ign || '',
-    teamName: p.teamName || '',
-    points: p.points || 0,
-    kills: p.kills || 0,
-    position: p.position || (i + 1)
-   })))
-  } else {
-   setPlayers([emptyRow()])
+  const findTeamMembers = (teamName) => {
+    if (!teamMapping || !teamName) return null
+    return teamMapping[teamName] || null
   }
 
-  window.scrollTo({ top: 0, behavior: 'smooth' })
- }
+  const eco = selected ? calculateMatchEconomics(selected.entryFee, selected.maxSlots, selected.gameType, selected.include4th, selected.include5th) : null
+  const resultsWithPrizes = selected ? calculateAllResultPrizes(players, selected.perKill || 0, eco.prizes, selected.gameType) : []
 
- const cancelEdit = () => {
-  setEditingResultId(null)
-  setSelectedId('')
-  setMethod('manual')
-  setPlayers([emptyRow()])
- }
+  const emptyRow = (pos = 1) => teamMode
+    ? { ign: '', teamName: '', points: 0, kills: 0, position: pos }
+    : { ign: '', kills: 0, position: pos }
 
- const handleSubmit = () => {
-  if (!selectedId) return showToast(dispatch, 'Select a match!', 'error')
-  if (method === 'manual') {
-   const valid = players.filter(p => p.ign.trim())
-   if (valid.length === 0) return showToast(dispatch, `Add at least one ${teamMode ? 'team' : 'player'}!`, 'error')
-   const enriched = valid.map(p => {
-    const members = findTeamMembers(p.ign.trim())
-    return {
-     ...p,
-     matchedUserIds: members ? members.map(m => m.userId).filter(Boolean) : [],
+  const addPlayer = () => setPlayers(p => [...p, emptyRow(p.length + 1)])
+  const removePlayer = (i) => { if (players.length > 1) setPlayers(p => p.filter((_, idx) => idx !== i)) }
+  const updatePlayer = (i, k, v) => setPlayers(p => p.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
+
+  const handlePointcalcSave = (resultData) => {
+    dispatch({ type: 'SUBMIT_POINTCALC_RESULT', payload: { matchId: resultData.matchId, resultData } })
+    adminAction(dispatch, 'Submitted pointcalc result', resultData.matchTitle, 'Pointcalc result submitted & prizes distributed!', 'success')
+    setShowInput(false)
+    setSelectedId('')
+  }
+
+  const handleEditResult = (matchId) => {
+    const match = matches.find(m => m.id === matchId)
+    if (!match || !match.result) return
+    setEditingResultId(matchId)
+    setSelectedId(matchId)
+    setMethod(match.result.method || 'manual')
+    if (match.result.method === 'manual' && match.result.players?.length > 0) {
+      setPlayers(match.result.players.map((p, i) => ({
+        ign: p.ign || '', teamName: p.teamName || '', points: p.points || 0,
+        kills: p.kills || 0, position: p.position || (i + 1),
+      })))
+    } else { setPlayers([emptyRow()]) }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const cancelEdit = () => { setEditingResultId(null); setSelectedId(''); setMethod('pointcalc'); setPlayers([emptyRow()]); setShowInput(false) }
+
+  const handleSubmit = () => {
+    if (!selectedId) return showToast(dispatch, 'Select a match!', 'error')
+    if (method === 'manual') {
+      const valid = players.filter(p => p.ign.trim())
+      if (valid.length === 0) return showToast(dispatch, `Add at least one ${teamMode ? 'team' : 'player'}!`, 'error')
+      const enriched = valid.map(p => {
+        const members = findTeamMembers(p.ign.trim())
+        return { ...p, matchedUserIds: members ? members.map(m => m.userId).filter(Boolean) : [] }
+      })
+      dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'manual', players: enriched, isEdit: !!editingResultId } })
+    } else {
+      dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'screenshot', players: [], screenshotUrl: null, isEdit: !!editingResultId } })
     }
-   })
-   dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'manual', players: enriched, isEdit: !!editingResultId } })
-  } else {
-   dispatch({ type: 'SUBMIT_RESULT', payload: { matchId: selectedId, method: 'screenshot', players: [], screenshotUrl: null, isEdit: !!editingResultId } })
+    const actionVerb = editingResultId ? 'Edited result' : 'Submitted result'
+    adminAction(dispatch, actionVerb, selected?.title, `${actionVerb} for ${selected?.title}!`, 'success')
+    setEditingResultId(null); setPlayers([emptyRow()])
   }
 
-  const actionVerb = editingResultId ? 'Edited result' : 'Submitted result'
-  adminAction(dispatch, actionVerb, selected?.title, `${actionVerb} for ${selected?.title}!`, 'success')
+  const onMatchChange = (e) => {
+    const newId = e.target.value
+    setSelectedId(newId)
+    const newMatch = matches.find(m => m.id === newId)
+    const isTeam = newMatch ? isTeamMode(newMatch.mode) : false
+    setPlayers(isTeam ? [{ ign: '', teamName: '', points: 0, kills: 0, position: 1 }] : [{ ign: '', kills: 0, position: 1 }])
+    setEditingResultId(null); setShowInput(false)
+  }
+  const onMethodChange = (id) => {
+    setMethod(id); setShowInput(false)
+    const isTeam = selected ? isTeamMode(selected.mode) : false
+    setPlayers(isTeam ? [{ ign: '', teamName: '', points: 0, kills: 0, position: 1 }] : [{ ign: '', kills: 0, position: 1 }])
+    setEditingResultId(null)
+  }
 
-  setEditingResultId(null)
-  setPlayers([emptyRow()])
- }
-
- const onMatchChange = (e) => {
-  const newId = e.target.value
-  setSelectedId(newId)
-  const newMatch = matches.find(m => m.id === newId)
-  const isTeam = newMatch ? isTeamMode(newMatch.mode) : false
-  setPlayers(isTeam
-   ? [{ ign: '', teamName: '', points: 0, kills: 0, position: 1 }]
-   : [{ ign: '', kills: 0, position: 1 }]
-  )
-  setEditingResultId(null)
- }
- const onMethodChange = (id) => {
-  setMethod(id)
-  const isTeam = selected ? isTeamMode(selected.mode) : false
-  setPlayers(isTeam
-   ? [{ ign: '', teamName: '', points: 0, kills: 0, position: 1 }]
-   : [{ ign: '', kills: 0, position: 1 }]
-  )
- }
-
- return (
-  <div style={S.panel}>
-   <h2 style={S.title}>Match Results</h2>
-
-   {editingResultId && (
-    <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-     <i className="fa-solid fa-pen-to-square" style={{ color: '#a78bfa' }}></i>
-     <div>
-      <div style={{ fontWeight: 700, fontSize: 13, color: '#a78bfa' }}>Editing Results</div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Modifying results for: {selected?.title || 'Loading...'}</div>
-     </div>
-     <button style={{ marginLeft: 'auto', ...S.btnGhost }} onClick={cancelEdit}>Cancel Edit</button>
-    </div>
-   )}
-
-   <div style={{ marginBottom: 16 }}>
-    <label style={S.label}>Result Method</label>
-    <div style={{ display: 'flex', gap: 8 }}>
-     {RESULT_METHODS.map(rm => (
-      <button
-       key={rm.id}
-       onClick={() => onMethodChange(rm.id)}
-       style={{
-        flex: 1,
-        padding: '10px',
-        borderRadius: 10,
-        border: method === rm.id ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.06)',
-        background: method === rm.id ? 'rgba(139,92,246,0.1)' : 'rgba(255,255,255,0.02)',
-        color: method === rm.id ? '#a78bfa' : 'var(--text-muted)',
-        fontWeight: 700,
-        fontSize: 12,
-        cursor: 'pointer',
-        transition: 'all 0.2s'
-       }}
-      >
-       <i className={rm.icon} style={{ marginRight: 6 }}></i>
-       {rm.label}
-      </button>
-     ))}
-    </div>
-   </div>
-
-   <div style={{ marginBottom: 16 }}>
-    <label style={S.label}>Select Match *</label>
-    <select style={S.select} value={selectedId} onChange={onMatchChange}>
-     <option value="">Choose a match...</option>
-     {activeMatches.map(m => (
-      <option key={m.id} value={m.id}>{m.title} ({m.mode} • {m.map})</option>
-     ))}
-    </select>
-    {selected && (
-     <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-      <span style={{ fontWeight: 700, color: '#a78bfa' }}>
-       {selected.mode === 'Solo' ? '👤' : selected.mode === 'Duo' ? '👥' : selected.mode === 'Squad' ? '🛡️' : '⚔️'}{' '}
-       {selected.mode.toUpperCase()} MODE
-      </span>
-      <span style={{ marginLeft: 8 }}>— Enter {teamMode ? 'Team Name' : 'IGN'} + {teamMode ? 'Points' : 'Kills'} + Position</span>
-     </div>
-    )}
-   </div>
-
-   {teamMapping && method === 'manual' && (
-    <div style={{ ...S.card, marginBottom: 16 }}>
-     <div style={S.cardHeader}>
-      <div style={S.cardHeaderIcon('#6c8cff')}><i className="fa-solid fa-users" style={{ color: '#6c8cff' }}></i></div>
-      <h3 style={S.cardHeaderTitle}>Team Name → User Mapping</h3>
-      <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{Object.keys(teamMapping).length} teams • {(selected.joined || []).length} players</span>
-     </div>
-     <div style={{ padding: 16 }}>
-      {Object.entries(teamMapping).map(([team, members]) => (
-       <div key={team} style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4, color: '#a78bfa' }}>
-         🛡️ {team} ({members.length})
-        </div>
-        {members.map(mb => (
-         <div key={mb.userId} style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 16 }}>
-          • {mb.ign || mb.username || 'Unknown'} (ID: {String(mb.userId || '').slice(0, 8)}…)
-         </div>
-        ))}
-       </div>
-      ))}
-      <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 8 }}>
-       💡 Copy team names exactly into the result form below. Matched user IDs will auto-attach for prize distribution.
-      </div>
-     </div>
-    </div>
-   )}
-
-   {method === 'manual' && (
-    <div style={{ ...S.card, marginBottom: 16 }}>
-     <div style={{ ...S.cardHeader, justifyContent: 'space-between' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-       <div style={S.cardHeaderIcon('#22c55e')}><i className="fa-solid fa-list-ol" style={{ color: '#22c55e' }}></i></div>
-       <h3 style={S.cardHeaderTitle}>{teamMode ? 'Team Results' : 'Player Results'}</h3>
-      </div>
-      <button style={{ ...S.btnGhost, color: '#22c55e' }} onClick={addPlayer}><i className="fa-solid fa-plus"></i> Add</button>
-     </div>
-     <div style={{ padding: 16 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: teamMode ? '1fr 80px 60px 40px' : '1fr 80px 60px 40px', gap: 8, marginBottom: 8, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: 0.1 }}>
-       <span>{teamMode ? 'Team Name' : 'IGN'}</span>
-       <span>{teamMode ? 'Points' : 'Kills'}</span>
-       <span>Pos</span>
-       <span></span>
-      </div>
-      {players.map((p, i) => {
-       const matchedMembers = teamMode ? findTeamMembers(p.ign.trim()) : null
-       return (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: teamMode ? '1fr 80px 60px 40px' : '1fr 80px 60px 40px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-         <div style={{ position: 'relative' }}>
-          <input
-           style={{ ...S.input, borderColor: matchedMembers ? 'rgba(34,197,94,0.3)' : undefined }}
-           value={p.ign}
-           onChange={e => updatePlayer(i, 'ign', e.target.value)}
-           placeholder={teamMode ? 'Team name...' : 'IGN...'}
-          />
-          {matchedMembers && (
-           <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#22c55e', fontWeight: 700 }}>
-            ✓ {matchedMembers.length}
-           </span>
-          )}
-         </div>
-         <input style={S.input} type="number" min="0" value={teamMode ? p.points || 0 : p.kills || 0} onChange={e => updatePlayer(i, teamMode ? 'points' : 'kills', Number(e.target.value))} />
-         <input style={S.input} type="number" min="1" value={p.position} onChange={e => updatePlayer(i, 'position', Number(e.target.value))} />
-         <button style={{ ...S.btnDanger, padding: '4px 8px' }} onClick={() => removePlayer(i)}><i className="fa-solid fa-trash"></i></button>
-        </div>
-       )
-      })}
-      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-       <button style={S.btnPrimary} onClick={handleSubmit}>
-        <i className={editingResultId ? "fa-solid fa-rotate" : "fa-solid fa-check"}></i>
-        {editingResultId ? 'Update Results' : 'Submit Results'}
-       </button>
-       {editingResultId && (
-        <button style={{ ...S.btnGhost, borderColor: 'rgba(239,68,68,0.2)', color: '#ef4444' }} onClick={cancelEdit}>
-         Cancel
-        </button>
-       )}
-      </div>
-     </div>
-    </div>
-   )}
-
-   {method === 'screenshot' && (
-    <div style={{ ...S.card, marginBottom: 16, padding: 16, textAlign: 'center' }}>
-     <div style={{ width: 80, height: 80, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '2px dashed rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', cursor: 'pointer' }}>
-      <i className="fa-solid fa-image" style={{ fontSize: 28, color: 'var(--text-muted)' }}></i>
-     </div>
-     <h4 style={{ margin: '0 0 4px', fontSize: 14 }}>Upload FF Result Screenshot</h4>
-     <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>Tap to select image from gallery</p>
-    </div>
-   )}
-
-   {eco && (
-    <div style={{ ...S.card, marginBottom: 16 }}>
-     <div style={S.cardHeader}>
-      <div style={S.cardHeaderIcon('#fbbf24')}><i className="fa-solid fa-trophy" style={{ color: '#fbbf24' }}></i></div>
-      <h3 style={S.cardHeaderTitle}>Prize Preview</h3>
-     </div>
-     <div style={{ padding: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 12 }}>
-       <span style={{ color: 'var(--text-muted)' }}>Match</span>
-       <span style={{ fontWeight: 700 }}>{selected?.title}</span>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 12 }}>
-       <span style={{ color: 'var(--text-muted)' }}>Prize Pool</span>
-       <span style={{ fontWeight: 700, color: '#a78bfa' }}>{formatTK(eco.prizePool)}</span>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 12 }}>
-       <span style={{ color: 'var(--text-muted)' }}>Per Kill</span>
-       <span style={{ fontWeight: 700, color: '#fbbf24' }}>{formatTK(selected.perKill || 0)}</span>
-      </div>
-      {teamMode && teamMapping && (
-       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 12 }}>
-        <span style={{ color: 'var(--text-muted)' }}>Teams Mapped</span>
-        <span style={{ fontWeight: 700, color: '#22c55e' }}>{Object.keys(teamMapping).length}</span>
-       </div>
-      )}
-      {method === 'manual' && (
-       <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
-        <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Auto Calculated Prizes</h4>
-        {resultsWithPrizes.filter(r => r.ign).map((r, i) => (
-         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-           <span style={{ fontSize: 14 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${r.position}`}</span>
-           <div>
-            <div style={{ fontWeight: 700, fontSize: 13 }}>{r.ign}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-             {teamMode
-              ? `⭐ ${r.points || 0} pts — Pos: ${formatTK(r.positionPrize)}${r.killPrize > 0 ? ` + Kill: ${formatTK(r.killPrize)}` : ''}`
-              : `${r.kills} kills — Pos: ${formatTK(r.positionPrize)} + Kill: ${formatTK(r.killPrize)}`
-             }
-             {r.matchedUserIds?.length > 0 && (
-              <span style={{ color: '#22c55e', marginLeft: 4 }}>✓ {r.matchedUserIds.length} user{r.matchedUserIds.length > 1 ? 's' : ''} matched</span>
-             )}
+  // ═══ POINTCALC MODE — Show ResultInput component ═══
+  if (showInput && selected && method === 'pointcalc') {
+    return (
+      <div style={S.panel}>
+        {editingResultId && (
+          <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <i className="fa-solid fa-pen-to-square" style={{ color: '#a78bfa' }}></i>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#a78bfa' }}>Editing Results</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{selected.title}</div>
             </div>
-           </div>
+            <button style={{ marginLeft: 'auto', ...S.btnGhost }} onClick={cancelEdit}>Cancel</button>
           </div>
-          <div style={{ fontWeight: 900, fontSize: 14, color: '#fbbf24' }}>{formatTK(r.totalPrize)}</div>
-         </div>
-        ))}
-        {resultsWithPrizes.filter(r => r.ign).length === 0 && (
-         <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Enter {teamMode ? 'team' : 'player'} names to see auto calculation</p>
         )}
-       </div>
-      )}
-     </div>
-    </div>
-   )}
+        <ResultInput match={selected} onSave={handlePointcalcSave} onCancel={() => setShowInput(false)} />
+      </div>
+    )
+  }
 
-   {completedWithResult.length > 0 && (
+  return (
     <div style={S.panel}>
-     <h3 style={{ ...S.title, fontSize: 18 }}>Previous Results</h3>
-     {completedWithResult.map(m => {
-      const mTeam = isTeamMode(m.mode)
-      return (
-       <div key={m.id} style={{ ...S.mCard, position: 'relative' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-         <div>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{m.title}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.mode} • {m.map} • {m.result?.method === 'screenshot' ? 'Screenshot' : 'Manual'}</div>
-         </div>
-         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.1, color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: 6 }}>
-           SUBMITTED
-          </span>
-          <button style={{ ...S.btnGhost, fontSize: 10, padding: '4px 8px' }} onClick={() => handleEditResult(m.id)}>
-           <i className="fa-solid fa-pen"></i> Edit
-          </button>
-         </div>
-        </div>
-        {m.result?.players?.length > 0 && (
-         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {m.result.players.slice(0, 5).map((p, i) => (
-           <span key={i} style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', padding: '4px 8px', borderRadius: 6 }}>
-            {i === 0 ? '🥇' : `#${p.position}`} {p.ign} ({mTeam ? `⭐ ${p.points || 0} pts` : `${p.kills} kills`})
-           </span>
-          ))}
-         </div>
-        )}
-       </div>
-      )
-     })}
-    </div>
-   )}
-  </div>
- )
-}
+      <h2 style={S.title}>Match Results</h2>
 
+      {editingResultId && !showInput && (
+        <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <i className="fa-solid fa-pen-to-square" style={{ color: '#a78bfa' }}></i>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#a78bfa' }}>Editing Results</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{selected?.title || 'Loading...'}</div>
+          </div>
+          <button style={{ marginLeft: 'auto', ...S.btnGhost }} onClick={cancelEdit}>Cancel Edit</button>
+        </div>
+      )}
+
+      {/* Method selector */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={S.label}>Result Method</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[
+            { id: 'pointcalc', label: 'Pointcalc', icon: 'fa-solid fa-table-list' },
+            { id: 'manual', label: 'Manual', icon: 'fa-solid fa-keyboard' },
+          ].map(rm => (
+            <button key={rm.id} onClick={() => onMethodChange(rm.id)} style={{
+              flex: 1, padding: '10px', borderRadius: 10,
+              border: method === rm.id ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.06)',
+              background: method === rm.id ? 'rgba(139,92,246,0.1)' : 'rgba(255,255,255,0.02)',
+              color: method === rm.id ? '#a78bfa' : 'var(--text-muted)',
+              fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all 0.2s',
+            }}>
+              <i className={rm.icon} style={{ marginRight: 6 }}></i>{rm.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Match selector */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={S.label}>Select Match *</label>
+        <select style={S.select} value={selectedId} onChange={onMatchChange}>
+          <option value="">Choose a match...</option>
+          {activeMatches.map(m => (
+            <option key={m.id} value={m.id}>{m.title} ({m.mode} • {m.map})</option>
+          ))}
+        </select>
+        {selected && (
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+            <span style={{ fontWeight: 700, color: '#a78bfa' }}>
+              {selected.mode === 'Solo' ? '👤' : selected.mode === 'Duo' ? '👥' : selected.mode === 'Squad' ? '🛡️' : '⚔️'}{' '}
+              {selected.mode.toUpperCase()} MODE
+            </span>
+            <span style={{ marginLeft: 8 }}>{(selected.joinedCount || 0)} teams joined • Prize: {formatTK(selected.prizePool || 0)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ═══ POINTCALC: Launch button ═══ */}
+      {method === 'pointcalc' && selected && !showInput && (
+        <div style={{ ...S.card, marginBottom: 16 }}>
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#fff', fontFamily: 'var(--font-heading)' }}>Pointcalc System</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 4px' }}>Multi-round scoring with auto placement points</p>
+            <p style={{ fontSize: 11, color: '#555', margin: '0 0 20px' }}>1st=12 • 2nd=9 • 3rd=7 • 4th=5 • 5th=4 • 6th=3 • 7th=2 • 8th=1 • Rest=0 • Kills=1 each</p>
+            <button style={S.btnPrimary} onClick={() => setShowInput(true)}>
+              <i className="fa-solid fa-play"></i> Start Result Input
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MANUAL: Legacy form ═══ */}
+      {method === 'manual' && (
+        <>
+          {teamMapping && (
+            <div style={{ ...S.card, marginBottom: 16 }}>
+              <div style={S.cardHeader}>
+                <div style={S.cardHeaderIcon('#6c8cff')}><i className="fa-solid fa-users" style={{ color: '#6c8cff' }}></i></div>
+                <h3 style={S.cardHeaderTitle}>Team Mapping</h3>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{Object.keys(teamMapping).length} teams</span>
+              </div>
+              <div style={{ padding: 16 }}>
+                {Object.entries(teamMapping).map(([team, members]) => (
+                  <div key={team} style={{ marginBottom: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4, color: '#a78bfa' }}>🛡️ {team} ({members.length})</div>
+                    {members.map(mb => (
+                      <div key={mb.userId} style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 16 }}>• {mb.ign || mb.username || 'Unknown'}</div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ ...S.card, marginBottom: 16 }}>
+            <div style={{ ...S.cardHeader, justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={S.cardHeaderIcon('#22c55e')}><i className="fa-solid fa-list-ol" style={{ color: '#22c55e' }}></i></div>
+                <h3 style={S.cardHeaderTitle}>{teamMode ? 'Team Results' : 'Player Results'}</h3>
+              </div>
+              <button style={{ ...S.btnGhost, color: '#22c55e' }} onClick={addPlayer}><i className="fa-solid fa-plus"></i> Add</button>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 60px 40px', gap: 8, marginBottom: 8, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: 0.1 }}>
+                <span>{teamMode ? 'Team Name' : 'IGN'}</span><span>{teamMode ? 'Points' : 'Kills'}</span><span>Pos</span><span></span>
+              </div>
+              {players.map((p, i) => {
+                const matchedMembers = teamMode ? findTeamMembers(p.ign.trim()) : null
+                return (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 60px 40px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ position: 'relative' }}>
+                      <input style={{ ...S.input, borderColor: matchedMembers ? 'rgba(34,197,94,0.3)' : undefined }} value={p.ign} onChange={e => updatePlayer(i, 'ign', e.target.value)} placeholder={teamMode ? 'Team name...' : 'IGN...'} />
+                      {matchedMembers && <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#22c55e', fontWeight: 700 }}>✓ {matchedMembers.length}</span>}
+                    </div>
+                    <input style={S.input} type="number" min="0" value={teamMode ? p.points || 0 : p.kills || 0} onChange={e => updatePlayer(i, teamMode ? 'points' : 'kills', Number(e.target.value))} />
+                    <input style={S.input} type="number" min="1" value={p.position} onChange={e => updatePlayer(i, 'position', Number(e.target.value))} />
+                    <button style={{ ...S.btnDanger, padding: '4px 8px' }} onClick={() => removePlayer(i)}><i className="fa-solid fa-trash"></i></button>
+                  </div>
+                )
+              })}
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <button style={S.btnPrimary} onClick={handleSubmit}>
+                  <i className={editingResultId ? "fa-solid fa-rotate" : "fa-solid fa-check"}></i>
+                  {editingResultId ? 'Update Results' : 'Submit Results'}
+                </button>
+                {editingResultId && <button style={{ ...S.btnGhost, borderColor: 'rgba(239,68,68,0.2)', color: '#ef4444' }} onClick={cancelEdit}>Cancel</button>}
+              </div>
+            </div>
+          </div>
+
+          {eco && (
+            <div style={{ ...S.card, marginBottom: 16 }}>
+              <div style={S.cardHeader}>
+                <div style={S.cardHeaderIcon('#fbbf24')}><i className="fa-solid fa-trophy" style={{ color: '#fbbf24' }}></i></div>
+                <h3 style={S.cardHeaderTitle}>Prize Preview</h3>
+              </div>
+              <div style={{ padding: 16 }}>
+                {method === 'manual' && resultsWithPrizes.filter(r => r.ign).map((r, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${r.position}`}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{r.ign}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{teamMode ? `⭐ ${r.points || 0} pts` : `${r.kills} kills`} • {formatTK(r.totalPrize)}</div>
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 900, fontSize: 14, color: '#fbbf24' }}>{formatTK(r.totalPrize)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ═══ PREVIOUS RESULTS ═══ */}
+      {completedWithResult.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h3 style={{ ...S.title, fontSize: 18 }}>Previous Results</h3>
+          {completedWithResult.map(m => {
+            const isPointcalc = m.result?.method === 'pointcalc'
+            const mTeam = isTeamMode(m.mode)
+            return (
+              <div key={m.id} style={{ ...S.mCard, position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{m.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.mode} • {m.map} • <span style={{ color: isPointcalc ? '#22c55e' : '#a78bfa', fontWeight: 700 }}>{isPointcalc ? 'POINTCALC' : 'MANUAL'}</span></div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.1, color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: 6 }}>SUBMITTED</span>
+                    {isPointcalc && m.result?.prizeDistribution?.length > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 800, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+                        {formatTK(m.result.prizeDistribution.reduce((s, p) => s + p.amount, 0))} distributed
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {isPointcalc && m.result?.finalResults?.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {m.result.finalResults.slice(0, 3).map((t, i) => (
+                      <span key={i} style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', padding: '4px 8px', borderRadius: 6 }}>
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} {t.teamName} ({t.total} pts)
+                      </span>
+                    ))}
+                    {m.result.finalResults.length > 3 && <span style={{ fontSize: 11, color: '#555' }}>+{m.result.finalResults.length - 3} more</span>}
+                  </div>
+                ) : m.result?.players?.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {m.result.players.slice(0, 5).map((p, i) => (
+                      <span key={i} style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', padding: '4px 8px', borderRadius: 6 }}>
+                        {i === 0 ? '🥇' : `#${p.position}`} {p.ign} ({mTeam ? `⭐ ${p.points || 0} pts` : `${p.kills} kills`})
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ═══════════════════════════════════════════════════════════
 // V6.0: USERS PANEL — Added Tier Badge, Locked Balance, Reputation, Clan

@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { useApp } from '../context'
 import MatchCard from '../components/MatchCard'
+import ResultCard from '../components/ResultCard'
 import { MATCH_RULES } from '../data'
 
 export default function Matches() {
   const { state, dispatch } = useApp()
-  const { matches, matchFilter, isAdmin } = state
+  const { matches, matchFilter } = state
   const [search, setSearch] = useState('')
   const [showRules, setShowRules] = useState(false)
+  const [mainTab, setMainTab] = useState('upcoming')
+  const [viewingResult, setViewingResult] = useState(null)
 
   const filters = [
     { key: 'all', label: 'All Matches', icon: 'fa-solid fa-gamepad' },
@@ -54,15 +57,42 @@ export default function Matches() {
     </div>
   )
 
+  const resultOverlay = viewingResult && (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      padding: '40px 16px', overflowY: 'auto',
+      WebkitTapHighlightColor: 'transparent',
+    }} onClick={() => setViewingResult(null)}>
+      <div style={{ width: '100%', maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+        <button onClick={() => setViewingResult(null)} style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 18px', marginBottom: 12, borderRadius: 10,
+          background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
+          color: '#aaa', fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          WebkitTapHighlightColor: 'transparent',
+        }}>
+          <i className="fa-solid fa-arrow-left" style={{ fontSize: 11 }} />
+          Back to Matches
+        </button>
+        <ResultCard result={viewingResult} />
+      </div>
+    </div>
+  )
+
   return (
     <div style={{
-  padding: '4px 4px 100px',
-  background: '#14141a',
-  borderRadius: 16,
-  WebkitTapHighlightColor: 'transparent',
-}}>
+      padding: '4px 4px 100px',
+      background: '#14141a',
+      borderRadius: 16,
+      WebkitTapHighlightColor: 'transparent',
+    }}>
 
-      {/* ═══ HERO HEADER — "Match Arena" with colored accent (Stitch exact) ═══ */}
+      {resultOverlay}
+
+      {/* ═══ HERO HEADER ═══ */}
       <div style={{ marginBottom: 28 }}>
         <h1 style={{
           fontFamily: "'Lexend', sans-serif", fontSize: 32, fontWeight: 700,
@@ -80,7 +110,7 @@ export default function Matches() {
         </p>
       </div>
 
-      {/* ═══ SEARCH — bottom-border accent + gradient underline (Stitch exact) ═══ */}
+      {/* ═══ SEARCH ═══ */}
       <div style={{ position: 'relative', marginBottom: 28 }}>
         <i className="fa-solid fa-magnifying-glass" style={{
           position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
@@ -122,7 +152,7 @@ export default function Matches() {
         )}
       </div>
 
-      {/* ═══ PREMIUM FILTER PILLS — pill shape, inset shadow, bottom border (Stitch exact) ═══ */}
+      {/* ═══ FILTER PILLS ═══ */}
       <div style={{
         display: 'flex', gap: 10, marginBottom: 6,
         overflowX: 'auto', paddingBottom: 2,
@@ -164,7 +194,7 @@ export default function Matches() {
         </div>
       </div>
 
-      {/* ═══ FILTER BOTTOM BORDER (Stitch: border-b under tabs) ═══ */}
+      {/* ═══ FILTER BOTTOM BORDER ═══ */}
       <div style={{
         height: 1, background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.04), transparent)',
         marginBottom: 28,
@@ -194,7 +224,6 @@ export default function Matches() {
         </span>
       </button>
 
-      {/* ═══ RULES PANEL ═══ */}
       {showRules && (
         <div style={{
           background: '#1b1b1d', borderRadius: 12,
@@ -237,57 +266,179 @@ export default function Matches() {
         </div>
       )}
 
-      {/* ═══ MATCH SECTIONS — vertical stack for card layout ═══ */}
-      {live.length > 0 && (
-        <div style={{ marginBottom: 32 }}>
-          {sectionHead('Live Now', live.length, '#4ade80', true)}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {live.map(m => <MatchCard key={m.id} match={m} />)}
-          </div>
-        </div>
+      {/* ═══ UPCOMING / RESULTS MAIN TABS ═══ */}
+      <div style={{
+        display: 'flex', gap: 0, marginBottom: 28,
+        background: '#1b1b1d', borderRadius: 12,
+        border: '1px solid #2a2a2c',
+        overflow: 'hidden',
+      }}>
+        {[
+          { key: 'upcoming', label: 'UPCOMING', icon: 'fa-solid fa-clock', count: live.length + upcoming.length },
+          { key: 'results', label: 'RESULTS', icon: 'fa-solid fa-trophy', count: completed.length },
+        ].map(tab => {
+          const active = mainTab === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setMainTab(tab.key)}
+              style={{
+                flex: 1, padding: '14px 0',
+                border: 'none', background: active ? 'rgba(97,205,255,0.08)' : 'transparent',
+                borderBottom: active ? '2px solid #61cdff' : '2px solid transparent',
+                cursor: 'pointer',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 13, fontWeight: active ? 700 : 600,
+                color: active ? '#61cdff' : '#555555',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'all 0.2s ease',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              <i className={tab.icon} style={{ fontSize: 12 }} />
+              {tab.label}
+              <span style={{
+                padding: '1px 7px', borderRadius: 6,
+                background: active ? 'rgba(97,205,255,0.15)' : 'rgba(255,255,255,0.04)',
+                fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700,
+                color: active ? '#61cdff' : '#444',
+              }}>
+                {tab.count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ════════════════════════════════════════════════════════
+          UPCOMING TAB — Live + Upcoming matches
+          ════════════════════════════════════════════════════════ */}
+      {mainTab === 'upcoming' && (
+        <>
+          {live.length > 0 && (
+            <div style={{ marginBottom: 32 }}>
+              {sectionHead('Live Now', live.length, '#4ade80', true)}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {live.map(m => <MatchCard key={m.id} match={m} />)}
+              </div>
+            </div>
+          )}
+
+          {upcoming.length > 0 && (
+            <div style={{ marginBottom: 32 }}>
+              {sectionHead('Upcoming', upcoming.length, '#61cdff')}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {upcoming.map(m => <MatchCard key={m.id} match={m} animated />)}
+              </div>
+            </div>
+          )}
+
+          {live.length === 0 && upcoming.length === 0 && (
+            <div style={{
+              textAlign: 'center', padding: '60px 20px',
+              background: '#1b1b1d', borderRadius: 12,
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              <i className="fa-solid fa-calendar-xmark" style={{
+                fontSize: 36, color: '#2a2a2c', marginBottom: 16, display: 'block',
+              }} />
+              <p style={{
+                color: '#c6c6c6', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 14, fontWeight: 600, margin: '0 0 6px',
+              }}>
+                No upcoming matches
+              </p>
+              <p style={{
+                color: '#555555', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 12, margin: 0, fontWeight: 500,
+              }}>
+                New tournaments will appear here
+              </p>
+            </div>
+          )}
+        </>
       )}
 
-      {upcoming.length > 0 && (
-        <div style={{ marginBottom: 32 }}>
-          {sectionHead('Upcoming', upcoming.length, '#61cdff')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {upcoming.map(m => <MatchCard key={m.id} match={m} animated />)}
-          </div>
-        </div>
-      )}
-
-      {completed.length > 0 && (
-        <div style={{ marginBottom: 32 }}>
-          {sectionHead('Completed', completed.length, '#555555')}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {completed.map(m => <MatchCard key={m.id} match={m} />)}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ EMPTY STATE ═══ */}
-      {filtered.length === 0 && (
-        <div style={{
-          textAlign: 'center', padding: '60px 20px',
-          background: '#1b1b1d', borderRadius: 12,
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}>
-          <i className="fa-solid fa-magnifying-glass" style={{
-            fontSize: 36, color: '#2a2a2c', marginBottom: 16, display: 'block',
-          }} />
-          <p style={{
-            color: '#c6c6c6', fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontSize: 14, fontWeight: 600, margin: '0 0 6px',
-          }}>
-            No matches found
-          </p>
-          <p style={{
-            color: '#555555', fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontSize: 12, margin: 0, fontWeight: 500,
-          }}>
-            {search ? `No results for "${search}"` : 'No matches in this category'}
-          </p>
-        </div>
+      {/* ════════════════════════════════════════════════════════
+          RESULTS TAB — Completed matches with RESULT button
+          ════════════════════════════════════════════════════════ */}
+      {mainTab === 'results' && (
+        <>
+          {completed.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {completed.map(m => (
+                <div key={m.id} style={{ position: 'relative' }}>
+                  <MatchCard match={m} />
+                  {m.result ? (
+                    <button
+                      onClick={() => setViewingResult(m.result)}
+                      style={{
+                        position: 'absolute', top: 14, right: 14,
+                        padding: '8px 16px', borderRadius: 10,
+                        border: '1px solid rgba(251,191,36,0.2)',
+                        background: 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.05))',
+                        color: '#fbbf24',
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        fontSize: 12, fontWeight: 700,
+                        cursor: 'pointer', zIndex: 2,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        boxShadow: '0 2px 12px rgba(251,191,36,0.15)',
+                        transition: 'all 0.2s ease',
+                        WebkitTapHighlightColor: 'transparent',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(251,191,36,0.2), rgba(251,191,36,0.1))'
+                        e.currentTarget.style.transform = 'translateY(-1px)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.05))'
+                        e.currentTarget.style.transform = 'translateY(0)'
+                      }}
+                    >
+                      <i className="fa-solid fa-trophy" style={{ fontSize: 11 }} />
+                      RESULT
+                    </button>
+                  ) : (
+                    <div style={{
+                      position: 'absolute', top: 14, right: 14,
+                      padding: '6px 12px', borderRadius: 8,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      fontFamily: "'Plus Jakarta Sans', sans-serif",
+                      fontSize: 11, fontWeight: 600, color: '#444',
+                      zIndex: 2,
+                    }}>
+                      <i className="fa-solid fa-hourglass-half" style={{ marginRight: 4, fontSize: 10 }} />
+                      Pending
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{
+              textAlign: 'center', padding: '60px 20px',
+              background: '#1b1b1d', borderRadius: 12,
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              <i className="fa-solid fa-trophy" style={{
+                fontSize: 36, color: '#2a2a2c', marginBottom: 16, display: 'block',
+              }} />
+              <p style={{
+                color: '#c6c6c6', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 14, fontWeight: 600, margin: '0 0 6px',
+              }}>
+                No results yet
+              </p>
+              <p style={{
+                color: '#555555', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 12, margin: 0, fontWeight: 500,
+              }}>
+                Completed match results will appear here
+              </p>
+            </div>
+          )}
+        </>
       )}
 
       {/* ═══ FOOTER ═══ */}
@@ -298,7 +449,10 @@ export default function Matches() {
             fontSize: 11, fontWeight: 600, color: '#555555',
             letterSpacing: '0.06em', textTransform: 'uppercase',
           }}>
-            Showing {filtered.length} match{filtered.length !== 1 ? 'es' : ''}
+            {mainTab === 'upcoming'
+              ? `Showing ${live.length + upcoming.length} match${(live.length + upcoming.length) !== 1 ? 'es' : ''}`
+              : `Showing ${completed.length} result${completed.length !== 1 ? 's' : ''}`
+            }
           </span>
         </div>
       )}

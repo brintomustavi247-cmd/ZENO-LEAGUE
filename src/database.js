@@ -1101,3 +1101,80 @@ export function subscribeToProfitStats(onUpdate) {
   const interval = setInterval(refresh, 30000);
   return () => clearInterval(interval);
 }
+// ═══════════════════════════════════════════════════════════════════════
+//  V8.0: POINTCALC RESULT — Multi-round scoring + IGL prize distribution
+// ═══════════════════════════════════════════════════════════════════════
+export async function savePointcalcResult(matchId, resultData) {
+  const matchRef = doc(db, 'matches', matchId);
+  const matchSnap = await getDoc(matchRef);
+  if (!matchSnap.exists()) throw new Error('Match not found');
+
+  const matchData = matchSnap.data();
+  const now = new Date().toISOString();
+  const batch = writeBatch(db);
+
+  const prizePool = matchData.prizePool || 0;
+  const prizePcts = [0.6, 0.25, 0.15];
+  const prizeDistribution = [];
+  const joined = matchData.joined || [];
+
+  for (let i = 0; i < Math.min(3, resultData.finalResults.length); i++) {
+    const team = resultData.finalResults[i];
+    const amount = Math.round(prizePool * prizePcts[i]);
+
+    const joinedEntry = joined.find(j =>
+      (j.teamName && j.teamName === team.teamName) ||
+      (j.teamId && j.teamId === team.teamId)
+    );
+
+    const iglUid = joinedEntry?.userId || null;
+    const iglName = team.playerList?.[0]?.name || joinedEntry?.ign || joinedEntry?.name || team.teamName;
+
+    prizeDistribution.push({
+      rank: i + 1, teamId: team.teamId, teamName: team.teamName,
+      iglUid, iglName, amount,
+    });
+
+    if (iglUid && amount > 0) {
+      const userRef = doc(db, 'users', iglUid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const ud = userSnap.data();
+        batch.update(userRef, {
+          balance: (ud.balance || 0) + amount,
+          earnings: (ud.earnings || 0) + amount,
+          totalEarnings: (ud.totalEarnings || 0) + amount,
+          totalWins: (ud.totalWins || 0) + (i === 0 ? 1 : 0),
+        });
+      }
+
+      const txId = safeTxId('tx_win');
+      batch.set(doc(db, 'transactions', txId), {
+        id: txId, userId: iglUid, username: iglName,
+        ign: joinedEntry?.ign || '', type: 'win', amount,
+        desc: `Prize: ${sanitize(matchData.title)} (${['🥇 1st', '🥈 2nd', '🥉 3rd'][i]}) — IGL: ${team.teamName}`,
+        matchId, date: now, status: 'completed', position: i + 1,
+      });
+    }
+  }
+
+  const savedResult = {
+    submittedAt: now, method: 'pointcalc',
+    matchTitle: resultData.matchTitle || matchData.title,
+    gameType: resultData.gameType || matchData.gameType,
+    mode: resultData.mode || matchData.mode,
+    totalRounds: resultData.totalRounds,
+    finalResults: resultData.finalResults,
+    roundsData: resultData.roundsData,
+    prizeDistribution,
+  };
+
+  batch.update(matchRef, {
+    status: 'completed',
+    result: savedResult,
+    'escrow.distributed': (matchData.escrow?.distributed || 0) + prizePool,
+  });
+
+  await batch.commit();
+  return { success: true, prizeDistribution, savedResult };
+}

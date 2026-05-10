@@ -1,7 +1,7 @@
 import {
   fetchUser, createUser, createMatchInDb, updateMatchInDb,
   getSettings, saveSettings, createAddMoneyRequest,
-  fetchPendingAddMoneyRequests, approveAddMoneyRequest,
+  fetchPendingAddMoneyRequests,  savePointcalcResult, approveAddMoneyRequest,
   rejectAddMoneyRequest, subscribeToAddMoneyRequests, distributePrizes, cancelMatchAndRefund,
   checkDuplicateTXID, adminAdjustBalance, addJoinToMatch,
   addWithdrawalToCloud, logActivityToCloud, addTransactionToCloud,
@@ -90,6 +90,7 @@ const initialState = {
   pendingPrizeDistribution: null,
   pendingCancelMatch: null,
   pendingBalanceAdjust: null,
+    pendingPointcalcResult: null,
   rateLimited: false,
   requireIGN: false,
   joinBlocked: null,
@@ -981,6 +982,33 @@ users: state.users.map(u => u.id === updated.id ? { ...u, ...action.payload } : 
     case 'SET_SHARE_MATCH':
       return { ...state, shareMatchId: action.payload }
 
+          case 'SUBMIT_POINTCALC_RESULT': {
+      const { matchId, resultData } = action.payload
+      return {
+        ...state,
+        matches: state.matches.map(m => m.id === matchId ? { ...m, status: 'completing' } : m),
+        pendingPointcalcResult: { matchId, resultData },
+        loading: true,
+      }
+    }
+
+    case 'POINTCALC_RESULT_SUCCESS': {
+      const { matchId, result } = action.payload
+      return {
+        ...state,
+        matches: state.matches.map(m => m.id === matchId ? {
+          ...m, status: 'completed', result: result.savedResult,
+          'escrow.distributed': (m.escrow?.distributed || 0) + (m.prizePool || 0),
+        } : m),
+        loading: false, pendingPointcalcResult: null,
+      }
+    }
+
+    case 'POINTCALC_RESULT_ERROR': {
+      return { ...state, loading: false, pendingPointcalcResult: null }
+    }
+
+
     // ════════════════════════════════════════
     //  ═══ V5.0: SHARE MATCH ACTION ═══
     // ════════════════════════════════════════
@@ -1266,6 +1294,19 @@ export function AppProvider({ children }) {
         dispatch({ type: 'BALANCE_ADJUST_ERROR', payload: { userId } })
       })
   }, [state.pendingBalanceAdjust])
+    useEffect(() => {
+    if (!state.pendingPointcalcResult) return
+    const { matchId, resultData } = state.pendingPointcalcResult
+    savePointcalcResult(matchId, resultData)
+      .then(result => {
+        dispatch({ type: 'POINTCALC_RESULT_SUCCESS', payload: { matchId, result } })
+      })
+      .catch(err => {
+        console.error('Pointcalc result failed:', err)
+        dispatch({ type: 'POINTCALC_RESULT_ERROR', payload: { matchId } })
+        dispatch({ type: 'BATCH_MATCH_UPDATE', payload: state.matches.map(m => m.id === matchId ? { ...m, status: 'live' } : m) })
+      })
+  }, [state.pendingPointcalcResult])
 
   useEffect(() => {
     if (state.joinBlocked) {
