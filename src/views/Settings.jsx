@@ -368,16 +368,12 @@ export default function Settings() {
         <div style={{ padding: '20px 22px', textAlign: 'center' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 48, height: 48, borderRadius: 14, marginBottom: 12,
-            background: 'linear-gradient(135deg, rgba(0,240,255,0.1), rgba(167,139,250,0.06))',
-            border: '1px solid rgba(0,240,255,0.12)',
+            width: 60, height: 60, borderRadius: 14, marginBottom: 12,
+            background: 'rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            boxShadow: '0 0 16px rgba(0,240,255,0.08)',
           }}>
-            <span style={{
-              fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 900,
-              color: '#00f0ff', letterSpacing: 1,
-            }}>
-              CA
-            </span>
+            <img src="/logo.png" alt="ZENO LEAGUE" style={{ width: 60, height: 60, objectFit: 'contain' }} />
           </div>
           <h3 style={{
             fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 700,
@@ -390,7 +386,7 @@ export default function Settings() {
             fontFamily: 'var(--font-display)', letterSpacing: 1,
             margin: '0 0 14px',
           }}>
-            VERSION 2.0.0 — BUILD 2025
+            VERSION 8.0 — BUILD 2025
           </p>
 
           <div style={{
@@ -400,7 +396,7 @@ export default function Settings() {
             {[
               { label: 'Platform', value: 'Free Fire' },
               { label: 'Engine', value: 'React + Vite' },
-              { label: 'Storage', value: 'localStorage' },
+              { label: 'Backend', value: 'Firebase' },
             ].map(info => (
               <div key={info.label} style={{ textAlign: 'center' }}>
                 <div style={{
