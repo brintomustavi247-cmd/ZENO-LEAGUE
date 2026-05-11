@@ -128,6 +128,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ── PROFIT STATS ──
+
+    match /profitStats/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /users/{userId}/profitStats/{statId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
     // ── SETTINGS ──
 
     match /settings/global {
