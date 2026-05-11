@@ -785,19 +785,21 @@ users: state.users.map(u => u.id === updated.id ? { ...u, ...action.payload } : 
     }
 
     case 'ADJUST_BALANCE': {
-      const { userId, action: act, amount } = action.payload
-      const numAmount = Number(amount)
-      if (!userId) return state
-      if (!numAmount || numAmount <= 0 || !act) return state
-      adminAdjustBalance(userId, act, numAmount, action.payload.reason || 'Balance adjustment').then(() => {
-        dispatch({ type: 'BALANCE_ADJUST_SUCCESS', payload: { userId, newBalance } })
-      }).catch(err => {
-        console.error('Adjust balance failed:', err)
-        dispatch({ type: 'BALANCE_ADJUST_ERROR' })
-      })
-      return { ...state, pendingBalanceAdjust: { userId, action: act, amount: numAmount, reason: action.payload.reason || 'Balance adjustment' }, loading: true }
-    }
-
+  const { userId, action: act, amount } = action.payload
+  const numAmount = Number(amount)
+  if (!userId) return state
+  if (!numAmount || numAmount <= 0 || !act) return state
+  return {
+    ...state,
+    pendingBalanceAdjust: {
+      userId,
+      action: act,
+      amount: numAmount,
+      reason: action.payload.reason || 'Balance adjustment',
+    },
+    loading: true,
+  }
+}
     case 'BALANCE_ADJUST_SUCCESS': {
       const { userId, newBalance } = action.payload
       return {
@@ -1285,7 +1287,10 @@ export function AppProvider({ children }) {
     if (!state.pendingBalanceAdjust) return
     const { userId, action: act, amount, reason } = state.pendingBalanceAdjust
 
-    adminAdjustBalance(userId, amount, reason)
+    // FIX: Convert to signed amount for deduct
+    const signedAmount = act === 'deduct' ? -Math.abs(amount) : Math.abs(amount)
+
+    adminAdjustBalance(userId, signedAmount, reason)
       .then(newBalance => {
         dispatch({ type: 'BALANCE_ADJUST_SUCCESS', payload: { userId, newBalance } })
       })
