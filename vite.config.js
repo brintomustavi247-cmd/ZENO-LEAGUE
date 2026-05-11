@@ -16,7 +16,7 @@ export default defineConfig({
         background_color: '#0a0a1a',
         display: 'standalone',
         orientation: 'portrait',
-        id: 'zenoleague-vercel-app',
+        id: '/?source=pwa',
         scope: '/',
         start_url: '/',
         lang: 'en',
@@ -55,7 +55,7 @@ export default defineConfig({
   build: {
     target: 'esnext',
     sourcemap: false,
-    minify: 'terser',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
