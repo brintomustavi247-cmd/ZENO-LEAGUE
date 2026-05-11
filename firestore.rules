@@ -104,7 +104,7 @@ service cloud.firestore {
     // ── SPIN LOG ──
 
     match /spinLog/{spinId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdminOrOwner());
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update: if false;
       allow delete: if false;
@@ -113,7 +113,7 @@ service cloud.firestore {
     // ── AD REWARDS ──
 
     match /adRewards/{adId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdminOrOwner());
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update: if false;
       allow delete: if false;
