@@ -1,66 +1,52 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-
-/* ── PWA Plugin — Gracefully loads if installed, skips if not ── */
-let VitePWA = null
-try {
-  VitePWA = (await import('vite-plugin-pwa')).VitePWA
-} catch (e) {
-  console.log(
-    '%c[ZENO]%c PWA plugin not installed — skipping. Enable in Phase 7: npm i -D vite-plugin-pwa',
-    'color:#06d6f0;font-weight:bold',
-    'color:#94a3b8'
-  )
-}
+import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   plugins: [
     react(),
-    ...(VitePWA
-      ? [
-          VitePWA({
-            registerType: 'autoUpdate',
-            includeAssets: ['**/*.png', '**/*.jpg', '**/*.svg', '**/*.webp'],
-            manifest: {
-              name: 'ZENO LEAGUE',
-              short_name: 'ZENO',
-              description: 'Free Fire Custom Room Tournament Platform',
-              theme_color: '#0a0a1a',
-              background_color: '#0a0a1a',
-              display: 'standalone',
-              orientation: 'portrait',
-              scope: '/',
-              start_url: '/',
-              lang: 'en',
-              categories: ['games', 'entertainment', 'sports'],
-              icons: [
-                {
-                  src: '/icons/icon-192.png',
-                  sizes: '192x192',
-                  type: 'image/png',
-                  purpose: 'any maskable',
-                },
-                {
-                  src: '/icons/icon-512.png',
-                  sizes: '512x512',
-                  type: 'image/png',
-                  purpose: 'any maskable',
-                },
-                {
-                  src: '/icons/icon-512.png',
-                  sizes: '512x512',
-                  type: 'image/png',
-                  purpose: 'any',
-                },
-              ],
-            },
-                       workbox: {
-              globPatterns: ['**/*.{js,css,html,png,jpg,svg,webp,woff2}'],
-              navigateFallback: '/index.html',
-            },
-          }),
-        ]
-      : []),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['**/*.png', '**/*.jpg', '**/*.svg', '**/*.webp'],
+      manifest: {
+        name: 'ZENO LEAGUE',
+        short_name: 'ZENO',
+        description: 'Free Fire Custom Room Tournament Platform',
+        theme_color: '#0a0a1a',
+        background_color: '#0a0a1a',
+        display: 'standalone',
+        orientation: 'portrait',
+        id: 'zenoleague-vercel-app',
+        scope: '/',
+        start_url: '/',
+        lang: 'en',
+        categories: ['games', 'entertainment', 'sports'],
+        icons: [
+          {
+            src: '/icons/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icons/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,png,jpg,svg,webp,woff2}'],
+        navigateFallback: '/index.html',
+      },
+    }),
   ],
   server: {
     host: true,
