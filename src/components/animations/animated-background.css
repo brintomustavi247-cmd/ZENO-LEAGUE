@@ -1,0 +1,104 @@
+/* src/components/animations/animated-background.css - PHASE 3 OPTIMIZED - FIXED */
+
+/* ============================================
+   ZENO LEAGUE V8.0 — ARENA BACKGROUND
+   
+   KEY FIX: position: fixed removed to allow clicks
+   to propagate. Using normal document flow instead.
+   ============================================ */
+
+.arena-background-container {
+  position: relative;
+  z-index: 0;
+  pointer-events: auto;
+  /* Background gradient via ::before pseudo-element */
+  background: #0a0a0c;
+}
+
+.arena-background-container::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse 80% 60% at 85% 15%, rgba(0, 240, 255, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 50% at 15% 85%, rgba(168, 85, 247, 0.04) 0%, transparent 55%);
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* ═══ GRID PATTERN (OPTIMIZED - Removed mask-image) ═══ */
+.grid-overlay {
+  position: fixed;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+  background-size: 80px 80px;
+  opacity: 0.6;
+  z-index: -1;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+/* ═══ PARTICLES CONTAINER (CRITICAL FIX) ═══ */
+.particles {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ═══ PARTICLES (PERFORMANCE-AWARE) ═══ */
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #00f0ff;
+  border-radius: 50%;
+  opacity: 0;
+  animation: float-up 15s infinite linear;
+  pointer-events: none;
+  box-shadow: 0 0 2px rgba(0, 240, 255, 0.3);
+  will-change: transform, opacity;
+}
+
+/* Reduce particle intensity on low-end devices */
+[data-tier="low"] .particle {
+  width: 1px;
+  height: 1px;
+  box-shadow: none;
+  animation-duration: 20s;
+}
+
+/* ═══ FLOAT-UP KEYFRAMES (OPTIMIZED) ═══ */
+@keyframes float-up {
+  0% {
+    transform: translateY(100vh) translateX(0) scale(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.5;
+  }
+  90% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(10px) scale(1);
+    opacity: 0;
+  }
+}
+
+/* REDUCED MOTION: Disable all animations */
+@media (prefers-reduced-motion: reduce) {
+  .particle {
+    animation: none !important;
+    opacity: 0.3;
+  }
+  
+  .grid-overlay {
+    animation: none !important;
+    opacity: 0.3;
+  }
+}

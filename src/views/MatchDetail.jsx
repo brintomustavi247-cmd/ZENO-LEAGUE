@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useApp } from '../context'
 import { formatTK, calculateMatchEconomics, getRoomUnlockCountdown, showToast } from '../utils'
+import { getMatchUrl } from '../utils/url'
 
 /* ── helpers ── */
 
@@ -98,7 +99,7 @@ function isTeamMode(mode) {
   return mode === 'Duo' || mode === 'Squad' || mode === 'Clash Squad'
 }
 
-/* ── bilingual rules — your exact 15 rules ── */
+/* ── bilingual rules ── */
 
 const RULES_EN = [
   { e: '🔒', t: 'Room ID and Password will be shared 10 minutes before the match starts.' },
@@ -136,16 +137,25 @@ const RULES_BN = [
   { e: '💰', t: 'একটি ম্যাচ শেষ হওয়ার ১০-২০ মিনিটের মধ্যে রিওয়ার্ড আপনার অ্যাকাউন্টে যোগ হয়ে যাবে।' },
 ]
 
-/* ── main ── */
+/* ── main component ── */
 
 export default function MatchDetail() {
   const { state, dispatch, navigate, isAdmin } = useApp()
+  
+  // ✅ STATE VARIABLES (Declared ONCE - No Duplicates!)
   const [showPlayers, setShowPlayers] = useState(false)
   const [rulesLang, setRulesLang] = useState('en')
   const [hoveredSlot, setHoveredSlot] = useState(null)
   const [teamName, setTeamName] = useState('')
   const [teamNameError, setTeamNameError] = useState('')
+  const [shareMenuOpen, setShareMenuOpen] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+  const shareMenuRef = useRef(null)
 
+  // Get unread notifications count from state
+  const unreadNotifications = state.notifications?.filter(n => !n.read).length || 0
+
+  // ✅ MATCH DATA
   const match = state.matches.find(m => m.id === state.viewParam)
   const cu = state.currentUser
   const team = isTeamMode(match?.mode)
@@ -210,6 +220,8 @@ export default function MatchDetail() {
     }
   }
 
+  // ✅ HANDLER FUNCTIONS (Defined ONCE Each!)
+  
   const handleJoin = () => {
     if (!cu) { navigate('login'); return }
     if (joined || full || phase === 'completed') return
@@ -220,6 +232,103 @@ export default function MatchDetail() {
     dispatch({ type: 'SHOW_MODAL', payload: { type: 'join-match', data: { matchId: match.id, teamName: team ? teamName.trim() : '' } } })
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ SHARE FUNCTIONALITY (Professional Pattern)
+  // ═══════════════════════════════════════════════════════════════
+
+  const generateShareData = () => {
+    const url = getMatchUrl(match.id)
+    
+    const text = [
+      `🎮 ${match.title}`,
+      `💰 Prize: ${formatTK(eco.prizePool)}`,
+      `🎫 Entry: ${formatTK(match.entryFee)}`,
+      '',
+      `Join now on Zeno League!`
+    ].join('\n')
+    
+    const encodedText = encodeURIComponent(text)
+    const encodedUrl = encodeURIComponent(url)
+    
+    return {
+      url,
+      text: `${text}\n\n${url}`,
+      whatsapp: `https://wa.me/?text=${encodedText}%0A%0A${encodedUrl}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      twitter: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
+      telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`,
+    }
+  }
+
+  const handleShare = async () => {
+    const shareData = generateShareData()
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: match.title,
+          text: shareData.text,
+          url: shareData.url
+        })
+        return
+      } catch (err) {
+        if (err.name === 'AbortError') return
+      }
+    }
+    
+    setShareMenuOpen(!shareMenuOpen)
+  }
+
+  const handleCopyLink = async () => {
+    const { url } = generateShareData()
+    
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(url)
+        setCopiedLink(true)
+        showToast('Link copied!', 'success')
+        setTimeout(() => setCopiedLink(false), 2000)
+      } catch (err) {
+        showToast('Failed to copy', 'error')
+      }
+    } else {
+      copy(url)
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
+    }
+  }
+
+  const handleSocialShare = (platform) => {
+    const shareData = generateShareData()
+    if (shareData[platform]) {
+      window.open(shareData[platform], '_blank', 'noopener,noreferrer')
+    }
+    setShareMenuOpen(false)
+  }
+
+  const handleNotifications = () => {
+    navigate('alerts')
+  }
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(event.target)) {
+        setShareMenuOpen(false)
+      }
+    }
+
+    if (shareMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [shareMenuOpen])
+  // ═══ END SHARE FUNCTIONALITY ══════════════════════════════════
+
   const phasePillBg = phase === 'live' ? 'rgba(230,57,70,0.85)' : phase === 'upcoming' ? 'rgba(255,209,102,0.15)' : '#201f21'
   const phasePillFg = phase === 'live' ? '#ffffff' : phase === 'upcoming' ? '#ffd166' : '#9ca3af'
   const phasePillBrd = phase === 'live' ? 'transparent' : (phasePillFg + '50')
@@ -229,17 +338,546 @@ export default function MatchDetail() {
   return (
     <div style={{ padding: '0 0 100px 0', WebkitTapHighlightColor: 'transparent' }}>
 
-      <button onClick={() => navigate('matches')} style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        padding: '8px 16px', borderRadius: 10,
-        background: 'transparent', border: '1px solid rgba(62,72,78,0.15)',
-        color: '#61cdff', cursor: 'pointer',
-        fontFamily: 'Plus Jakarta Sans', fontSize: 13, fontWeight: 600,
-        marginBottom: 14, WebkitTapHighlightColor: 'transparent',
-      }}>
-        <i className="fa-solid fa-arrow-left" style={{ fontSize: 11 }} />
-        Back
-      </button>
+          {/* ════════════════════════════════════════════════════════════
+          ✅ PROFESSIONAL FIXED HEADER BAR (International Standard)
+          
+          Pattern: Fixed top bar with border
+          - Left: Logo + Brand Identity
+          - Right: Notifications + Share (with dropdown)
+          
+          Inspired by: Discord Mobile, FACEIT, ESL, Material Design 3
+          Compliant with: iOS HIG, Android Material Guidelines
+      ════════════════════════════════════════════════════════════ */}
+      
+      <div className="zeno-fixed-header zeno-header-animated">
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          height: 48,
+        }}>
+          
+          {/* ── LEFT SECTION: Navigation + Brand Identity ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            
+            {/* Back Button */}
+            <div 
+              onClick={() => navigate('matches')}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(62,72,78,0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                WebkitTapHighlightColor: 'transparent',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(97,205,255,0.12)'
+                e.currentTarget.style.borderColor = 'rgba(97,205,255,0.4)'
+                e.currentTarget.style.transform = 'scale(1.05)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                e.currentTarget.style.borderColor = 'rgba(62,72,78,0.25)'
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+            >
+              <i className="fa-solid fa-arrow-left" style={{ 
+                fontSize: 13, 
+                color: '#61cdff',
+                fontWeight: 900,
+              }} />
+            </div>
+
+            {/* Logo + Platform Name */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 10,
+              overflow: 'hidden',
+            }}>
+              {/* Logo Icon (Gradient Background) */}
+              <div style={{
+                width: 36,
+                height: 36,
+                borderRadius: 9,
+                background: 'linear-gradient(135deg, #A055F7 0%, #EC4899 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 12px rgba(160,85,247,0.4)',
+                flexShrink: 0,
+              }}>
+                <i className="fa-solid fa-gamepad" style={{ 
+                  fontSize: 16, 
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
+                }} />
+              </div>
+              
+              {/* Platform Name (Stacked) */}
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                lineHeight: 1.1,
+                minWidth: 0,
+              }}>
+                <span style={{
+                  fontFamily: 'Lexend',
+                  fontSize: 15,
+                  fontWeight: 800,
+                  color: '#ffffff',
+                  letterSpacing: '0.02em',
+                  fontStyle: 'italic',
+                  textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+                }}>
+                  ZENO LEAGUE
+                </span>
+                <span style={{
+                  fontFamily: 'Inter',
+                  fontSize: 9,
+                  fontWeight: 600,
+                  color: '#889299',
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  opacity: 0.8,
+                }}>
+                  Esports Platform
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── RIGHT SECTION: Notifications + Share ── */}
+          <div ref={shareMenuRef} style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 8, 
+            position: 'relative',
+            flexShrink: 0,
+          }}>
+            
+            {/* Notification Bell Button */}
+            <div 
+              onClick={handleNotifications}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 11,
+                background: unreadNotifications > 0 
+                  ? 'linear-gradient(135deg, rgba(255,209,102,0.15), rgba(255,209,102,0.05))'
+                  : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${unreadNotifications > 0 ? 'rgba(255,209,102,0.3)' : 'rgba(62,72,78,0.25)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                position: 'relative',
+                transition: 'all 0.25s ease',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(255,209,102,0.15)'
+                e.currentTarget.style.borderColor = 'rgba(255,209,102,0.45)'
+                e.currentTarget.style.transform = 'scale(1.08)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = unreadNotifications > 0 
+                  ? 'linear-gradient(135deg, rgba(255,209,102,0.15), rgba(255,209,102,0.05))'
+                  : 'rgba(255,255,255,0.04)'
+                e.currentTarget.style.borderColor = unreadNotifications > 0 ? 'rgba(255,209,102,0.3)' : 'rgba(62,72,78,0.25)'
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+            >
+              <i className="fa-regular fa-bell" style={{ 
+                fontSize: 17, 
+                color: unreadNotifications > 0 ? '#ffd166' : '#889299',
+                transition: 'color 0.2s',
+              }} />
+              
+              {/* Unread Badge (with pulse animation if > 0) */}
+              {unreadNotifications > 0 && (
+                <div className="notification-badge-pulse" style={{
+                  position: 'absolute',
+                  top: -3,
+                  right: -3,
+                  minWidth: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  background: 'linear-gradient(135deg, #e63946 0%, #c1121f 100%)',
+                  border: '2.5px solid #0f0f11',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 6px',
+                  boxShadow: `
+                    0 2px 8px rgba(230,57,70,0.6),
+                    0 0 12px rgba(230,57,70,0.3)
+                  `,
+                }}>
+                  <span style={{
+                    fontFamily: 'Inter',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#ffffff',
+                    lineHeight: 1,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                  }}>
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Share Button (with Dropdown Menu) */}
+            <div style={{ position: 'relative' }}>
+              <div 
+                onClick={handleShare}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 11,
+                  background: shareMenuOpen 
+                    ? 'linear-gradient(135deg, rgba(160,85,247,0.25), rgba(236,153,153,0.2))'
+                    : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${shareMenuOpen ? 'rgba(160,85,247,0.5)' : 'rgba(62,72,78,0.25)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+                onMouseEnter={e => {
+                  if (!shareMenuOpen) {
+                    e.currentTarget.style.background = 'rgba(160,85,247,0.1)'
+                    e.currentTarget.style.borderColor = 'rgba(160,85,247,0.35)'
+                  }
+                  e.currentTarget.style.transform = 'scale(1.08)'
+                }}
+                onMouseLeave={e => {
+                  if (!shareMenuOpen) {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                    e.currentTarget.style.borderColor = 'rgba(62,72,78,0.25)'
+                  }
+                  e.currentTarget.style.transform = 'scale(1)'
+                }}
+              >
+                <i className="fa-solid fa-share-nodes" style={{ 
+                  fontSize: 16, 
+                  color: shareMenuOpen ? '#A055F7' : '#e8e8e8',
+                  transform: shareMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  filter: shareMenuOpen ? 'drop-shadow(0 0 8px rgba(160,85,247,0.6))' : 'none',
+                }} />
+              </div>
+
+              {/* ═══ DROPDOWN MENU (Opens downward from header) ═══ */}
+              {shareMenuOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 10px)',
+                  right: 0,
+                  minWidth: 240,
+                  background: '#16161a',
+                  border: '1px solid rgba(160,85,247,0.3)',
+                  borderRadius: 16,
+                  padding: 10,
+                  boxShadow: `
+                    0 12px 48px rgba(0,0,0,0.7),
+                    0 0 24px rgba(160,85,247,0.2),
+                    inset 0 1px 0 rgba(255,255,255,0.08)
+                  `,
+                  zIndex: 2000,
+                  animation: 'headerDropDown 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                }}>
+                  
+                  {/* Dropdown Header */}
+                  <div style={{
+                    padding: '12px 14px 10px',
+                    borderBottom: '1px solid rgba(255,255,255,0.08)',
+                    marginBottom: 8,
+                  }}>
+                    <div style={{
+                      fontFamily: 'Plus Jakarta Sans',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#A055F7',
+                      letterSpacing: '0.12em',
+                      textTransform: 'uppercase',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 7,
+                    }}>
+                      <i className="fa-solid fa-bullhorn" style={{ fontSize: 11 }} />
+                      Share Tournament
+                    </div>
+                  </div>
+
+                  {/* Copy Link Option */}
+                  <div
+                    onClick={handleCopyLink}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      cursor: 'pointer',
+                      background: copiedLink ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${copiedLink ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                      marginBottom: 6,
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={e => {
+                      if (!copiedLink) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                        e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)'
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!copiedLink) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                        e.currentTarget.style.border = '1px solid rgba(255,255,255,0.06)'
+                      }
+                    }}
+                  >
+                    <div style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: copiedLink ? 'rgba(16,185,129,0.2)' : 'rgba(97,205,255,0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <i className={`fas ${copiedLink ? 'fa-check' : 'fa-link'}`} 
+                         style={{ 
+                           fontSize: 15, 
+                           color: copiedLink ? '#10B981': '#61cdff',
+                           fontWeight: 900,
+                         }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: copiedLink ? '#10B981' : '#e8e8e8',
+                        lineHeight: 1.2,
+                      }}>
+                        {copiedLink ? '✓ Copied!' : 'Copy Link'}
+                      </div>
+                      {!copiedLink && (
+                        <div style={{
+                          fontFamily: 'Inter',
+                          fontSize: 10,
+                          color: '#555555',
+                          marginTop: 3,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {getMatchUrl(match.id)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div style={{
+                    height: 1,
+                    background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent)',
+                    margin: '10px 10px',
+                  }} />
+
+                  {/* Social Media Grid (2x2) */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 8,
+                  }}>
+                    
+                    {/* WhatsApp */}
+                    <div
+                      onClick={() => handleSocialShare('whatsapp')}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '16px 12px',
+                        borderRadius: 12,
+                        cursor: 'pointer',
+                        background: 'rgba(37,211,102,0.08)',
+                        border: '1px solid rgba(37,211,102,0.15)',
+                        transition: 'all 0.25s ease',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(37,211,102,0.15)'
+                        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(37,211,102,0.08)'
+                        e.currentTarget.style.transform = 'translateY(0) scale(1)'
+                      }}
+                    >
+                      <i className="fab fa-whatsapp" style={{ fontSize: 24, color: '#25D366' }} />
+                      <span style={{
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: '#25D366',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}>WhatsApp</span>
+                    </div>
+
+                    {/* Facebook */}
+                    <div
+                      onClick={() => handleSocialShare('facebook')}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '16px 12px',
+                        borderRadius: 12,
+                        cursor: 'pointer',
+                        background: 'rgba(59,89,152,0.08)',
+                        border: '1px solid rgba(59,89,152,0.15)',
+                        transition: 'all 0.25s ease',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(59,89,152,0.15)'
+                        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(59,89,152,0.08)'
+                        e.currentTarget.style.transform = 'translateY(0) scale(1)'
+                      }}
+                    >
+                      <i className="fab fa-facebook-f" style={{ fontSize: 22, color: '#4267B2' }} />
+                      <span style={{
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: '#4267B2',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}>Facebook</span>
+                    </div>
+
+                    {/* Telegram */}
+                    <div
+                      onClick={() => handleSocialShare('telegram')}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '16px 12px',
+                        borderRadius: 12,
+                        cursor: 'pointer',
+                        background: 'rgba(0,136,204,0.08)',
+                        border: '1px solid rgba(0,136,204,0.15)',
+                        transition: 'all 0.25s ease',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(0,136,204,0.15)'
+                        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(0,136,204,0.08)'
+                        e.currentTarget.style.transform = 'translateY(0) scale(1)'
+                      }}
+                    >
+                      <i className="fab fa-telegram" style={{ fontSize: 24, color: '#0088cc' }} />
+                      <span style={{
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: '#0088cc',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}>Telegram</span>
+                    </div>
+
+                    {/* Twitter/X */}
+                    <div
+                      onClick={() => handleSocialShare('twitter')}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '16px 12px',
+                        borderRadius: 12,
+                        cursor: 'pointer',
+                        background: 'rgba(29,161,242,0.08)',
+                        border: '1px solid rgba(29,161,242,0.15)',
+                        transition: 'all 0.25s ease',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(29,161,242,0.15)'
+                        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(29,161,242,0.08)'
+                        e.currentTarget.style.transform = 'translateY(0) scale(1)'
+                      }}
+                    >
+                      <i className="fab fa-twitter" style={{ fontSize: 21, color: '#1DA1F2' }} />
+                      <span style={{
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: '#1DA1F2',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}>Twitter</span>
+                    </div>
+                  </div>
+
+                  {/* Footer Note */}
+                  <div style={{
+                    marginTop: 10,
+                    padding: '10px 14px',
+                    background: 'rgba(160,85,247,0.05)',
+                    borderRadius: 10,
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      fontFamily: 'Inter',
+                      fontSize: 9,
+                      fontWeight: 500,
+                      color: '#889299',
+                      lineHeight: 1.4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 5,
+                    }}>
+                      <i className="fa-solid fa-lock" style={{ fontSize: 9, opacity: 0.6 }} />
+                      Secure sharing • No login required • Instant
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* ═══ END DROPDOWN MENU ═══ */}
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* ═══ END PROFESSIONAL FIXED HEADER BAR ═══ */}
 
       {/* BANNER */}
       <div style={{
@@ -662,7 +1300,7 @@ export default function MatchDetail() {
         <div style={{ marginBottom: 20, ...esportsCard, padding: '32px 16px', textAlign: 'center' }}>
           <i className="fa-solid fa-hourglass-half" style={{ fontSize: 24, color: '#555555', display: 'block', marginBottom: 10 }} />
           <div style={{ fontSize: 14, fontWeight: 600, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans' }}>Results Pending</div>
-          <div style={{ fontSize: 12, color: '#555555', fontFamily: 'Plus Jakarta Sans', marginTop: 4 }}>Admin hasn&#39;t submitted results yet.</div>
+          <div style={{ fontSize: 12, color: '#555555', fontFamily: 'Plus Jakarta Sans', marginTop: 4 }}>Admin hasn't submitted results yet.</div>
         </div>
       )}
 
@@ -795,7 +1433,7 @@ export default function MatchDetail() {
         </div>
       )}
 
-      {/* ═══ PHASE 4.4: NO REFUND WARNING — shown before join button ═══ */}
+      {/* ═══ PHASE 4.4: NO REFUND WARNING ═══ */}
       {cu && !joined && !full && phase !== 'completed' && (
         <div style={{
           borderRadius: 10, overflow: 'hidden', marginBottom: 14,
@@ -853,7 +1491,9 @@ export default function MatchDetail() {
           </div>
         </div>
       )}
-      {/* ═══ END PHASE 4.4 ═══ */}
+      {/* ═══ END NO REFUND WARNING ═══ */}
+
+      {/* ✅ NOTE: OLD SHARE BUTTON SECTION REMOVED - Now in Professional Header Bar! */}
 
       {/* ACTION BAR */}
       <div>

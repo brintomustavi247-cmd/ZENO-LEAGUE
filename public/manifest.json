@@ -1,0 +1,102 @@
+{
+  "name": "Zeno League",
+  "short_name": "Zeno League",
+  "description": "Free Fire Custom Room Tournament Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "scope": "/",
+  "background_color": "#0e0e10",
+  "theme_color": "#0e0e10",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "games"],
+  "screenshots": [
+    {
+      "src": "/icons/icon-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Join Match",
+      "short_name": "Join",
+      "description": "Quickly join a Free Fire tournament match",
+      "url": "/matches",
+      "icons": [
+        {
+          "src": "/icons/icon-192.webp",
+          "sizes": "192x192",
+          "type": "image/webp"
+        },
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Leaderboard",
+      "short_name": "Rankings",
+      "description": "View tournament leaderboard",
+      "url": "/leaderboard",
+      "icons": [
+        {
+          "src": "/icons/icon-192.webp",
+          "sizes": "192x192",
+          "type": "image/webp"
+        },
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

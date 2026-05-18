@@ -140,16 +140,20 @@ export default function Login({ mode: initialMode }) {
 
   const handleLogin = (e) => {
     e.preventDefault()
+    const form = e.currentTarget
+    const fields = form?.querySelectorAll('input') || []
+    const submittedLogin = (fields[0]?.value || loginPhone).trim()
+    const submittedPassword = fields[1]?.value || loginPass
     setError('')
     if (role === 'admin') {
-      if (!loginPhone.trim() || !loginPass.trim()) {
+      if (!submittedLogin || !submittedPassword.trim()) {
         setError('Enter username and password')
         return
       }
     } else {
-      if (!loginPhone.trim()) { setError('Enter your phone number'); return }
-      if (!/^01\d{9}$/.test(loginPhone.trim())) { setError('Enter valid BD number (01XXXXXXXXX)'); return }
-      if (!loginPass.trim()) { setError('Enter your password'); return }
+      if (!submittedLogin) { setError('Enter your phone number'); return }
+      if (!/^01\d{9}$/.test(submittedLogin)) { setError('Enter valid BD number (01XXXXXXXXX)'); return }
+      if (!submittedPassword.trim()) { setError('Enter your password'); return }
     }
 
     setLoading(true)
@@ -158,8 +162,8 @@ export default function Login({ mode: initialMode }) {
       dispatch({
         type: actionType,
         payload: role === 'admin'
-          ? { username: loginPhone.trim(), password: loginPass }
-          : { phone: loginPhone.trim(), password: loginPass },
+          ? { username: submittedLogin, password: submittedPassword }
+          : { phone: submittedLogin, password: submittedPassword },
       })
       setLoading(false)
 
@@ -178,29 +182,38 @@ export default function Login({ mode: initialMode }) {
 
   const handleRegister = (e) => {
     e.preventDefault()
+    const form = e.currentTarget
+    const fields = form?.querySelectorAll('input') || []
+    const submittedRegName = (fields[0]?.value || regName).trim()
+    const submittedRegUid = (fields[1]?.value || regUid).trim()
+    const submittedRegIgn = (fields[2]?.value || regIgn).trim()
+    const submittedRegPhone = (fields[3]?.value || regPhone).trim()
+    const submittedRegEmail = (fields[4]?.value || regEmail).trim()
+    const submittedRegPass = fields[5]?.value || regPass
+    const submittedRegConfirm = fields[6]?.value || regConfirm
     setRegError('')
-    if (!regName.trim()) { setRegError('Display name is required'); return }
-    if (!regUid.trim()) { setRegError('Free Fire UID is required'); return }
-    if (!regIgn.trim()) { setRegError('In-game name is required'); return }
-    if (!regPhone.trim()) { setRegError('Phone number is required'); return }
-    if (!/^01\d{9}$/.test(regPhone.trim())) { setRegError('Enter valid BD number (01XXXXXXXXX)'); return }
-    if (regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) { setRegError('Enter valid email address'); return }
-    if (!regPass.trim()) { setRegError('Password is required'); return }
-    if (regPass.length < 4) { setRegError('Password must be at least 4 characters'); return }
-    if (regPass !== regConfirm) { setRegError('Passwords do not match'); return }
+    if (!submittedRegName) { setRegError('Display name is required'); return }
+    if (!submittedRegUid) { setRegError('Free Fire UID is required'); return }
+    if (!submittedRegIgn) { setRegError('In-game name is required'); return }
+    if (!submittedRegPhone) { setRegError('Phone number is required'); return }
+    if (!/^01\d{9}$/.test(submittedRegPhone)) { setRegError('Enter valid BD number (01XXXXXXXXX)'); return }
+    if (submittedRegEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submittedRegEmail)) { setRegError('Enter valid email address'); return }
+    if (!submittedRegPass.trim()) { setRegError('Password is required'); return }
+    if (submittedRegPass.length < 4) { setRegError('Password must be at least 4 characters'); return }
+    if (submittedRegPass !== submittedRegConfirm) { setRegError('Passwords do not match'); return }
 
-    const username = regIgn.trim().toLowerCase().replace(/\s+/g, '_')
+    const username = submittedRegIgn.toLowerCase().replace(/\s+/g, '_')
     dispatch({
       type: 'LOGIN',
       payload: {
         id: 'u_' + Date.now(),
         username: username,
-        password: regPass,
+        password: submittedRegPass,
         role: 'user',
-        name: regName.trim(),
-        displayName: regName.trim(),
-        ign: regIgn.trim(),
-        uid: regUid.trim(),
+        name: submittedRegName,
+        displayName: submittedRegName,
+        ign: submittedRegIgn,
+        uid: submittedRegUid,
         avatar: null,
         balance: 0,
         kills: 0,
@@ -212,8 +225,8 @@ export default function Login({ mode: initialMode }) {
         status: 'active',
         forcePasswordChange: false,
         permissions: [],
-        phone: regPhone.trim(),
-        email: regEmail.trim(),
+        phone: submittedRegPhone,
+        email: submittedRegEmail,
         createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       },
     })

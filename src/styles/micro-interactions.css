@@ -1,0 +1,180 @@
+/* src/styles/micro-interactions.css */
+
+/* ===================================
+   Micro-Interactions Library
+   Subtle feedback for user actions
+   All under 200ms for snappy feel
+   =================================== */
+
+/* BUTTON BASE STATE */
+.btn-interactive {
+  position: relative;
+  overflow: hidden;
+  transition: 
+    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+  will-change: transform;
+}
+
+.btn-interactive:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 255, 255, 0.15);
+}
+
+.btn-interactive:active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: 0.05s; /* Faster on click */
+}
+
+/* RIPPLE EFFECT (Material Design inspired) */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s, height 0.4s;
+}
+
+.btn-ripple:active::after {
+  width: 200px;
+  height: 200px;
+}
+
+/* CARD HOVER EFFECTS */
+.card-interactive {
+  transition: 
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+  will-change: transform;
+}
+
+.card-interactive:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 255, 255, 0.2);
+  border-color: rgba(0, 255, 255, 0.3);
+}
+
+/* LINK UNDERLINE SLIDE */
+.link-animated {
+  position: relative;
+  text-decoration: none;
+}
+
+.link-animated::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: currentColor;
+  transition: width 0.25s ease;
+}
+
+.link-animated:hover::after {
+  width: 100%;
+}
+
+/* ═══ INPUT FOCUS RING ═══ */
+.input-focus-ring:focus {
+  outline: none;
+  border-color: var(--primary, #61cdff);
+  box-shadow: 0 0 0 3px rgba(97, 205, 255, 0.15);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ═══ BADGE POP-IN ANIMATION ═══ */
+.badge-animate {
+  animation: badgePopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes badgePopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ═══ TOOLTIP APPEARANCE ═══ */
+.tooltip-enter {
+  animation: tooltipFadeIn 0.2s ease forwards;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══ LOADING DOTS ANIMATION ═══ */
+.loading-dots::after {
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
+
+/* ═══ REDUCED MOTION FALLBACKS ═══ */
+@media (prefers-reduced-motion: reduce) {
+  .btn-interactive,
+  .card-interactive {
+    transition: none;
+    transform: none;
+  }
+  
+  .btn-interactive:hover,
+  .card-interactive:hover {
+    transform: none;
+  }
+  
+  .link-animated::after {
+    transition: none;
+    width: 100%; /* Always show underline */
+  }
+  
+  .btn-ripple::after {
+    transition: none;
+  }
+  
+  .badge-animate {
+    animation: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+  
+  .tooltip-enter {
+    animation: none;
+    opacity: 1;
+  }
+  
+  .loading-dots::after {
+    animation: none;
+    content: '...'; /* Always show dots */
+  }
+}

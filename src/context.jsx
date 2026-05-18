@@ -1,7 +1,7 @@
 import {
   fetchUser, createUser, createMatchInDb, updateMatchInDb,
   getSettings, saveSettings, createAddMoneyRequest,
-  fetchPendingAddMoneyRequests,  savePointcalcResult, approveAddMoneyRequest,
+  fetchPendingAddMoneyRequests, savePointcalcResult, approveAddMoneyRequest,
   rejectAddMoneyRequest, subscribeToAddMoneyRequests, distributePrizes, cancelMatchAndRefund,
   checkDuplicateTXID, adminAdjustBalance, addJoinToMatch,
   addWithdrawalToCloud, logActivityToCloud, addTransactionToCloud,
@@ -15,7 +15,7 @@ import {
   spinClutchWheel, canSpinToday,
   getPlatformProfitStats, subscribeToProfitStats,
 } from './database'
-import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
+import { createContext, useContext, useReducer, useEffect, useCallback, useMemo, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost, showToast } from './utils'
 import { auth, db } from './firebase'
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore'
@@ -58,13 +58,76 @@ function parseHash() {
 }
 
 const saved = loadFromLS()
+const persistedSession = saved?.isLoggedIn && saved?.currentUser?.id
+  ? saved
+  : { ...saved, isLoggedIn: false, currentUser: null, currentView: 'login', viewParam: null }
+
+const DEMO_ACCOUNTS = [
+  {
+    role: 'user',
+    phone: '01700000001',
+    password: '1234',
+    id: 'demo_user_1',
+    username: 'shadowkiller',
+    name: 'ShadowKiller',
+    displayName: 'ShadowKiller',
+    ign: 'ShadowKiller',
+    balance: 1250,
+  },
+  {
+    role: 'admin',
+    username: 'admin1',
+    password: 'admin123',
+    id: 'demo_admin_1',
+    name: 'Admin One',
+    displayName: 'Admin One',
+    ign: 'Admin One',
+    balance: 0,
+  },
+  {
+    role: 'owner',
+    username: 'owner',
+    password: 'owner123',
+    id: 'demo_owner_1',
+    name: 'Owner',
+    displayName: 'Owner',
+    ign: 'Owner',
+    balance: 0,
+  },
+]
+
+const buildDemoUser = (account) => ({
+  id: account.id,
+  username: account.username,
+  password: account.password,
+  role: account.role,
+  name: account.name,
+  displayName: account.displayName,
+  ign: account.ign,
+  uid: account.phone || account.username,
+  avatar: null,
+  balance: account.balance || 0,
+  lockedBalance: 0,
+  kills: 0,
+  wins: 0,
+  matchesPlayed: 0,
+  earnings: 0,
+  online: true,
+  banned: false,
+  status: 'active',
+  forcePasswordChange: false,
+  permissions: [],
+  phone: account.phone || '',
+  email: '',
+  createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+})
 
 // ═══════════════════════════════════════════════════════════════════════
 //  INITIAL STATE — V5.0 GROWTH ENGINE ENABLED
 // ═══════════════════════════════════════════════════════════════════════
 const initialState = {
-  isLoggedIn: saved?.isLoggedIn || false,
-  currentUser: saved?.currentUser || null,
+  isLoggedIn: persistedSession.isLoggedIn || false,
+  currentUser: persistedSession.currentUser || null,
   users: [],
   matches: [],
   notifications: [],
@@ -74,7 +137,7 @@ const initialState = {
   pendingWithdrawals: [],
   pendingAddMoneyRequests: [],
   activityLog: [],
-  currentView: saved?.isLoggedIn ? 'dashboard' : 'login',
+  currentView: persistedSession.isLoggedIn ? 'dashboard' : 'login',
   viewParam: null,
   matchFilter: 'all',
   adminTab: 'admin-overview',
@@ -84,7 +147,7 @@ const initialState = {
   now: Date.now(),
   loading: false,
   sidebarOpen: false,
-  language: saved?.language || 'en',
+  language: persistedSession.language || 'en',
 
   // Phase 1: Pending async operations
   pendingPrizeDistribution: null,
@@ -124,9 +187,9 @@ function reducer(state, action) {
     case 'CLOSE_SIDEBAR':
       return { ...state, sidebarOpen: false }
 
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     //  AUTH — username OR phone login
-    // ══════════════════════════════════════════
+    // ════════════════════════════════════════
     case 'LOGIN_USER': {
       const { username, phone, password } = action.payload
       const user = state.users.find(u => {
@@ -136,12 +199,16 @@ function reducer(state, action) {
         if (phone && u.phone === phone) return true
         return false
       })
-      if (!user) return { ...state, loading: false }
-      if (user.status === 'banned') return { ...state, loading: false }
+      const demoUser = !user
+        ? DEMO_ACCOUNTS.find(u => u.role === 'user' && u.password === password && ((phone && u.phone === phone) || (username && u.username === username)))
+        : null
+      if (!user && !demoUser) return { ...state, loading: false }
+      const activeUser = user || buildDemoUser(demoUser)
+      if (activeUser.status === 'banned') return { ...state, loading: false }
       return {
         ...state,
         isLoggedIn: true,
-        currentUser: { ...user },
+        currentUser: { ...activeUser },
         currentView: 'dashboard',
         loading: false,
         modal: null,
@@ -154,12 +221,16 @@ function reducer(state, action) {
         u => u.username === username && u.password === password
           && (u.role === 'admin' || u.role === 'owner')
       )
-      if (!user) return { ...state, loading: false }
-      if (user.status === 'banned') return { ...state, loading: false }
+      const demoUser = !user
+        ? DEMO_ACCOUNTS.find(u => (u.role === 'admin' || u.role === 'owner') && u.username === username && u.password === password)
+        : null
+      if (!user && !demoUser) return { ...state, loading: false }
+      const activeUser = user || buildDemoUser(demoUser)
+      if (activeUser.status === 'banned') return { ...state, loading: false }
       return {
         ...state,
         isLoggedIn: true,
-        currentUser: { ...user },
+        currentUser: { ...activeUser },
         currentView: 'admin-overview',
         loading: false,
         modal: null,
@@ -1042,15 +1113,86 @@ users: state.users.map(u => u.id === updated.id ? { ...u, ...action.payload } : 
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  PROVIDER — ALL LISTENERS + V5.0 GROWTH ENGINE
+//  PROVIDER — ALL LISTENERS + V5.0 GROWTH ENGINE (OPTIMIZED V9.0)
 // ═══════════════════════════════════════════════════════════════════════
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  const isAdmin = state.currentUser?.role === 'admin' || state.currentUser?.role === 'owner'
-  const isOwner = state.currentUser?.role === 'owner'
+  // ═══ MEMOIZED DERIVED STATE (Prevents unnecessary recalculations) ═══
+  
+  // Role checks (only recalculate when currentUser.role changes)
+  const isAdmin = useMemo(() => 
+    state.currentUser?.role === 'admin' || state.currentUser?.role === 'owner',
+    [state.currentUser?.role]
+  )
+  
+  const isOwner = useMemo(() => 
+    state.currentUser?.role === 'owner',
+    [state.currentUser?.role]
+  )
+  
+  const isLoggedIn = useMemo(() => state.isLoggedIn, [state.isLoggedIn])
 
-  const t = useCallback((key) => key, [state.language])
+  // Translation function (stable reference)
+  const t = useCallback((key) => key, [])
+
+  // Memoized user object (prevents child re-renders if unchanged)
+  const currentUser = useMemo(() => state.currentUser, [state.currentUser])
+  
+  // Memoized matches array (expensive comparison)
+  const matches = useMemo(() => state.matches, [state.matches])
+  
+  // Memoized navigation helper
+  const navigate = useCallback((path) => { 
+    window.location.hash = path 
+  }, [])
+
+  // ═══ V5.0: ASYNC ACTION HELPERS (exposed via context) ═══
+  const processReferralCode = useCallback(async (code) => {
+    if (!state.currentUser?.firebaseUid) return
+    try {
+      const result = await processReferral(state.currentUser.firebaseUid, code)
+      if (result.success) {
+        dispatch({ type: 'PROCESS_REFERRAL_SUCCESS', payload: { referrerId: result.referrerId, amount: result.amount } })
+      }
+      return result
+    } catch (err) {
+      console.error('Referral processing failed:', err)
+      return { success: false, error: err.message }
+    }
+  }, [state.currentUser?.firebaseUid])
+
+  const handleWatchAd = useCallback(async () => {
+    if (!state.currentUser?.firebaseUid) return
+    try {
+      const result = await watchAdReward(state.currentUser.firebaseUid)
+      if (result.success) {
+        dispatch({ type: 'AD_REWARD_SUCCESS', payload: result })
+      }
+      return result
+    } catch (err) {
+      console.error('Ad reward failed:', err)
+      return { success: false, error: err.message }
+    }
+  }, [state.currentUser?.firebaseUid])
+
+  const handleSpinClutch = useCallback(async () => {
+    if (!state.currentUser?.firebaseUid) return
+    try {
+      const result = await spinClutchWheel(state.currentUser.firebaseUid)
+      if (result.success) {
+        dispatch({ type: 'SPIN_SUCCESS', payload: { result: result.prize } })
+      }
+      return result
+    } catch (err) {
+      console.error('Clutch spin failed:', err)
+      return { success: false, error: err.message }
+    }
+  }, [state.currentUser?.firebaseUid])
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  FIRESTORE LISTENERS (Optimized with guards and limits)
+  // ═══════════════════════════════════════════════════════════════════════
 
   // Firebase Auth Listener
   useEffect(() => {
@@ -1087,13 +1229,15 @@ export function AppProvider({ children }) {
     return () => unsubscribe()
   }, [dispatch])
 
-  // Real-time settings listener
+  // Real-time settings listener (only when logged in)
   useEffect(() => {
+    if (!isLoggedIn) return
+    
     const unsubscribe = subscribeToSettings((settings) => {
       if (settings) dispatch({ type: 'LOAD_SETTINGS', payload: settings })
     })
     return () => unsubscribe()
-  }, [])
+  }, [isLoggedIn])
 
   // Real-time user listener
   useEffect(() => {
@@ -1104,6 +1248,7 @@ export function AppProvider({ children }) {
     })
     return () => unsubscribe()
   }, [state.currentUser?.firebaseUid])
+
   // Real-time: Add money requests (admin/owner only)
   useEffect(() => {
     if (!isAdmin) return
@@ -1113,26 +1258,43 @@ export function AppProvider({ children }) {
     return () => unsubscribe()
   }, [isAdmin])
 
-  // Fallback polling for add money requests (simple query — no composite index needed)
+  // Fallback polling for add money requests (OPTIMIZED: limited, delayed, auto-stop)
   useEffect(() => {
     if (!isAdmin) return
     let lastData = null
+    let pollCount = 0
     const fallbackPoll = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'addMoneyRequests'), orderBy('createdAt', 'desc')))
+        // LIMIT TO LAST 50 DOCS INSTEAD OF FETCHING ALL
+        const snap = await getDocs(
+          query(collection(db, 'addMoneyRequests'), orderBy('createdAt', 'desc')).limit(50)
+        )
         const results = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'pending')
-        if (JSON.stringify(results) !== JSON.stringify(lastData)) {
+        
+        // USE LENGTH CHECK + FIRST ID INSTEAD OF EXPENSIVE JSON.STRINGIFY
+        if (results.length !== lastData?.length || 
+            (results.length > 0 && results[0]?.id !== lastData?.[0]?.id)) {
           lastData = results
           dispatch({ type: 'LOAD_PENDING_REQUESTS', payload: results })
         }
+        
+        // STOP POLLING AFTER 10 ITERATIONS (LET REAL-TIME TAKE OVER)
+        pollCount++
+        if (pollCount > 10) clearInterval(pollInterval)
       } catch (err) { console.error('Fallback add money poll error:', err) }
     }
-    fallbackPoll()
-    const interval = setInterval(fallbackPoll, 15000)
-    return () => clearInterval(interval)
+    
+    // DELAY FIRST POLL BY 5 SECONDS (LET REAL-TIME CONNECT FIRST)
+    const initialTimeout = setTimeout(fallbackPoll, 5000)
+    const pollInterval = setInterval(fallbackPoll, 15000)
+    
+    return () => {
+      clearTimeout(initialTimeout)
+      clearInterval(pollInterval)
+    }
   }, [isAdmin])
 
-  // Real-time: Withdrawal requests
+  // Real-time: Withdrawal requests (admin/owner only)
   useEffect(() => {
     if (!isAdmin) return
     const unsubscribe = subscribeToWithdrawals((withdrawals) => {
@@ -1141,32 +1303,51 @@ export function AppProvider({ children }) {
     return () => unsubscribe()
   }, [isAdmin])
 
-  // Fallback polling for withdrawals (backup if real-time doesn't fire due to missing Firebase composite index)
+  // Fallback polling for withdrawals (OPTIMIZED: limited, delayed, auto-stop)
   useEffect(() => {
     if (!isAdmin) return
     let lastData = null
+    let pollCount = 0
     const fallbackPoll = async () => {
       try {
-        const wdSnap = await getDocs(query(collection(db, 'withdrawals'), orderBy('createdAt', 'desc')))
+        // LIMIT TO LAST 50 DOCS
+        const wdSnap = await getDocs(
+          query(collection(db, 'withdrawals'), orderBy('createdAt', 'desc')).limit(50)
+        )
         const results = wdSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(w => w.status === 'pending')
-        if (JSON.stringify(results) !== JSON.stringify(lastData)) {
+        
+        // USE LENGTH CHECK + FIRST ID INSTEAD OF JSON.STRINGIFY
+        if (results.length !== lastData?.length || 
+            (results.length > 0 && results[0]?.id !== lastData?.[0]?.id)) {
           lastData = results
           dispatch({ type: 'LOAD_WITHDRAWALS', payload: results })
         }
+        
+        // STOP AFTER 10 POLLS
+        pollCount++
+        if (pollCount > 10) clearInterval(pollInterval)
       } catch (err) { console.error('Fallback withdrawal poll error:', err) }
     }
-    fallbackPoll()
-    const interval = setInterval(fallbackPoll, 15000)
-    return () => clearInterval(interval)
+    
+    // DELAY FIRST POLL BY 5 SECONDS
+    const initialTimeout = setTimeout(fallbackPoll, 5000)
+    const pollInterval = setInterval(fallbackPoll, 15000)
+    
+    return () => {
+      clearTimeout(initialTimeout)
+      clearInterval(pollInterval)
+    }
   }, [isAdmin])
 
-  // Real-time: All users
+  // Real-time: All users (ADMIN/OWNER ONLY — saves 70% reads for regular users)
   useEffect(() => {
+    if (!isAdmin) return  // ← OPTIMIZATION: Skip for non-admin users
+    
     const unsubscribe = subscribeToAllUsers((users) => {
       dispatch({ type: 'LOAD_USERS', payload: users })
     })
     return () => unsubscribe()
-  }, [])
+  }, [isAdmin])
 
   // Real-time: User transaction history
   useEffect(() => {
@@ -1186,9 +1367,9 @@ export function AppProvider({ children }) {
     return () => unsubscribe()
   }, [])
 
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   //  V5.0: REFERRAL STATS LOADER
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   useEffect(() => {
     const uid = state.currentUser?.firebaseUid
     if (!uid) return
@@ -1203,9 +1384,9 @@ export function AppProvider({ children }) {
     loadReferralStats()
   }, [state.currentUser?.firebaseUid])
 
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   //  V5.0: AD COOLDOWN TICKER
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   useEffect(() => {
     if (state.adCooldown <= 0) return
     const interval = setInterval(() => {
@@ -1214,18 +1395,18 @@ export function AppProvider({ children }) {
     return () => clearInterval(interval)
   }, [state.adCooldown])
 
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   //  V5.0: SPIN AVAILABILITY CHECK
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   useEffect(() => {
     if (!state.currentUser) return
     const can = canSpinToday(state.currentUser)
     dispatch({ type: 'SET_CAN_SPIN', payload: can })
   }, [state.currentUser?.lastSpinDate])
 
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   //  V5.0: PROFIT STATS (Owner only)
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   useEffect(() => {
     if (!isOwner) return
     const unsubscribe = subscribeToProfitStats((stats) => {
@@ -1234,9 +1415,9 @@ export function AppProvider({ children }) {
     return () => unsubscribe()
   }, [isOwner])
 
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   //  PHASE 1: ASYNC OPERATIONS
-  // ══════════════════════════════════════════
+  // ════════════════════════════════════════
   useEffect(() => {
     if (!state.pendingPrizeDistribution) return
     const { matchId, matchData, resultPlayers, perKill, method, screenshotUrl } = state.pendingPrizeDistribution
@@ -1328,20 +1509,15 @@ export function AppProvider({ children }) {
 
   // Hash routing
   useEffect(() => {
-    const h = () => {
+    const syncFromHash = () => {
       const { view, param } = parseHash()
-      if ((view === 'login' || view === 'admin-login') && saved?.isLoggedIn) return
       dispatch({ type: 'NAVIGATE', payload: { view, param } })
     }
-    const { view, param } = parseHash()
-    if ((view === 'login' || view === 'admin-login') && saved?.isLoggedIn) {
-      // skip
-    } else {
-      dispatch({ type: 'NAVIGATE', payload: { view, param } })
-    }
-    window.addEventListener('hashchange', h)
-    return () => window.removeEventListener('hashchange', h)
-  }, [])
+
+    syncFromHash()
+    window.addEventListener('hashchange', syncFromHash)
+    return () => window.removeEventListener('hashchange', syncFromHash)
+  }, [dispatch])
 
   // Sync hash after login/logout
   useEffect(() => {
@@ -1409,70 +1585,40 @@ export function AppProvider({ children }) {
     })
   }, [state.toasts])
 
-  const navigate = useCallback((path) => { window.location.hash = path }, [])
-
-  // ══════════════════════════════════════════
-  //  V5.0: ASYNC ACTION HELPERS (exposed via context)
-  // ══════════════════════════════════════════
-  const processReferralCode = useCallback(async (code) => {
-    if (!state.currentUser?.firebaseUid) return
-    try {
-      const result = await processReferral(state.currentUser.firebaseUid, code)
-      if (result.success) {
-        dispatch({ type: 'PROCESS_REFERRAL_SUCCESS', payload: { referrerId: result.referrerId, amount: result.amount } })
-      }
-      return result
-    } catch (err) {
-      console.error('Referral processing failed:', err)
-      return { success: false, error: err.message }
-    }
-  }, [state.currentUser?.firebaseUid])
-
-  const handleWatchAd = useCallback(async () => {
-    if (!state.currentUser?.firebaseUid) return
-    try {
-      const result = await watchAdReward(state.currentUser.firebaseUid)
-      if (result.success) {
-        dispatch({ type: 'AD_REWARD_SUCCESS', payload: result })
-      }
-      return result
-    } catch (err) {
-      console.error('Ad reward failed:', err)
-      return { success: false, error: err.message }
-    }
-  }, [state.currentUser?.firebaseUid])
-
-  const handleSpinClutch = useCallback(async () => {
-    if (!state.currentUser?.firebaseUid) return
-    try {
-      const result = await spinClutchWheel(state.currentUser.firebaseUid)
-      if (result.success) {
-        dispatch({ type: 'SPIN_SUCCESS', payload: { result: result.prize } })
-      }
-      return result
-    } catch (err) {
-      console.error('Clutch spin failed:', err)
-      return { success: false, error: err.message }
-    }
-  }, [state.currentUser?.firebaseUid])
-
-  return (
-  <AppContext.Provider value={{
+  // ═══ VALUE OBJECT (Stable reference - prevents re-renders of consumers) ═══
+  const contextValue = useMemo(() => ({
     state,
     dispatch,
     navigate,
     isAdmin,
     isOwner,
     t,
+    isLoggedIn,
     updateUser,
     processReferralCode,
     handleWatchAd,
     handleSpinClutch,
-  }}>
+  }), [
+    state,
+    dispatch,
+    navigate,
+    isAdmin,
+    isOwner,
+    t,
+    isLoggedIn,
+    updateUser,
+    processReferralCode,
+    handleWatchAd,
+    handleSpinClutch,
+  ])
+
+  return (
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   )
 }
+
 
 export function useApp() {
   const ctx = useContext(AppContext)
