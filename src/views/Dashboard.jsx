@@ -571,21 +571,6 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* UPCOMING MATCHES */}
-        {matches.filter(m => m.status === 'upcoming').length > 0 && (
-          <section className="dashboard-section">
-            <div className="section-header-v4">
-              <h2 className="section-title-v4">Upcoming</h2>
-              <span className="view-all-v4" onClick={() => navigate('matches')}>{t('common.view_all')} <i className="fa-solid fa-arrow-right" /></span>
-            </div>
-            <div className="matches-stack-v4">
-              {matches.filter(m => m.status === 'upcoming').slice(0, 3).map(match => (
-                <MatchCard key={match.id} match={match} compact />
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* V6.0: TOP SQUADS (Replaces Top Characters) */}
         <TopSquadsSectionV4 t={t} squads={squads} onNavigate={navigate} />
 
