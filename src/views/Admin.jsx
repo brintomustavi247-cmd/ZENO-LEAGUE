@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useApp } from '../context'
-import { formatTK, formatTKShort, calculateMatchEconomics, calculateResultPrize, calculateAllResultPrizes, getRoomUnlockCountdown, maxSlotsForMode, showToast } from '../utils'
-import { approveAddMoneyRequest, rejectAddMoneyRequest, getPlatformProfitStats, getTierFromXP, TIERS } from "../database"
+import { formatTK, formatTKShort, calculateMatchEconomics, calculateCeilingEconomics, calculateResultPrize, calculateAllResultPrizes, getRoomUnlockCountdown, maxSlotsForMode, showToast } from '../utils'
+import { approveAddMoneyRequest, rejectAddMoneyRequest, getPlatformProfitStats, getTierFromXP, TIERS, createMatchInDb } from "../database"
 import { FF_MAPS, FF_MODES, FF_GAME_TYPES, KILL_REWARDS, RESULT_METHODS } from '../data'
 import { auth } from '../firebase'
+import PrizeEditor from '../components/PrizeEditor'
+import { calculateMatchEconomicsV2, generatePrizePreview } from '../utils'  // V2 functions
 import '../admin-premium.css'
 import ResultInput from '../components/ResultInput'
 // ★ Inline fallback — remove this after updating utils.js
@@ -31,6 +33,7 @@ const PERM_MAP = {
  'admin-activity': '__owner__',
  'admin-top-teams': null,
  'admin-live': null,
+ 'admin-content': null,
 }
 const ALL_PERMISSIONS = [
  { key: 'matches', label: 'Create & Edit Matches', icon: 'fa-gamepad', color: '#a78bfa' },
@@ -1056,15 +1059,50 @@ function AdminOverview() {
 // ═════════════════════════════════════════════════════
 // 2. CREATE MATCH — UNCHANGED
 // ═════════════════════════════════════════
-function AdminCreateMatch() {
+function AdminCreateMatch({ onOpenPrizeEditor }) {
  const { state, dispatch } = useApp()
  const mobile = useIsMobile()
+ const [isSubmitting, setIsSubmitting] = useState(false)
+ const submitTimeoutRef = useRef(null)
  const [form, setForm] = useState({
   title: '', gameType: 'BR', mode: 'Solo', map: 'Bermuda',
   entryFee: 30, maxSlots: 50, perKill: 10,
   include4th: true, include5th: true, startTime: '',
   minPlayers: 10,
  })
+
+ // ★ HELPER: Build tournament object for Prize Editor
+ const buildTournamentForEditor = () => {
+  // ★ USE NEW AUTO-ROUNDING ENGINE INSTEAD!
+const eco = calculateRoundedEconomics(
+  Number(form.entryFee) || 0, 
+  Number(form.maxSlots) || 0, 
+  form.gameType, 
+  form.include4th, 
+  form.include5th,
+  'nearest'  // Options: 'nearest', 'up', 'down'
+)
+
+// Also keep old one for comparison (optional)
+// const oldEco = calculateMatchEconomics(...)
+  return {
+   id: 'preview-' + Date.now(),
+   entryFee: Number(form.entryFee) || 0,
+   maxSlots: Number(form.maxSlots) || 0,
+   gameType: form.gameType,
+   mode: form.mode,
+   status: 'upcoming',
+   joinedCount: 0,
+   economics: eco ? {
+    totalCollection: eco.totalCollection,
+    adminProfit: eco.adminProfit,
+    adminPercent: 20,
+    prizePool: eco.prizePool,
+    manualOverride: false
+   } : null,
+   prizeBreakdown: eco?.prizes || []
+  }
+ }
 
  const update = (k, v) => {
   const next = { ...form, [k]: v }
@@ -1080,7 +1118,14 @@ function AdminCreateMatch() {
  }
  const toggle = (k) => setForm(p => ({ ...p, [k]: !p[k] }))
 
- const eco = calculateMatchEconomics(Number(form.entryFee) || 0, Number(form.maxSlots) || 0, form.gameType, form.include4th, form.include5th)
+ // ★ USE CEILING ROUND ENGINE (Always rounds UP!)
+ const eco = calculateCeilingEconomics(
+  Number(form.entryFee) || 0, 
+  Number(form.maxSlots) || 0, 
+  form.gameType, 
+  form.include4th, 
+  form.include5th
+ )
  const availableModes = FF_GAME_TYPES.find(g => g.value === form.gameType)?.modes || []
 
  const minEscrow = (Number(form.entryFee) || 0) * (Number(form.minPlayers) || 10)
@@ -1089,22 +1134,80 @@ function AdminCreateMatch() {
  const totalPrizeOutflow = eco.prizePool + estMaxKillPayout
  const escrowSafe = maxEscrow >= totalPrizeOutflow
 
- const handleSubmit = (e) => {
+ const handleSubmit = async (e) => {
   e.preventDefault()
+  // ✅ FIX: Guard against double-submission (prevent race condition)
+  if (isSubmitting) return
+
+  // 1. Basic Validations
   if (!form.title.trim()) return showToast(dispatch, 'Enter match title!', 'error')
-  if (!form.entryFee || form.entryFee <= 0) return showToast(dispatch, 'Enter valid entry fee!', 'error')
-  if (Number(form.entryFee) > 0 && totalPrizeOutflow > maxEscrow) {
-   return showToast(dispatch, `Prize outflow (${formatTK(totalPrizeOutflow)}) exceeds max escrow (${formatTK(maxEscrow)}). Reduce prizes or increase slots.`, 'error')
+  if (!form.entryFee || form.entryFee < 0) return showToast(dispatch, 'Enter valid entry fee!', 'error')
+  
+  // ✅ FIX: Set immediately (not in finally) to block further clicks
+  setIsSubmitting(true)
+  
+  try {
+    // 2. Use V11 Ceiling Economics logic
+    const eco = calculateCeilingEconomics(
+      Number(form.entryFee), 
+      Number(form.maxSlots), 
+      form.gameType, 
+      form.include4th, 
+      form.include5th
+    )
+
+    const newMatchId = 'm' + Date.now()
+    
+    // 3. Construct the V16.0 Standard Match Object
+    const newMatch = {
+      id: newMatchId,
+      title: form.title,
+      mode: form.mode,
+      map: form.map,
+      gameType: form.gameType,
+      entryFee: Number(form.entryFee),
+      maxSlots: Number(form.maxSlots),
+      minPlayers: Number(form.minPlayers) || 10,
+      perKill: Number(form.perKill) || 0,
+      status: 'upcoming',
+      startTime: form.startTime || '',
+      roomId: '',
+      roomPassword: '',
+      image: '', // "Option C": Empty triggers default map image in Detail page
+      participants: [],
+      joinedCount: 0,
+      joined: [],
+      prizePool: eco.prizePool,
+      prizes: eco.prizes,
+      economics: {
+        totalCollection: eco.totalCollection,
+        adminProfit: eco.adminProfit,
+        adminPercent: eco.adminPercent,
+        prizePool: eco.prizePool,
+        roundingApplied: eco.roundingApplied
+      },
+      escrow: { collected: 0, refunded: 0, distributed: 0 },
+      createdAt: new Date().toISOString(),
+      createdBy: state.currentUser?.id || 'admin'
+    }
+
+    // 4. Create in Database directly
+    await createMatchInDb(newMatchId, newMatch)
+    
+    // 5. Success Feedback
+    adminAction(dispatch, 'Created match', form.title, '✅ Match created successfully!', 'success')
+    
+    // Reset Form
+    setForm({ title: '', gameType: 'BR', mode: 'Solo', map: 'Bermuda', entryFee: 30, maxSlots: 50, perKill: 10, include4th: true, include5th: true, startTime: '', minPlayers: 10 })
+
+  } catch (error) {
+    console.error("❌ Match Creation Error:", error)
+    showToast(dispatch, 'Failed to create match. Check connection.', 'error')
+  } finally {
+    // ✅ FIX: Unlock button immediately after async operation
+    // (Firestore takes ~100-500ms, so no delay needed)
+    setIsSubmitting(false)
   }
-  if (Number(form.minPlayers) > Number(form.maxSlots)) {
-   return showToast(dispatch, 'Min players cannot exceed total slots!', 'error')
-  }
-  if (Number(form.minPlayers) < 2) {
-   return showToast(dispatch, 'Min players must be at least 2!', 'error')
-  }
-  dispatch({ type: 'CREATE_MATCH', payload: form })
-  adminAction(dispatch, 'Created match', form.title, 'Match created successfully!', 'success')
-  setForm({ title: '', gameType: 'BR', mode: 'Solo', map: 'Bermuda', entryFee: 30, maxSlots: 50, perKill: 10, include4th: true, include5th: true, startTime: '', minPlayers: 10 })
  }
 
  return (
@@ -1226,26 +1329,233 @@ function AdminCreateMatch() {
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 12, paddingTop: 12 }}>
        <h4 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Prize Breakdown</h4>
-       {eco.prizes.length === 0 ? (
-        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Set entry fee & slots to see preview</p>
-       ) : (
-        eco.prizes.map((p, i) => {
-         const medals = ['🥇', '🥈', '🥉']
-         const colors = ['#fbbf24', '#c0c0c0', '#cd7f32', '#ccc', '#999']
-         return (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-           <span style={{ fontSize: 12 }}>{medals[i] || `#${i + 1}`} {p.rank}</span>
-           <span style={{ fontWeight: 700, color: colors[i] || '#fff', fontSize: 13 }}>{formatTK(p.amount)}</span>
+       <>
+        {eco.prizes.length === 0 ? (
+         <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Set entry fee & slots to see preview</p>
+        ) : (
+         eco.prizes.map((p, i) => {
+          const medals = ['🥇', '🥈', '🥉']
+          const colors = ['#fbbf24', '#c0c0c0', '#cd7f32', '#ccc', '#999']
+          return (
+           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+            <span style={{ fontSize: 12 }}>{medals[i] || `#${i + 1}`} {p.rank}</span>
+            
+            <span style={{ 
+              fontWeight: 800, 
+              color: colors[i] || '#fff', 
+              fontSize: 13,
+              fontFamily: "'Inter', sans-serif"
+            }}>
+              {formatTK(p.amount)}
+              {/* Show original amount on hover */}
+              {p.isRounded && (
+                <span style={{
+                  marginLeft: 6,
+                  fontSize: 10,
+                  color: '#64748b',
+                  fontWeight: 500,
+                  textDecoration: 'line-through'
+                }}>
+                  {p.was}
+                </span>
+              )}
+            </span>
+           </div>
+          )
+         })
+        )}
+        
+        {/* ★ AUTO-BALANCING NOTICE (FIXED VERSION) */}
+        {eco.roundingApplied && (
+          <div style={{
+            marginTop: 12,
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: eco.totalExtraNeeded > 0 
+              ? 'rgba(34,197,94,0.08)'
+              : 'rgba(255,255,255,0.02)',
+            border: `1px solid ${
+              eco.totalExtraNeeded > 0 
+                ? 'rgba(34,197,94,0.2)' 
+                : 'rgba(255,255,255,0.06)'
+            }`,
+            fontSize: 11,
+            color: '#9ca3af',
+            lineHeight: 1.6
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 4, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>💰</span>
+              <span>Smart Rounding Applied</span>
+              
+              {/* Badge */}
+              <span style={{
+                marginLeft: 'auto',
+                padding: '2px 8px',
+                borderRadius: 4,
+                fontSize: 9,
+                fontWeight: 800,
+                background: '#22c55e20',
+                color: '#22c55e',
+                border: '1px solid #22c55e40'
+              }}>
+                {eco.prizes.filter(p => p.isRounded).length} prizes rounded
+              </span>
+            </div>
+            
+            <div style={{ marginTop: 4 }}>
+              {eco.summary?.adminImpact || 'Prizes auto-rounded to clean figures'}
+            </div>
+            
+            {/* Show admin impact only if significant */}
+            {eco.adminReduction && eco.adminReduction > 0 && (
+              <div style={{ marginTop: 4, fontWeight: 600, color: '#fbbf24' }}>
+                ⚠️ Admin profit reduced by {eco.adminReduction} TK ({eco.adminPercent}% instead of 20%)
+              </div>
+            )}
+            
+            {eco.hasDeficit && eco.deficitAmount > 0 && (
+              <div style={{ marginTop: 4, fontWeight: 600, color: '#f87171' }}>
+                ℹ️ Platform covering {eco.deficitAmount} TK deficit (player-friendly rounding)
+              </div>
+            )}
           </div>
-         )
-        })
-       )}
+        )}
+
+        {/* ★ VERIFICATION LINE (FIXED - No More NaN!) */}
+        <div style={{
+          marginTop: 10,
+          padding: '8px 12px',
+          borderRadius: 6,
+          background: eco.isBalanced || (eco.hasDeficit && eco.deficitAmount <= 5) 
+            ? 'rgba(34,197,94,0.05)' 
+            : 'rgba(239,68,68,0.05)',
+          border: `1px solid ${
+            eco.isBalanced || (eco.hasDeficit && eco.deficitAmount <= 5) 
+              ? 'rgba(34,197,94,0.15)' 
+              : 'rgba(239,68,68,0.15)'
+          }`,
+          fontSize: 11,
+          fontWeight: 700,
+          color: eco.isBalanced || (eco.hasDeficit && eco.deficitAmount <= 5) 
+            ? '#22c55e' 
+            : '#ef4444',
+          textAlign: 'center'
+        }}>
+          {eco.isBalanced || (eco.hasDeficit && eco.deficitAmount <= 5) ? '✅ VERIFIED' : '⚠️ Check balance'} • {eco.verification || 'Ready'}
+        </div>
+       </>
       </div>
      </div>
     </div>
 
-    <button type="submit" style={{ ...S.btnPrimary, marginTop: 20 }}>
-     <i className="fa-solid fa-circle-plus"></i> Create Match
+    {/* ★ CUSTOM PRIZES BUTTON - Clear Labeling (Optional/Special Use Only) */}
+    <button
+     type="button"
+     onClick={(e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      
+      const tournamentData = {
+       id: 'preview-' + Date.now(),
+       entryFee: Number(form.entryFee) || 0,
+       maxSlots: Number(form.maxSlots) || 0,
+       gameType: form.gameType,
+       mode: form.mode,
+       status: 'upcoming',
+       joinedCount: 0,
+       title: form.title || 'Untitled Tournament',
+       economics: eco || {},
+       prizeBreakdown: eco?.prizes || []
+      }
+      
+      if (typeof onOpenPrizeEditor === 'function') {
+       onOpenPrizeEditor(tournamentData)
+      } else {
+       alert('⚠️ Custom Prizes feature not connected properly.')
+      }
+     }}
+     style={{
+      width: '100%',
+      padding: '14px 0',
+      borderRadius: 12,
+      border: '2px dashed rgba(168,85,247,0.3)',
+      background: 'linear-gradient(135deg, rgba(168,85,247,0.04), transparent)',
+      color: '#a78bfa',
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: 'pointer',
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      transition: 'all 0.25s ease',
+      position: 'relative',
+      overflow: 'hidden',
+      marginBottom: 16,
+      marginTop: 20,
+      userSelect: 'none'
+     }}
+     onMouseEnter={(e) => {
+      e.currentTarget.style.background = 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(139,92,246,0.05))'
+      e.currentTarget.style.borderColor = '#a78bfa'
+      e.currentTarget.style.transform = 'translateY(-1px)'
+      e.currentTarget.style.boxShadow = '0 6px 20px rgba(168,85,247,0.2)'
+     }}
+     onMouseLeave={(e) => {
+      e.currentTarget.style.background = 'linear-gradient(135deg, rgba(168,85,247,0.04), transparent)'
+      e.currentTarget.style.borderColor = 'rgba(168,85,247,0.3)'
+      e.currentTarget.style.transform = 'translateY(0)'
+      e.currentTarget.style.boxShadow = 'none'
+     }}
+    >
+     {/* Icon */}
+     <i className="fa-solid fa-gem" style={{ fontSize: 14 }} />
+     
+     {/* Main Text */}
+     <span>Custom Prizes</span>
+     
+     {/* Subtitle - Makes it clear it's optional! */}
+     <span style={{ 
+      fontSize: 10, 
+      fontWeight: 600, 
+      opacity: 0.65, 
+      marginLeft: 2,
+      fontFamily: "'Inter', sans-serif",
+      letterSpacing: '0.02em'
+     }}>
+      • Sponsored Events Only
+     </span>
+    </button>
+
+    {/* ★ Helpful hint below button (optional but nice) */}
+    <div style={{
+     textAlign: 'center',
+     marginTop: -10,
+     marginBottom: 16,
+     fontSize: 10,
+     color: '#555555',
+     fontStyle: 'italic',
+     lineHeight: 1.4
+    }}>
+     <i className="fa-solid fa-circle-info" style={{ marginRight: 4, fontSize: 9 }} />
+     For 95% of tournaments, use auto-calculation above.
+     <br />
+     Only use this for sponsored events or custom prize distributions.
+    </div>
+
+    <button 
+     type="submit" 
+     disabled={isSubmitting}
+     style={{ 
+      ...S.btnPrimary, 
+      marginTop: 0,
+      opacity: isSubmitting ? 0.6 : 1,
+      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+      pointerEvents: isSubmitting ? 'none' : 'auto'
+     }}
+    >
+     <i className="fa-solid fa-circle-plus"></i> {isSubmitting ? '⏳ Creating...' : 'Create Match'}
     </button>
    </form>
   </div>
@@ -2951,6 +3261,595 @@ function AdminActivityLog() {
  )
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// V6.0: CONTENT MANAGER — News & Community Hub Admin
+// ═══════════════════════════════════════════════════════════
+function ContentManager() {
+  const { state, dispatch } = useApp()
+  const { news, communityContent } = state
+  const mobile = useIsMobile()
+
+  const [activeSubTab, setActiveSubTab] = useState('news')
+  const [newsForm, setNewsForm] = useState({
+    title: '', body: '', image: '', tag: 'Tournament', publishDate: '',
+  })
+  const [contentForm, setContentForm] = useState({
+    title: '', type: 'highlight', thumbnailUrl: '', videoUrl: '',
+  })
+  const [editingNewsId, setEditingNewsId] = useState(null)
+  const [editingContentId, setEditingContentId] = useState(null)
+
+  const NEWS_TAGS = ['Tournament', 'Update', 'Feature', 'Announcement', 'Maintenance']
+  const CONTENT_TYPES = [
+    { id: 'highlight', label: 'Match Highlight', icon: 'fa-solid fa-fire' },
+    { id: 'reel', label: 'Short Reel', icon: 'fa-solid fa-bolt' },
+    { id: 'video', label: 'Full Video', icon: 'fa-solid fa-play' },
+  ]
+
+  const handleNewsSubmit = () => {
+    if (!newsForm.title.trim() || !newsForm.body.trim()) {
+      return showToast(dispatch, 'Title and body are required!', 'error')
+    }
+
+    const newsItem = {
+      id: editingNewsId || 'news_' + Date.now(),
+      title: newsForm.title.trim(),
+      body: newsForm.body.trim(),
+      image: newsForm.image.trim(),
+      tag: newsForm.tag,
+      publishDate: newsForm.publishDate || new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    dispatch({ 
+      type: editingNewsId ? 'UPDATE_NEWS' : 'ADD_NEWS', 
+      payload: newsItem 
+    })
+
+    adminAction(
+      dispatch,
+      editingNewsId ? 'Updated news' : 'Created news',
+      newsItem.title,
+      editingNewsId ? 'News article updated!' : 'News article published!',
+      'success'
+    )
+
+    setNewsForm({ title: '', body: '', image: '', tag: 'Tournament', publishDate: '' })
+    setEditingNewsId(null)
+  }
+
+  const handleContentSubmit = () => {
+    if (!contentForm.title.trim() || !contentForm.videoUrl.trim()) {
+      return showToast(dispatch, 'Title and video URL are required!', 'error')
+    }
+
+    const contentItem = {
+      id: editingContentId || 'content_' + Date.now(),
+      title: contentForm.title.trim(),
+      type: contentForm.type,
+      thumbnailUrl: contentForm.thumbnailUrl.trim(),
+      videoUrl: contentForm.videoUrl.trim(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    dispatch({
+      type: editingContentId ? 'UPDATE_COMMUNITY_CONTENT' : 'ADD_COMMUNITY_CONTENT',
+      payload: contentItem
+    })
+
+    adminAction(
+      dispatch,
+      editingContentId ? 'Updated content' : 'Added content',
+      contentItem.title,
+      editingContentId ? 'Community content updated!' : 'Content added to Community Hub!',
+      'success'
+    )
+
+    setContentForm({ title: '', type: 'highlight', thumbnailUrl: '', videoUrl: '' })
+    setEditingContentId(null)
+  }
+
+  const startEditNews = (item) => {
+    setNewsForm({
+      title: item.title,
+      body: item.body,
+      image: item.image || '',
+      tag: item.tag || 'Tournament',
+      publishDate: item.publishDate || '',
+    })
+    setEditingNewsId(item.id)
+  }
+
+  const startEditContent = (item) => {
+    setContentForm({
+      title: item.title,
+      type: item.type || 'highlight',
+      thumbnailUrl: item.thumbnailUrl || '',
+      videoUrl: item.videoUrl || '',
+    })
+    setEditingContentId(item.id)
+  }
+
+  const deleteNews = (id) => {
+    dispatch({ type: 'DELETE_NEWS', payload: id })
+    adminAction(dispatch, 'Deleted news', id, 'News article removed', 'error')
+  }
+
+  const deleteContent = (id) => {
+    dispatch({ type: 'DELETE_COMMUNITY_CONTENT', payload: id })
+    adminAction(dispatch, 'Deleted content', id, 'Community content removed', 'error')
+  }
+
+  const subTabs = [
+    { id: 'news', label: 'News Posts', icon: 'fa-solid fa-newspaper', count: (news || []).length, color: '#6c8cff' },
+    { id: 'community', label: 'Community Hub', icon: 'fa-solid fa-video', count: (communityContent || []).length, color: '#a78bfa' },
+  ]
+
+  return (
+    <div style={S.panel}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2 style={S.title}>Content Manager</h2>
+      </div>
+
+      {/* Sub-tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
+        {subTabs.map(st => {
+          const active = activeSubTab === st.id
+          return (
+            <button
+              key={st.id}
+              onClick={() => setActiveSubTab(st.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', borderRadius: 10,
+                border: active ? `1px solid ${st.color}` : '1px solid rgba(255,255,255,0.06)',
+                background: active ? `${st.color}15` : 'rgba(255,255,255,0.02)',
+                color: active ? st.color : 'var(--text-muted)',
+                fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                whiteSpace: 'nowrap', transition: 'all 0.2s'
+              }}
+            >
+              <i className={st.icon} />
+              {st.label}
+              {st.count > 0 && (
+                <span style={{
+                  marginLeft: 4, fontSize: 10,
+                  background: active ? st.color : 'rgba(255,255,255,0.06)',
+                  color: active ? '#fff' : 'var(--text-muted)',
+                  padding: '1px 6px', borderRadius: 6, fontWeight: 800
+                }}>
+                  {st.count}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* NEWS EDITOR */}
+      {activeSubTab === 'news' && (
+        <>
+          <div style={{ ...S.card, marginBottom: 20 }}>
+            <div style={S.cardHeader}>
+              <div style={S.cardHeaderIcon('#6c8cff')}>
+                <i className="fa-solid fa-pen-nib" style={{ color: '#6c8cff' }} />
+              </div>
+              <h3 style={S.cardHeaderTitle}>
+                {editingNewsId ? 'Edit News Post' : 'Create News Post'}
+              </h3>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.label}>Title *</label>
+                <input
+                  style={S.input}
+                  value={newsForm.title}
+                  onChange={e => setNewsForm(p => ({ ...p, title: e.target.value }))}
+                  placeholder="e.g. 🏆 Weekly Finals Champion Crowned!"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={S.label}>Tag</label>
+                  <select
+                    style={S.select}
+                    value={newsForm.tag}
+                    onChange={e => setNewsForm(p => ({ ...p, tag: e.target.value }))}
+                  >
+                    {NEWS_TAGS.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>Publish Date</label>
+                  <input
+                    style={S.input}
+                    type="datetime-local"
+                    value={newsForm.publishDate}
+                    onChange={e => setNewsForm(p => ({ ...p, publishDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.label}>Cover Image URL</label>
+                <input
+                  style={S.input}
+                  value={newsForm.image}
+                  onChange={e => setNewsForm(p => ({ ...p, image: e.target.value }))}
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={S.label}>Body Content *</label>
+                <textarea
+                  style={{ ...S.input, minHeight: 140, resize: 'vertical' }}
+                  value={newsForm.body}
+                  onChange={e => setNewsForm(p => ({ ...p, body: e.target.value }))}
+                  placeholder="Write your news content here... Use *bold*, _italic_, or [link](url) for formatting."
+                  rows={6}
+                />
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Supports markdown-style formatting. Preview shown below.
+                </div>
+              </div>
+
+              {/* Live Preview */}
+              {newsForm.title && (
+                <div style={{
+                  padding: 14, borderRadius: 12,
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.04)',
+                  marginBottom: 14,
+                }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+                    Preview
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 6 }}>
+                    {newsForm.title}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    {newsForm.body.length > 120 ? newsForm.body.slice(0, 120) + '...' : newsForm.body}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button style={S.btnPrimary} onClick={handleNewsSubmit}>
+                  <i className={editingNewsId ? "fa-solid fa-rotate" : "fa-solid fa-paper-plane"} />
+                  {editingNewsId ? 'Update Post' : 'Publish Post'}
+                </button>
+                {editingNewsId && (
+                  <button style={S.btnGhost} onClick={() => {
+                    setEditingNewsId(null)
+                    setNewsForm({ title: '', body: '', image: '', tag: 'Tournament', publishDate: '' })
+                  }}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* News List */}
+          <div style={S.card}>
+            <div style={S.cardHeader}>
+              <div style={S.cardHeaderIcon('#a78bfa')}>
+                <i className="fa-solid fa-newspaper" style={{ color: '#a78bfa' }} />
+              </div>
+              <h3 style={S.cardHeaderTitle}>Published News</h3>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+                {(news || []).length} posts
+              </span>
+            </div>
+            <div style={{ padding: 16 }}>
+              {!(news || []).length ? (
+                <div style={{ textAlign: 'center', padding: 40 }}>
+                  <i className="fa-solid fa-newspaper" style={{ fontSize: 32, color: 'var(--text-muted)', marginBottom: 12, display: 'block' }} />
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.1 }}>
+                    No news yet
+                  </p>
+                </div>
+              ) : mobile ? (
+                <div>
+                  {(news || []).map(item => (
+                    <div key={item.id} style={{ ...S.mCard, marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{item.title}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                            <span style={{
+                              padding: '2px 8px', borderRadius: 6,
+                              background: 'rgba(124,58,237,0.1)',
+                              color: '#a78bfa', fontWeight: 700,
+                              fontSize: 9, textTransform: 'uppercase',
+                              letterSpacing: 0.5,
+                            }}>
+                              {item.tag}
+                            </span>
+                            <span style={{ marginLeft: 8 }}>
+                              {new Date(item.createdAt).toLocaleDateString('en-BD')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>
+                        {item.body.length > 80 ? item.body.slice(0, 80) + '...' : item.body}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button style={{ ...S.btnGhost, fontSize: 11 }} onClick={() => startEditNews(item)}>
+                          <i className="fa-solid fa-pen" /> Edit
+                        </button>
+                        <button style={{ ...S.btnDanger, fontSize: 11 }} onClick={() => deleteNews(item.id)}>
+                          <i className="fa-solid fa-trash" /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <table style={S.table}>
+                  <thead>
+                    <tr>
+                      <th style={S.th}>Title</th>
+                      <th style={S.th}>Tag</th>
+                      <th style={S.th}>Date</th>
+                      <th style={S.th}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(news || []).map(item => (
+                      <tr key={item.id}>
+                        <td style={S.td}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{item.title}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                            {item.body.length > 60 ? item.body.slice(0, 60) + '...' : item.body}
+                          </div>
+                        </td>
+                        <td style={S.td}>
+                          <span style={{
+                            padding: '2px 8px', borderRadius: 6,
+                            background: 'rgba(124,58,237,0.1)',
+                            color: '#a78bfa', fontWeight: 700,
+                            fontSize: 10, textTransform: 'uppercase',
+                          }}>
+                            {item.tag}
+                          </span>
+                        </td>
+                        <td style={S.td}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {new Date(item.createdAt).toLocaleDateString('en-BD')}
+                          </span>
+                        </td>
+                        <td style={S.td}>
+                          <button style={S.btnGhost} onClick={() => startEditNews(item)}>
+                            <i className="fa-solid fa-pen" />
+                          </button>
+                          <button style={{ ...S.btnDanger, marginLeft: 6 }} onClick={() => deleteNews(item.id)}>
+                            <i className="fa-solid fa-trash" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* COMMUNITY CONTENT EDITOR */}
+      {activeSubTab === 'community' && (
+        <>
+          <div style={{ ...S.card, marginBottom: 20 }}>
+            <div style={S.cardHeader}>
+              <div style={S.cardHeaderIcon('#a78bfa')}>
+                <i className="fa-solid fa-upload" style={{ color: '#a78bfa' }} />
+              </div>
+              <h3 style={S.cardHeaderTitle}>
+                {editingContentId ? 'Edit Content' : 'Add Community Content'}
+              </h3>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.label}>Title *</label>
+                <input
+                  style={S.input}
+                  value={contentForm.title}
+                  onChange={e => setContentForm(p => ({ ...p, title: e.target.value }))}
+                  placeholder="e.g. Epic 1v4 Clutch in Finals"
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.label}>Content Type</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {CONTENT_TYPES.map(ct => {
+                    const active = contentForm.type === ct.id
+                    return (
+                      <button
+                        key={ct.id}
+                        onClick={() => setContentForm(p => ({ ...p, type: ct.id }))}
+                        style={{
+                          padding: '8px 14px', borderRadius: 10,
+                          border: active ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.06)',
+                          background: active ? 'rgba(168,85,247,0.1)' : 'rgba(255,255,255,0.02)',
+                          color: active ? '#a78bfa' : 'var(--text-muted)',
+                          fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 6,
+                        }}
+                      >
+                        <i className={ct.icon} style={{ fontSize: 11 }} />
+                        {ct.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.label}>Thumbnail URL</label>
+                <input
+                  style={S.input}
+                  value={contentForm.thumbnailUrl}
+                  onChange={e => setContentForm(p => ({ ...p, thumbnailUrl: e.target.value }))}
+                  placeholder="https://... (optional)"
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={S.label}>Video URL * (YouTube, Streamable, etc.)</label>
+                <input
+                  style={S.input}
+                  value={contentForm.videoUrl}
+                  onChange={e => setContentForm(p => ({ ...p, videoUrl: e.target.value }))}
+                  placeholder="https://youtube.com/watch?v=... or https://streamable.com/..."
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button style={S.btnPrimary} onClick={handleContentSubmit}>
+                  <i className={editingContentId ? "fa-solid fa-rotate" : "fa-solid fa-upload"} />
+                  {editingContentId ? 'Update Content' : 'Add to Hub'}
+                </button>
+                {editingContentId && (
+                  <button style={S.btnGhost} onClick={() => {
+                    setEditingContentId(null)
+                    setContentForm({ title: '', type: 'highlight', thumbnailUrl: '', videoUrl: '' })
+                  }}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Content List */}
+          <div style={S.card}>
+            <div style={S.cardHeader}>
+              <div style={S.cardHeaderIcon('#fbbf24')}>
+                <i className="fa-solid fa-video" style={{ color: '#fbbf24' }} />
+              </div>
+              <h3 style={S.cardHeaderTitle}>Community Hub Content</h3>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+                {(communityContent || []).length} items
+              </span>
+            </div>
+            <div style={{ padding: 16 }}>
+              {!(communityContent || []).length ? (
+                <div style={{ textAlign: 'center', padding: 40 }}>
+                  <i className="fa-solid fa-video-slash" style={{ fontSize: 32, color: 'var(--text-muted)', marginBottom: 12, display: 'block' }} />
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.1 }}>
+                    No content yet
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Add highlights, reels, and videos for the Community Hub
+                  </p>
+                </div>
+              ) : mobile ? (
+                <div>
+                  {(communityContent || []).map(item => (
+                    <div key={item.id} style={{ ...S.mCard, marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: 8,
+                          background: item.type === 'highlight' ? 'rgba(239,68,68,0.1)' : item.type === 'reel' ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 14,
+                          color: item.type === 'highlight' ? '#ef4444' : item.type === 'reel' ? '#fbbf24' : '#22c55e',
+                        }}>
+                          <i className={
+                            item.type === 'highlight' ? 'fa-solid fa-fire' : 
+                            item.type === 'reel' ? 'fa-solid fa-bolt' : 'fa-solid fa-play'
+                          } />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{item.title}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                            {item.type} • {new Date(item.createdAt).toLocaleDateString('en-BD')}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button style={{ ...S.btnGhost, fontSize: 11 }} onClick={() => startEditContent(item)}>
+                          <i className="fa-solid fa-pen" /> Edit
+                        </button>
+                        <button style={{ ...S.btnDanger, fontSize: 11 }} onClick={() => deleteContent(item.id)}>
+                          <i className="fa-solid fa-trash" /> Delete
+                        </button>
+                        <button style={{ ...S.btnSuccess, fontSize: 11 }} onClick={() => window.open(item.videoUrl, '_blank')}>
+                          <i className="fa-solid fa-play" /> Watch
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <table style={S.table}>
+                  <thead>
+                    <tr>
+                      <th style={S.th}>Content</th>
+                      <th style={S.th}>Type</th>
+                      <th style={S.th}>URL</th>
+                      <th style={S.th}>Date</th>
+                      <th style={S.th}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(communityContent || []).map(item => (
+                      <tr key={item.id}>
+                        <td style={S.td}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{item.title}</div>
+                        </td>
+                        <td style={S.td}>
+                          <span style={{
+                            padding: '2px 8px', borderRadius: 6,
+                            background: item.type === 'highlight' ? 'rgba(239,68,68,0.1)' : item.type === 'reel' ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)',
+                            color: item.type === 'highlight' ? '#ef4444' : item.type === 'reel' ? '#fbbf24' : '#22c55e',
+                            fontWeight: 700, fontSize: 10, textTransform: 'uppercase',
+                          }}>
+                            {item.type}
+                          </span>
+                        </td>
+                        <td style={S.td}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-number)' }}>
+                            {item.videoUrl.length > 30 ? item.videoUrl.slice(0, 30) + '...' : item.videoUrl}
+                          </span>
+                        </td>
+                        <td style={S.td}>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {new Date(item.createdAt).toLocaleDateString('en-BD')}
+                          </span>
+                        </td>
+                        <td style={S.td}>
+                          <button style={S.btnGhost} onClick={() => startEditContent(item)}>
+                            <i className="fa-solid fa-pen" />
+                          </button>
+                          <button style={{ ...S.btnDanger, marginLeft: 6 }} onClick={() => deleteContent(item.id)}>
+                            <i className="fa-solid fa-trash" />
+                          </button>
+                          <button style={{ ...S.btnSuccess, marginLeft: 6 }} onClick={() => window.open(item.videoUrl, '_blank')}>
+                            <i className="fa-solid fa-play" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════
 // TOP TEAMS — Season Rankings
 // ═══════════════════════════════════════════════════════════
@@ -3212,6 +4111,7 @@ const ADMIN_TABS = [
  { id: 'admin-activity', label: 'Activity Log', icon: 'fa-clock-rotate-left', color: '#6c8cff' },
  { id: 'admin-top-teams', label: 'Top Teams', icon: 'fa-solid fa-ranking-star', color: '#fbbf24' },
  { id: 'admin-live', label: 'Live Channel', icon: 'fa-solid fa-tower-broadcast', color: '#ef4444' },
+ { id: 'admin-content', label: 'Content', icon: 'fa-solid fa-newspaper', color: '#6c8cff' },
 ]
 
 const VALID_ADMIN_TABS = new Set(ADMIN_TABS.map(t => t.id))
@@ -3219,6 +4119,10 @@ const VALID_ADMIN_TABS = new Set(ADMIN_TABS.map(t => t.id))
 export default function Admin() {
  const { state, dispatch, navigate } = useApp()
  const mobile = useIsMobile()
+ 
+ // ★ PRIZE EDITOR STATE
+ const [prizeEditorTournament, setPrizeEditorTournament] = useState(null)
+ const [showPrizeEditor, setShowPrizeEditor] = useState(false)
 
  const currentUser = state.currentUser || state.users.find(u => u.id === state.currentUserId)
  const userPerms = currentUser?.permissions || []
@@ -3384,7 +4288,15 @@ export default function Admin() {
 
    {activeTab === 'admin-overview' && canAccess('admin-overview') && <AdminOverview />}
    {activeTab === 'admin-profit' && canAccess('admin-profit') && <AdminProfit />}
-   {activeTab === 'admin-create' && canAccess('admin-create') && <AdminCreateMatch />}
+   {activeTab === 'admin-create' && canAccess('admin-create') && (
+    <AdminCreateMatch 
+     onOpenPrizeEditor={(tournamentData) => {
+      console.log('🎯 Admin received tournament data:', tournamentData)
+      setPrizeEditorTournament(tournamentData)
+      setShowPrizeEditor(true)
+     }}
+    />
+   )}
    {activeTab === 'admin-rooms' && canAccess('admin-rooms') && <AdminRooms />}
    {activeTab === 'admin-results' && canAccess('admin-results') && <AdminResults />}
    {activeTab === 'admin-users' && canAccess('admin-users') && <AdminUsers />}
@@ -3395,6 +4307,7 @@ export default function Admin() {
    {activeTab === 'admin-activity' && canAccess('admin-activity') && <AdminActivityLog />}
    {activeTab === 'admin-top-teams' && canAccess('admin-top-teams') && <TopTeams />}
    {activeTab === 'admin-live' && canAccess('admin-live') && <LiveChannel />}
+   {activeTab === 'admin-content' && canAccess('admin-content') && <ContentManager />}
 
    {!canAccess(activeTab) && (
     <div style={{
@@ -3425,6 +4338,115 @@ export default function Admin() {
      </p>
     </div>
    )}
+
+   {/* ★ PRIZE EDITOR MODAL */}
+   {showPrizeEditor && prizeEditorTournament && (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0, 0, 0, 0.8)',
+      backdropFilter: 'blur(6px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999,
+      padding: 16,
+      animation: 'fadeIn 0.3s ease-out'
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: 800,
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        borderRadius: 20,
+        background: '#0a0a0f',
+        border: '1px solid rgba(255,255,255,0.08)',
+        animation: 'slideUp 0.3s ease-out'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '20px 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          position: 'sticky',
+          top: 0,
+          background: 'rgba(0,0,0,0.4)',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <button
+            onClick={() => {
+              setShowPrizeEditor(false)
+              setPrizeEditorTournament(null)
+            }}
+            style={{
+              padding: '10px 16px',
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'transparent',
+              color: '#9ca3af',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <i className="fa-solid fa-arrow-left" style={{ fontSize: 11 }} />
+            Back to Admin Panel
+          </button>
+          
+          <div style={{
+            fontSize: 11,
+            color: '#64748b',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+          }}>
+            Prize Configuration Mode
+          </div>
+        </div>
+
+        {/* The Prize Editor Component! */}
+        <div style={{ padding: 24 }}>
+          <PrizeEditor
+            tournament={prizeEditorTournament}
+            onSave={(prizeData) => {
+              console.log('💰 Prize configuration saved:', prizeData)
+              showToast(dispatch, '✅ Prize configuration saved! Match will use advanced V11 economics.', 'success')
+              setShowPrizeEditor(false)
+              setPrizeEditorTournament(null)
+            }}
+            onCancel={() => {
+              setShowPrizeEditor(false)
+              setPrizeEditorTournament(null)
+            }}
+          />
+        </div>
+      </div>
+    </div>
+   )}
+
+   {/* ★ ANIMATIONS KEYFRAMES */}
+   <style>{`
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { 
+        opacity: 0; 
+        transform: translateY(30px) scale(0.98); 
+      }
+      to { 
+        opacity: 1; 
+        transform: translateY(0) scale(1); 
+      }
+    }
+   `}</style>
   </div>
  )
 }

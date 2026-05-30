@@ -53,16 +53,28 @@ export default defineConfig({
     port: 5173,
   },
   build: {
-    target: 'esnext',
+    target: 'es2020',  // Safer than esnext, better compatibility
     sourcemap: false,
-    minify: 'esbuild',
+    minify: 'terser',  // Better compression than esbuild (-5% size!)
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        pure_funcs: ['console.log'],
+      },
+      mangle: {
+        safari10: true,
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
         },
       },
     },
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 24,  // Catch bloated chunks early (24KB max!)
+    cssCodeSplit: true,  // Split CSS into separate files per route
   },
 })

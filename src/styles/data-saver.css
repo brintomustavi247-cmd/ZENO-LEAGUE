@@ -1,0 +1,519 @@
+/* ════════════════════════════════════════════════════════════════
+   ⚡ DATA SAVER MODE - ULTRA LIGHTWEIGHT CSS
+   ════════════════════════════════════════════════════════════════
+   
+   PURPOSE:
+   When [data-saver="true"] is set on root element, this stylesheet
+   strips all expensive visual effects to make ZENO LEAGUE usable
+   on 2G/3G networks in Bangladesh.
+   
+   DISABLED:
+   ✗ All animations & transitions
+   ✗ Gradients & complex backgrounds
+   ✗ Blur effects & filters
+   ✗ Shadows & glows
+   ✗ Heavy images
+   ✗ Complex transforms
+   
+   PRESERVED:
+   ✓ Readability (7:1 contrast ratio)
+   ✓ Functionality (all buttons/links work)
+   ✓ Touch targets (44px minimum)
+   ✓ Essential information
+   ════════════════════════════════════════════════════════════════ */
+
+/* ═════════════════════════════════════════════════════════════════
+   🔧 GLOBAL RESETS
+   ═════════════════════════════════════════════════════════════════ */
+
+[data-saver="true"],
+[data-saver="true"] * {
+  animation: none !important;
+  animation-name: none !important;
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  animation-play-state: paused !important;
+  transition: none !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  transform: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  will-change: auto !important;
+}
+
+[data-saver="true"] {
+  opacity: 1 !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   🖼️ IMAGE HANDLING
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Hide all images by default, show placeholders instead */
+[data-saver="true"] img:not(.keep-visible) {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Exception: Keep brand logo visible for branding */
+[data-saver="true"] .brand-logo,
+[data-saver="true"] .logo,
+[data-saver="true"] [class*="logo-"] {
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Avatar placeholders */
+[data-saver="true"] .avatar-item {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  font-size: 18px !important;
+  aspect-ratio: 1;
+}
+
+[data-saver="true"] .avatar-item img {
+  display: none !important;
+}
+
+/* Match card backgrounds */
+[data-saver="true"] .match-card-bg,
+[data-saver="true"] .card-background {
+  background-image: none !important;
+  background-color: #14141f !important;
+}
+
+/* User profile images */
+[data-saver="true"] .user-avatar img,
+[data-saver="true"] .profile-pic img {
+  display: none !important;
+}
+
+[data-saver="true"] .user-avatar,
+[data-saver="true"] .profile-pic {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   💄 BACKGROUND & GRADIENTS
+   ═════════════════════════════════════════════════════════════════ */
+
+[data-saver="true"] {
+  background-image: none !important;
+}
+
+[data-saver="true"] *:not([class*="text"]):not([class*="font"]) {
+  background-image: none !important;
+}
+
+/* Solid fallback colors instead of gradients */
+[data-saver="true"] .gradient-bg,
+[data-saver="true"] [class*="gradient"],
+[data-saver="true"] .holographic,
+[data-saver="true"] .neon-glow {
+  background-image: none !important;
+  background-color: #14141f !important;
+}
+
+/* Header background */
+[data-saver="true"] .zeno-clean-header,
+[data-saver="true"] .header-bg-base,
+[data-saver="true"] header {
+  background: rgba(10, 8, 22, 0.97) !important;
+  background-image: none !important;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.1) !important;
+}
+
+/* Remove overlay effects */
+[data-saver="true"] .header-gradient-overlay,
+[data-saver="true"] .header-top-accent,
+[data-saver="true"] .header-bottom-fade,
+[data-saver="true"] [class*="overlay"],
+[data-saver="true"] [class*="radial-gradient"] {
+  display: none !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   🎴 MATCH CARD SIMPLIFICATION
+   ═════════════════════════════════════════════════════════════════ */
+
+[data-saver="true"] .match-card-v2,
+[data-saver="true"] .match-card {
+  background-color: #14141f !important;
+  background-image: none !important;
+  border: 1px solid rgba(168, 85, 247, 0.15) !important;
+  box-shadow: none !important;
+}
+
+/* Hide all shine/glow effects */
+[data-saver="true"] .holographic-shine,
+[data-saver="true"] .shine,
+[data-saver="true"] .glow-effect,
+[data-saver="true"] .card-glow-border,
+[data-saver="true"] .glow {
+  display: none !important;
+}
+
+/* Live pulse ring */
+[data-saver="true"] .live-pulse-ring,
+[data-saver="true"] .pulse-ring,
+[data-saver="true"] [class*="pulse"] {
+  display: none !important;
+}
+
+/* Card hover - only subtle border change */
+[data-saver="true"] .match-card-v2:hover,
+[data-saver="true"] .match-card:hover {
+  border-color: rgba(168, 85, 247, 0.3) !important;
+  transform: none !important;
+}
+
+/* Prize badge */
+[data-saver="true"] .prize-badge,
+[data-saver="true"] .badge {
+  background-color: #8B5CF6 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   🎛️ BUTTON SIMPLIFICATION
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Join/Action buttons */
+[data-saver="true"] .join-btn-v2,
+[data-saver="true"] .btn-primary,
+[data-saver="true"] button[class*="join"],
+[data-saver="true"] button[class*="action"] {
+  background: #8B5CF6 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+[data-saver="true"] .join-btn-v2:hover,
+[data-saver="true"] .btn-primary:hover {
+  background: #a78bfa !important;
+  transform: none !important;
+}
+
+/* Button shine animation */
+[data-saver="true"] .btn-shine,
+[data-saver="true"] [class*="shine"] {
+  display: none !important;
+}
+
+/* Hamburger menu button */
+[data-saver="true"] .btn-hamburger {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-saver="true"] .hamburger-inner {
+  background: transparent !important;
+  border: none !important;
+}
+
+[data-saver="true"] .btn-hamburger:hover {
+  border-color: rgba(168, 85, 247, 0.2) !important;
+  transform: none !important;
+}
+
+/* Notification button */
+[data-saver="true"] .btn-notification {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-saver="true"] .btn-notification::before,
+[data-saver="true"] .btn-notification::after {
+  display: none !important;
+}
+
+[data-saver="true"] .btn-notification:hover {
+  border-color: rgba(168, 85, 247, 0.2) !important;
+  transform: none !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   🌊 PARTICLE & ANIMATION EFFECTS
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Hide all particle effects */
+[data-saver="true"] .particle-burst,
+[data-saver="true"] .particle,
+[data-saver="true"] [class*="particle"],
+[data-saver="true"] .confetti,
+[data-saver="true"] [class*="confetti"],
+[data-saver="true"] .firework,
+[data-saver="true"] [class*="firework"],
+[data-saver="true"] .sparkle,
+[data-saver="true"] [class*="sparkle"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Page transition effects */
+[data-saver="true"] .page-transition,
+[data-saver="true"] [class*="transition"],
+[data-saver="true"] .fade-in,
+[data-saver="true"] .fade-out,
+[data-saver="true"] .slide-in,
+[data-saver="true"] .slide-out {
+  animation: none !important;
+  opacity: 1 !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   🎯 LOADING & SKELETON SCREENS
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Skeleton loader */
+[data-saver="true"] .skeleton-loader,
+[data-saver="true"] [class*="skeleton"] {
+  background: #1f1f2e !important;
+  background-image: none !important;
+  animation: none !important;
+}
+
+/* Loading spinner */
+[data-saver="true"] .loading-spinner,
+[data-saver="true"] [class*="spinner"],
+[data-saver="true"] [class*="loader"] {
+  animation: none !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   🏗️ SIDEBAR & NAVIGATION
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Sidebar */
+[data-saver="true"] .sidebar {
+  background: #0a0816 !important;
+  background-image: none !important;
+  border-right: 1px solid rgba(168, 85, 247, 0.1) !important;
+}
+
+/* Sidebar brand logo glow */
+[data-saver="true"] .sidebar .brand-logo {
+  filter: none !important;
+}
+
+/* Navigation items */
+[data-saver="true"] .nav-item,
+[data-saver="true"] [class*="nav-item"] {
+  background: transparent !important;
+  border-left: 3px solid transparent !important;
+}
+
+[data-saver="true"] .nav-item.active,
+[data-saver="true"] [class*="nav-item"].active {
+  background: rgba(168, 85, 247, 0.1) !important;
+  border-left-color: #8B5CF6 !important;
+}
+
+[data-saver="true"] .nav-item:hover {
+  background: rgba(168, 85, 247, 0.08) !important;
+  transform: none !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   💬 MODALS & DIALOGS
+   ═════════════════════════════════════════════════════════════════ */
+
+[data-saver="true"] .modal,
+[data-saver="true"] .modal-content,
+[data-saver="true"] [class*="dialog"] {
+  background: #0a0816 !important;
+  background-image: none !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(168, 85, 247, 0.15) !important;
+}
+
+[data-saver="true"] .modal-backdrop {
+  backdrop-filter: none !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   🎨 TYPOGRAPHY OPTIMIZATIONS
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Use system fonts instead of custom fonts */
+[data-saver="true"] {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+               'Helvetica Neue', sans-serif !important;
+}
+
+/* Reduce font weights for performance */
+[data-saver="true"] [class*="brand"],
+[data-saver="true"] .brand-name,
+[data-saver="true"] .brand-text {
+  font-weight: 700 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Remove letter-spacing tricks */
+[data-saver="true"] [style*="letter-spacing"],
+[data-saver="true"] [class*="tracking"] {
+  letter-spacing: normal !important;
+}
+
+/* Remove text shadows */
+[data-saver="true"] [class*="shadow-text"],
+[data-saver="true"] [class*="text-shadow"] {
+  text-shadow: none !important;
+}
+
+/* Keep text readable */
+[data-saver="true"] {
+  color: #e2e8f0 !important;
+}
+
+[data-saver="true"] h1,
+[data-saver="true"] h2,
+[data-saver="true"] h3,
+[data-saver="true"] h4,
+[data-saver="true"] h5,
+[data-saver="true"] h6 {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   📐 BORDER & SPACING SIMPLIFICATIONS
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Standardize border radius */
+[data-saver="true"] [class*="rounded"] {
+  border-radius: 8px !important;
+}
+
+/* Simplify borders */
+[data-saver="true"] [class*="border"] {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: rgba(168, 85, 247, 0.15) !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   ⚡ PERFORMANCE ENHANCEMENTS
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Optimize rendering performance */
+[data-saver="true"] .sidebar {
+  contain: strict;
+}
+
+[data-saver="true"] .match-card-v2,
+[data-saver="true"] .match-card {
+  contain: layout style paint;
+}
+
+/* Lazy load off-screen content */
+[data-saver="true"] [class*="modal"] {
+  content-visibility: auto;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   ♿ ACCESSIBILITY PRESERVATION
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Maintain minimum touch target size (44px × 44px) */
+[data-saver="true"] button,
+[data-saver="true"] [role="button"],
+[data-saver="true"] input[type="checkbox"],
+[data-saver="true"] input[type="radio"] {
+  min-width: 44px !important;
+  min-height: 44px !important;
+}
+
+/* Ensure minimum contrast ratio (7:1) */
+[data-saver="true"] a {
+  color: #60a5fa !important;
+  text-decoration: underline !important;
+}
+
+[data-saver="true"] a:visited {
+  color: #a78bfa !important;
+}
+
+/* Keep focus states for keyboard navigation */
+[data-saver="true"] *:focus {
+  outline: 2px solid #8B5CF6 !important;
+  outline-offset: 2px !important;
+}
+
+/* Never hide important information */
+[data-saver="true"] [aria-hidden="false"] {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   🎮 SPECIFIC COMPONENT OVERRIDES
+   ═════════════════════════════════════════════════════════════════ */
+
+/* Digital Countdown (keep functional) */
+[data-saver="true"] .digital-countdown {
+  animation: none !important;
+  text-shadow: none !important;
+  font-weight: 700 !important;
+}
+
+/* Slot ring (simplify animation) */
+[data-saver="true"] .slot-ring,
+[data-saver="true"] .slot-ring svg {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* Toast notifications */
+[data-saver="true"] .toast {
+  background: #1f1f2e !important;
+  background-image: none !important;
+  border: 1px solid rgba(168, 85, 247, 0.2) !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   ⚠️ IMPORTANT NOTES
+   ═════════════════════════════════════════════════════════════════
+   
+   1. This file uses !important throughout to ensure overrides
+      work regardless of other CSS specificity.
+   
+   2. The selector [data-saver="true"] must be added to the root
+      element (typically <html> or root app div) when data saver
+      mode is enabled.
+   
+   3. All functionality is preserved - only visuals are simplified.
+   
+   4. Accessibility is always maintained (contrast, touch targets,
+      keyboard navigation).
+   
+   5. Safe to use alongside other stylesheets - only affects
+      elements when data-saver attribute is present.
+   
+   ═════════════════════════════════════════════════════════════════ */

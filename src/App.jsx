@@ -12,6 +12,7 @@
 import React, { useState, useEffect, lazy, Suspense, useMemo, useCallback } from 'react'
 import { AppProvider, useApp } from './context'
 import { firebaseReady } from './firebase'
+import { useDataSaver } from './hooks/useDataSaver'
 
 // ════════════════════════════════════════
 // 🎯 CORE COMPONENTS (Always loaded - small & critical)
@@ -21,7 +22,9 @@ import MobileNav from './components/MobileNav'
 import RightPanel from './components/RightPanel'
 import Modal from './components/Modal'
 import Toast from './components/Toast'
+import AdminRoleButton from './components/AdminRoleButton'
 import './admin-premium.css'
+import './styles/data-saver.css'
 
 // ════════════════════════════════════════
 // ⚡ LAZY-LOADED VIEWS (Loaded on demand only!)
@@ -282,6 +285,7 @@ function isAdminView(view) {
 const ViewRouter = React.memo(function ViewRouter() {
   const { state, dispatch, isAdmin } = useApp()
   const { currentView, viewParam, loading, sidebarOpen } = state
+  const { dataSaverMode } = useDataSaver()
   const admin = isAdminView(currentView)
 
   // ─── OFFLINE DETECTION ───
@@ -469,12 +473,15 @@ const ViewRouter = React.memo(function ViewRouter() {
 
   // ─── MAIN RENDER ───
   return (
-    <div style={{
-      display: 'flex',
-      minHeight: '100dvh',
-      position: 'relative',
-      paddingTop: offline ? 48 : 0,
-    }}>
+    <div
+      data-saver={dataSaverMode ? 'true' : 'false'}
+      style={{
+        display: 'flex',
+        minHeight: '100dvh',
+        position: 'relative',
+        paddingTop: offline ? 48 : 0,
+      }}
+    >
       {offlineBanner}
 
       <Sidebar />
@@ -530,6 +537,11 @@ const ViewRouter = React.memo(function ViewRouter() {
       <MobileNav />
       <Modal />
       <Toast />
+      
+      {/* ★ FIX V10.3: Hide AdminRoleButton on mobile (overlaps nav bar) */}
+      {typeof window !== 'undefined' && window.innerWidth > 768 && (
+        <AdminRoleButton />
+      )}
 
       <style>{`
         @keyframes slideDown {
@@ -546,23 +558,61 @@ const ViewRouter = React.memo(function ViewRouter() {
 })
 
 // ════════════════════════════════════════
-// 🚀 ROOT APP COMPONENT
+// 🚀 ROOT APP COMPONENT V9.5 - STABLE RENDER FIX
 // ════════════════════════════════════════
+// ✅ Waits for BOTH Firebase AND CSS before showing app
+// ✅ Prevents dark color flashes
+// ✅ Ensures smooth visual transition
+
 export default function App() {
   const [ready, setReady] = useState(false)
+  const [cssStable, setCssStable] = useState(false)
 
   useEffect(() => {
-    // Wait for Firebase to initialize
+    let mounted = true
+    
+    // ─── Step 1: Wait for Firebase Initialization ───
     firebaseReady.then(() => {
-      // Small delay to ensure smooth transition
-      setTimeout(() => setReady(true), 100)
+      if (!mounted) return
+      
+      // Small delay for DOM stabilization (100ms)
+      setTimeout(() => {
+        if (mounted) setReady(true)
+      }, 100)
     })
+    
+    // ─── Step 2: Wait for CSS & Fonts to Fully Load ───
+    const checkFullyLoaded = () => {
+      if (!mounted) return
+      
+      // Check if document is completely loaded
+      if (document.readyState === 'complete') {
+        // Extra delay for browser to apply all styles (50ms)
+        setTimeout(() => {
+          if (mounted) setCssStable(true)
+        }, 50)
+      }
+    }
+    
+    // Listen for load event (fires when ALL resources loaded)
+    window.addEventListener('load', checkFullyLoaded)
+    
+    // Also check immediately in case already loaded
+    checkFullyLoaded()
+    
+    // Cleanup
+    return () => {
+      mounted = false
+      window.removeEventListener('load', checkFullyLoaded)
+    }
   }, [])
 
-  if (!ready) {
+  // ─── Show Loading Screen Until BOTH Conditions Met ───
+  if (!ready || !cssStable) {
     return <AppLoadingScreen />
   }
 
+  // ─── App is Safe to Render Now ───
   return (
     <AppProvider>
       <AuthGuard>

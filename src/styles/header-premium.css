@@ -1,0 +1,396 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   HEADER PREMIUM v5.0 — CRYPDINO SOLID SOFT
+   Matches profile-premium.css exactly. Ultra-dark, violet accent.
+   File: src/styles/header-premium.css
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+/* ──────────────────────────────────────────────────────────────────────
+   CSS CUSTOM PROPERTIES — Shared with profile-premium.css
+   ────────────────────────────────────────────────────────────────────── */
+.zh-root {
+  --zh-bg-void: #0A0C14;
+  --zh-bg-deep: #0D0F18;
+  --zh-surface: #131521;
+  --zh-border: rgba(255, 255, 255, 0.03);
+  --zh-border-light: rgba(255, 255, 255, 0.06);
+  --zh-border-top: rgba(255, 255, 255, 0.12);
+  --zh-violet: #7C3AED;
+  --zh-violet-bright: #8B5CF6;
+  --zh-indigo: #4F46E5;
+  --zh-green: #10B981;
+  --zh-gold: #F59E0B;
+  --zh-red: #EF4444;
+  --zh-text: #F0F0F5;
+  --zh-text-secondary: #A1A1AA;
+  --zh-text-muted: #71717A;
+  --zh-text-dim: rgba(255, 255, 255, 0.30);
+  --zh-font-display: 'Lexend', system-ui, -apple-system, sans-serif;
+  --zh-font-body: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --zh-font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --zh-r-md: 14px;
+  --zh-r-sm: 10px;
+  --zh-shadow-sm: 0 2px 8px rgba(0,0,0,0.45);
+  --zh-shadow-md: 0 8px 24px rgba(0,0,0,0.55);
+  --zh-shadow-lg: 0 16px 40px rgba(0,0,0,0.60);
+  --zh-glow-violet: 0 0 30px rgba(124, 58, 237, 0.25);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   ROOT HEADER
+   ────────────────────────────────────────────────────────────────────── */
+.zh-root {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  height: 68px;
+  padding: 0 max(16px, env(safe-area-inset-left)) 0 max(16px, env(safe-area-inset-right));
+  padding-top: max(12px, env(safe-area-inset-top));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: visible;
+  transition: box-shadow .4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.zh-scrolled {
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(124, 58, 237, 0.06);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   GLASS BACKGROUND — Ultra-dark void with violet tint
+   ────────────────────────────────────────────────────────────────────── */
+.zh-glass {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 12, 20, 0.98) 0%,
+    rgba(13, 15, 24, 0.96) 60%,
+    rgba(15, 17, 26, 0.94) 100%
+  );
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border-bottom: 1px solid rgba(124, 58, 237, 0.06);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   ACCENT LINE — Violet/Indigo gradient (matches profile rank bar)
+   ────────────────────────────────────────────────────────────────────── */
+.zh-accent-line {
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(124, 58, 237, 0.5) 25%,
+    rgba(79, 70, 229, 0.4) 50%,
+    rgba(139, 92, 246, 0.5) 75%,
+    transparent 100%
+  );
+  opacity: 0.9;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   INNER LAYOUT
+   ────────────────────────────────────────────────────────────────────── */
+.zh-inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+}
+
+.zh-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.zh-left { justify-self: start; margin-left: -2px; }
+.zh-right { justify-self: end; margin-right: -2px; }
+
+/* ──────────────────────────────────────────────────────────────────────
+   CENTER LOGO
+   ────────────────────────────────────────────────────────────────────── */
+.zh-center {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.zh-logo-img {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 10px rgba(124, 58, 237, 0.3));
+  flex-shrink: 0;
+}
+
+.zh-logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+  overflow: hidden;
+}
+
+/* Premium display font — matches profile */
+.zh-name {
+  font-family: var(--zh-font-display);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, #ffffff 0%, #C4B5FD 50%, #8B5CF6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  filter: drop-shadow(0 2px 8px rgba(124, 58, 237, 0.25));
+}
+
+.zh-tag {
+  font-family: var(--zh-font-body);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.4em;
+  color: rgba(139, 92, 246, 0.5);
+  text-transform: uppercase;
+  margin-left: 1px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   BUTTONS — Tactile glass (matches profile card style)
+   ────────────────────────────────────────────────────────────────────── */
+.zh-btn {
+  position: relative;
+  appearance: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: var(--zh-r-md);
+  color: rgba(139, 92, 246, 0.7);
+  font-size: 17px;
+
+  transition: all .25s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* Glass shell border */
+.zh-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--zh-r-md);
+  padding: 1.5px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(79, 70, 229, 0.15));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0.5;
+  transition: opacity .3s ease;
+}
+
+/* Inner fill — matches profile surface */
+.zh-btn::after {
+  content: '';
+  position: absolute;
+  inset: 1.5px;
+  border-radius: 12px;
+  background: linear-gradient(135deg,
+    rgba(124, 58, 237, 0.08) 0%,
+    rgba(19, 21, 33, 0.85) 50%,
+    rgba(79, 70, 229, 0.04) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 10px rgba(0,0,0,0.4);
+  z-index: -1;
+  transition: all .3s ease;
+}
+
+/* Top highlight line on button */
+.zh-btn .zh-btn-shine {
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  opacity: 0.6;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.zh-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 8px 28px rgba(124, 58, 237, 0.15);
+}
+.zh-btn:hover::before {
+  opacity: 0.9;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(79, 70, 229, 0.25));
+}
+.zh-btn:hover::after {
+  background: linear-gradient(135deg,
+    rgba(124, 58, 237, 0.15) 0%,
+    rgba(22, 25, 37, 0.9) 50%,
+    rgba(79, 70, 229, 0.08) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 0 20px rgba(124, 58, 237, 0.1);
+}
+.zh-btn:active {
+  transform: translateY(0) scale(0.96) !important;
+  transition-duration: 0.08s;
+}
+
+/* Glow orb behind icon */
+.zh-btn-glow {
+  position: absolute;
+  width: 60%;
+  height: 60%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity .3s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+.zh-btn:hover .zh-btn-glow {
+  opacity: 1;
+}
+
+.zh-btn i {
+  position: relative;
+  z-index: 2;
+  transition: all .2s ease;
+}
+.zh-btn:hover i {
+  color: rgba(139, 92, 246, 0.95);
+  filter: drop-shadow(0 0 6px rgba(124, 58, 237, 0.5));
+}
+
+/* Hamburger */
+.zh-btn-ham { margin-left: -4px; }
+.zh-btn-ham i { font-size: 18px; }
+
+/* Bell unread — gold accent (kept for visibility) */
+.zh-btn-bell.zh-unread i {
+  color: var(--zh-gold);
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4));
+  animation: zh-bell-shake 3s ease-in-out infinite;
+}
+@keyframes zh-bell-shake {
+  0%,100% { transform: rotate(0); }
+  6%,18%,30%,42% { transform: rotate(-4deg); }
+  12%,24%,36%,48% { transform: rotate(4deg); }
+  80% { transform: rotate(0); }
+}
+
+/* Badge — vibrant gold (matches profile prize badge) */
+.zh-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--zh-gold), #D97706);
+  color: #0A0C14;
+  font-family: var(--zh-font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(10, 12, 20, 0.95);
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.4);
+  z-index: 3;
+  animation: zh-badge-pulse 2.5s ease-in-out infinite;
+}
+@keyframes zh-badge-pulse {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* Language button */
+.zh-btn-lang {
+  width: auto;
+  min-width: 44px;
+  padding: 0 12px;
+  margin-right: -4px;
+}
+.zh-lang-label {
+  font-family: var(--zh-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(139, 92, 246, 0.7);
+  transition: color .2s ease;
+}
+.zh-btn-lang:hover .zh-lang-label {
+  color: rgba(139, 92, 246, 0.95);
+}
+
+/* Bottom fade */
+.zh-fade-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(180deg, rgba(13,15,24,0) 0%, rgba(13,15,24,0.2) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ────────────────────────────────────────────────────────────────────── */
+@media (max-width: 360px) {
+  .zh-root { height: 60px; padding-left: 12px; padding-right: 12px; }
+  .zh-btn { width: 40px; height: 40px; min-width: 40px; min-height: 40px; flex: 0 0 40px; }
+  .zh-btn-lang { min-width: 40px; padding: 0 10px; }
+  .zh-logo-img { height: 26px; }
+  .zh-name { font-size: 14px; }
+  .zh-tag { display: none; }
+  .zh-side { gap: 8px; }
+}
+
+@media (min-width: 361px) and (max-width: 400px) {
+  .zh-btn { width: 42px; height: 42px; min-width: 42px; min-height: 42px; flex: 0 0 42px; }
+  .zh-logo-img { height: 28px; }
+  .zh-name { font-size: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zh-btn, .zh-btn::before, .zh-btn::after, .zh-btn i, .zh-badge {
+    transition: none !important;
+    animation: none !important;
+  }
+}

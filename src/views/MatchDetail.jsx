@@ -1,7 +1,30 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { useApp } from '../context'
-import { formatTK, calculateMatchEconomics, getRoomUnlockCountdown, showToast } from '../utils'
+import { formatTK, formatTKShort, calculateMatchEconomics, getRoomUnlockCountdown, showToast } from '../utils'
 import { getMatchUrl } from '../utils/url'
+import '../styles/MatchDetail.css'
+
+/* ═══════════════════════════════════════════════════════════════
+   ZENO LEAGUE — MATCH DETAIL PREMIUM v1.0
+   Ultra-Dark Esports Edition | Profile-Premium.css Theme Matched
+
+   Features:
+   ✅ Full profile-premium.css design system match
+   ✅ World-class tabs (Overview, Rules, Results, Players)
+   ✅ Match timeline/status steps
+   ✅ Format info card grid
+   ✅ Stream placeholder card
+   ✅ Lazy-loaded themed banner
+   ✅ Social share dropdown
+   ✅ Premium tactile buttons
+   ✅ Animated player slots
+   ✅ Prize distribution with gold/silver/bronze
+   ✅ Room credentials with copy
+   ✅ Bilingual rules (EN/BN)
+   ✅ Team name input
+   ✅ No-refund warning
+   ✅ Admin controls
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ── helpers ── */
 
@@ -33,48 +56,92 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0])
 }
 
-const MAP_IMAGES = {
-  Bermuda: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80',
-  Purgatory: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80',
-  Kalahari: 'https://images.unsplash.com/photo-1552820728-8b83bb6b2b28?w=800&q=80',
-  Alpine: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
+/* ═══════════════════════════════════════════════════════════════
+   FREE FIRE MAP-SPECIFIC IMAGES
+   ═══════════════════════════════════════════════════════════════ */
+
+const FREE_FIRE_MAP_IMAGES = {
+  Bermuda: {
+    url: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1200&q=80',
+    gradient: 'linear-gradient(135deg, rgba(6,182,212,0.3) 0%, rgba(8,145,178,0.4) 100%)',
+    accentColor: '#06b6d4',
+    overlayTint: 'rgba(8, 145, 178, 0.15)',
+  },
+  Purgatory: {
+    url: 'https://images.unsplash.com/photo-1513151233558-d860c540816e?w=1200&q=80',
+    gradient: 'linear-gradient(135deg, rgba(239,68,68,0.3) 0%, rgba(220,38,38,0.4) 100%)',
+    accentColor: '#ef4444',
+    overlayTint: 'rgba(220, 38, 38, 0.15)',
+  },
+  Kalahari: {
+    url: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=1200&q=80',
+    gradient: 'linear-gradient(135deg, rgba(245,158,11,0.3) 0%, rgba(217,119,6,0.4) 100%)',
+    accentColor: '#f59e0b',
+    overlayTint: 'rgba(217, 119, 6, 0.15)',
+  },
+  Alpine: {
+    url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80',
+    gradient: 'linear-gradient(135deg, rgba(99,102,241,0.3) 0%, rgba(79,70,229,0.4) 100%)',
+    accentColor: '#6366f1',
+    overlayTint: 'rgba(79, 70, 229, 0.15)',
+  },
 }
 
-const esportsCard = {
-  background: 'linear-gradient(145deg, #1b1b1d, #131315)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
-  border: '1px solid rgba(62,72,78,0.15)',
-  borderRadius: 14,
-}
-
-function SectionHead({ label }) {
-  return (
-    <div style={{
-      fontFamily: 'Lexend', fontWeight: 700, fontSize: 12, color: '#e8e8e8',
-      textTransform: 'uppercase', fontStyle: 'italic', letterSpacing: 0.5,
-      marginBottom: 12, paddingLeft: 4,
-    }}>{label}</div>
-  )
+const MODE_CONFIG = {
+  'Solo': {
+    icon: 'fa-solid fa-user-ninja',
+    label: 'SOLO SHOWDOWN',
+    color: '#61cdff',
+    bgGradient: 'linear-gradient(135deg, rgba(97,205,255,0.15), rgba(97,205,255,0.05))',
+    borderGradient: 'rgba(97,205,255,0.3)',
+  },
+  'Duo': {
+    icon: 'fa-solid fa-user-group',
+    label: 'DUO COMBAT',
+    color: '#a78bfa',
+    bgGradient: 'linear-gradient(135deg, rgba(167,139,250,0.15), rgba(167,139,250,0.05))',
+    borderGradient: 'rgba(167,139,250,0.3)',
+  },
+  'Squad': {
+    icon: 'fa-solid fa-shield-halved',
+    label: 'SQUAD WARFARE',
+    color: '#06d6a0',
+    bgGradient: 'linear-gradient(135deg, rgba(6,214,160,0.15), rgba(6,214,160,0.05))',
+    borderGradient: 'rgba(6,214,160,0.3)',
+  },
+  'Clash Squad': {
+    icon: 'fa-solid fa-crosshairs',
+    label: 'CLASH SQUAD',
+    color: '#FFC857',
+    bgGradient: 'linear-gradient(135deg, rgba(255,200,87,0.15), rgba(255,200,87,0.05))',
+    borderGradient: 'rgba(255,200,87,0.3)',
+  },
 }
 
 const RANK_CFG = {
   1: {
-    badgeBg: 'linear-gradient(135deg, #FFD700, #FFB800)', badgeTxt: '#503E00',
+    badgeBg: 'linear-gradient(135deg, #FFD700, #FFB800)',
+    badgeTxt: '#503E00',
     barBg: 'linear-gradient(to bottom, #FFD700, #FFB800)',
     amtBg: 'linear-gradient(135deg, #FFD700, #FFB800)',
     glow: '0 0 12px rgba(255,215,0,0.15)',
+    cls: 'gold',
   },
   2: {
-    badgeBg: 'linear-gradient(135deg, #C0C6D9, #8F9BB3)', badgeTxt: '#2D3342',
+    badgeBg: 'linear-gradient(135deg, #C0C6D9, #8F9BB3)',
+    badgeTxt: '#2D3342',
     barBg: 'linear-gradient(to bottom, #C0C6D9, #8F9BB3)',
     amtBg: 'linear-gradient(135deg, #C0C6D9, #8F9BB3)',
     glow: '0 0 12px rgba(192,198,217,0.10)',
+    cls: 'silver',
   },
   3: {
-    badgeBg: 'linear-gradient(135deg, #FF8A3D, #C76B2F)', badgeTxt: '#4A1D00',
+    badgeBg: 'linear-gradient(135deg, #FF8A3D, #C76B2F)',
+    badgeTxt: '#4A1D00',
     barBg: 'linear-gradient(to bottom, #FF8A3D, #C76B2F)',
     amtBg: 'linear-gradient(135deg, #FF8A3D, #C76B2F)',
     glow: '0 0 12px rgba(255,138,61,0.10)',
+    cls: 'bronze',
   },
 }
 
@@ -83,16 +150,6 @@ function rankColor(rank) {
   if (rank === 2) return '#C0C6D9'
   if (rank === 3) return '#FF8A3D'
   return null
-}
-
-function gradientText(bg, fontSize, fontWeight) {
-  return {
-    background: bg,
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
-    fontFamily: 'Inter', fontSize, fontWeight: fontWeight || 700,
-  }
 }
 
 function isTeamMode(mode) {
@@ -137,12 +194,19 @@ const RULES_BN = [
   { e: '💰', t: 'একটি ম্যাচ শেষ হওয়ার ১০-২০ মিনিটের মধ্যে রিওয়ার্ড আপনার অ্যাকাউন্টে যোগ হয়ে যাবে।' },
 ]
 
+const TABS = [
+  { id: 'overview', label: 'Overview', icon: 'fa-solid fa-chart-pie' },
+  { id: 'players', label: 'Players', icon: 'fa-solid fa-users' },
+  { id: 'rules', label: 'Rules', icon: 'fa-solid fa-scroll' },
+  { id: 'results', label: 'Results', icon: 'fa-solid fa-trophy' },
+]
+
 /* ── main component ── */
 
 export default function MatchDetail() {
   const { state, dispatch, navigate, isAdmin } = useApp()
-  
-  // ✅ STATE VARIABLES (Declared ONCE - No Duplicates!)
+
+  const [activeTab, setActiveTab] = useState('overview')
   const [showPlayers, setShowPlayers] = useState(false)
   const [rulesLang, setRulesLang] = useState('en')
   const [hoveredSlot, setHoveredSlot] = useState(null)
@@ -150,28 +214,27 @@ export default function MatchDetail() {
   const [teamNameError, setTeamNameError] = useState('')
   const [shareMenuOpen, setShareMenuOpen] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
   const shareMenuRef = useRef(null)
 
-  // Get unread notifications count from state
   const unreadNotifications = state.notifications?.filter(n => !n.read).length || 0
 
-  // ✅ MATCH DATA
   const match = state.matches.find(m => m.id === state.viewParam)
   const cu = state.currentUser
   const team = isTeamMode(match?.mode)
 
+  const mapConfig = FREE_FIRE_MAP_IMAGES[match?.map] || FREE_FIRE_MAP_IMAGES.Bermuda
+  const modeConfig = MODE_CONFIG[match?.mode] || MODE_CONFIG['Solo']
+
   if (!match) {
     return (
-      <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <i className="fa-solid fa-ghost" style={{ fontSize: 44, color: '#353437', marginBottom: 16, display: 'block' }} />
-        <p style={{ color: '#e8e8e8', fontFamily: 'Plus Jakarta Sans', fontSize: 15, marginBottom: 24 }}>Match not found</p>
-        <div onClick={() => navigate('matches')} style={{
-          display: 'inline-block', height: 56, padding: '0 32px', borderRadius: 10,
-          background: 'linear-gradient(135deg, #61cdff, #a78bfa)', color: '#0e0e10',
-          fontFamily: 'Plus Jakarta Sans', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          letterSpacing: '0.1em', textTransform: 'uppercase', lineHeight: '56px',
-        }}>
-          <i className="fa-solid fa-arrow-left" style={{ marginRight: 8 }} />Back to Matches
+      <div className="match-detail-premium">
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <i className="fa-solid fa-ghost" style={{ fontSize: 44, color: '#353437', marginBottom: 16, display: 'block' }} />
+          <p style={{ color: '#e8e8e8', fontFamily: 'Plus Jakarta Sans', fontSize: 15, marginBottom: 24 }}>Match not found</p>
+          <div onClick={() => navigate('matches')} className="md-btn md-btn-primary" style={{ width: 'auto', padding: '0 32px', display: 'inline-flex' }}>
+            <i className="fa-solid fa-arrow-left" style={{ marginRight: 8 }} />Back to Matches
+          </div>
         </div>
       </div>
     )
@@ -200,7 +263,7 @@ export default function MatchDetail() {
   const roomVisible = (isAdmin || joined) && now >= roomUnlockMs && match.roomId
   const roomCd = getRoomUnlockCountdown(match)
   const st = scheduledTime(match.startTime)
-  const bannerImg = match.image || MAP_IMAGES[match.map] || MAP_IMAGES.Bermuda
+  const bannerImg = match.image || mapConfig.url
 
   const userById = id => state.users.find(u => u.id === id)
   const rules = rulesLang === 'bn' ? RULES_BN : RULES_EN
@@ -220,8 +283,6 @@ export default function MatchDetail() {
     }
   }
 
-  // ✅ HANDLER FUNCTIONS (Defined ONCE Each!)
-  
   const handleJoin = () => {
     if (!cu) { navigate('login'); return }
     if (joined || full || phase === 'completed') return
@@ -232,13 +293,8 @@ export default function MatchDetail() {
     dispatch({ type: 'SHOW_MODAL', payload: { type: 'join-match', data: { matchId: match.id, teamName: team ? teamName.trim() : '' } } })
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // ✅ SHARE FUNCTIONALITY (Professional Pattern)
-  // ═══════════════════════════════════════════════════════════════
-
   const generateShareData = () => {
     const url = getMatchUrl(match.id)
-    
     const text = [
       `🎮 ${match.title}`,
       `💰 Prize: ${formatTK(eco.prizePool)}`,
@@ -246,10 +302,8 @@ export default function MatchDetail() {
       '',
       `Join now on Zeno League!`
     ].join('\n')
-    
     const encodedText = encodeURIComponent(text)
     const encodedUrl = encodeURIComponent(url)
-    
     return {
       url,
       text: `${text}\n\n${url}`,
@@ -262,26 +316,19 @@ export default function MatchDetail() {
 
   const handleShare = async () => {
     const shareData = generateShareData()
-    
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: match.title,
-          text: shareData.text,
-          url: shareData.url
-        })
+        await navigator.share({ title: match.title, text: shareData.text, url: shareData.url })
         return
       } catch (err) {
         if (err.name === 'AbortError') return
       }
     }
-    
     setShareMenuOpen(!shareMenuOpen)
   }
 
   const handleCopyLink = async () => {
     const { url } = generateShareData()
-    
     if (navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(url)
@@ -291,24 +338,16 @@ export default function MatchDetail() {
       } catch (err) {
         showToast('Failed to copy', 'error')
       }
-    } else {
-      copy(url)
-      setCopiedLink(true)
-      setTimeout(() => setCopiedLink(false), 2000)
     }
   }
 
   const handleSocialShare = (platform) => {
     const shareData = generateShareData()
-    if (shareData[platform]) {
-      window.open(shareData[platform], '_blank', 'noopener,noreferrer')
-    }
+    if (shareData[platform]) window.open(shareData[platform], '_blank', 'noopener,noreferrer')
     setShareMenuOpen(false)
   }
 
-  const handleNotifications = () => {
-    navigate('alerts')
-  }
+  const handleNotifications = () => navigate('alerts')
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -316,18 +355,15 @@ export default function MatchDetail() {
         setShareMenuOpen(false)
       }
     }
-
     if (shareMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside)
       document.addEventListener('touchstart', handleClickOutside)
     }
-
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('touchstart', handleClickOutside)
     }
   }, [shareMenuOpen])
-  // ═══ END SHARE FUNCTIONALITY ══════════════════════════════════
 
   const phasePillBg = phase === 'live' ? 'rgba(230,57,70,0.85)' : phase === 'upcoming' ? 'rgba(255,209,102,0.15)' : '#201f21'
   const phasePillFg = phase === 'live' ? '#ffffff' : phase === 'upcoming' ? '#ffd166' : '#9ca3af'
@@ -335,1224 +371,663 @@ export default function MatchDetail() {
 
   const slotTooltip = hoveredSlot !== null ? slotItems[hoveredSlot] : null
 
+  /* ── Timeline steps ── */
+  const getTimelineSteps = () => {
+    const steps = [
+      { id: 'created', label: 'Created', completed: true },
+      { id: 'open', label: 'Open', completed: phase !== 'upcoming' || joinCount > 0 },
+      { id: 'live', label: 'Live', completed: phase === 'live' || phase === 'completed' },
+      { id: 'results', label: 'Results', completed: phase === 'completed' && match.result },
+    ]
+    let activeFound = false
+    return steps.map(s => {
+      const active = !s.completed && !activeFound
+      if (active) activeFound = true
+      return { ...s, active }
+    })
+  }
+
+  const timelineSteps = getTimelineSteps()
+
+  /* ── Render ── */
   return (
-    <div style={{ padding: '0 0 100px 0', WebkitTapHighlightColor: 'transparent' }}>
-
-          {/* ════════════════════════════════════════════════════════════
-          ✅ PROFESSIONAL FIXED HEADER BAR (International Standard)
-          
-          Pattern: Fixed top bar with border
-          - Left: Logo + Brand Identity
-          - Right: Notifications + Share (with dropdown)
-          
-          Inspired by: Discord Mobile, FACEIT, ESL, Material Design 3
-          Compliant with: iOS HIG, Android Material Guidelines
-      ════════════════════════════════════════════════════════════ */}
-      
-      <div className="zeno-fixed-header zeno-header-animated">
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          height: 48,
-        }}>
-          
-          {/* ── LEFT SECTION: Navigation + Brand Identity ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            
-            {/* Back Button */}
-            <div 
-              onClick={() => navigate('matches')}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(62,72,78,0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                WebkitTapHighlightColor: 'transparent',
-                flexShrink: 0,
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(97,205,255,0.12)'
-                e.currentTarget.style.borderColor = 'rgba(97,205,255,0.4)'
-                e.currentTarget.style.transform = 'scale(1.05)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                e.currentTarget.style.borderColor = 'rgba(62,72,78,0.25)'
-                e.currentTarget.style.transform = 'scale(1)'
-              }}
-            >
-              <i className="fa-solid fa-arrow-left" style={{ 
-                fontSize: 13, 
-                color: '#61cdff',
-                fontWeight: 900,
-              }} />
+    <div className="match-detail-premium">
+      {/* ═══════ FIXED HEADER ═══════ */}
+      <header className="md-header">
+        <div className="md-header-left">
+          <button className="md-header-btn" onClick={() => navigate('matches')} aria-label="Go Back">
+            <i className="fa-solid fa-arrow-left" style={{ fontSize: 14, fontWeight: 900 }} />
+          </button>
+          <div className="md-header-brand">
+            <div className="md-brand-icon">
+              <i className="fa-solid fa-gamepad" />
             </div>
-
-            {/* Logo + Platform Name */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 10,
-              overflow: 'hidden',
-            }}>
-              {/* Logo Icon (Gradient Background) */}
-              <div style={{
-                width: 36,
-                height: 36,
-                borderRadius: 9,
-                background: 'linear-gradient(135deg, #A055F7 0%, #EC4899 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 12px rgba(160,85,247,0.4)',
-                flexShrink: 0,
-              }}>
-                <i className="fa-solid fa-gamepad" style={{ 
-                  fontSize: 16, 
-                  color: '#ffffff',
-                  fontWeight: 900,
-                  filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
-                }} />
-              </div>
-              
-              {/* Platform Name (Stacked) */}
-              <div style={{ 
-                display: 'flex', 
-                flexDirection: 'column',
-                lineHeight: 1.1,
-                minWidth: 0,
-              }}>
-                <span style={{
-                  fontFamily: 'Lexend',
-                  fontSize: 15,
-                  fontWeight: 800,
-                  color: '#ffffff',
-                  letterSpacing: '0.02em',
-                  fontStyle: 'italic',
-                  textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                }}>
-                  ZENO LEAGUE
-                </span>
-                <span style={{
-                  fontFamily: 'Inter',
-                  fontSize: 9,
-                  fontWeight: 600,
-                  color: '#889299',
-                  letterSpacing: '0.18em',
-                  textTransform: 'uppercase',
-                  opacity: 0.8,
-                }}>
-                  Esports Platform
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* ── RIGHT SECTION: Notifications + Share ── */}
-          <div ref={shareMenuRef} style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 8, 
-            position: 'relative',
-            flexShrink: 0,
-          }}>
-            
-            {/* Notification Bell Button */}
-            <div 
-              onClick={handleNotifications}
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 11,
-                background: unreadNotifications > 0 
-                  ? 'linear-gradient(135deg, rgba(255,209,102,0.15), rgba(255,209,102,0.05))'
-                  : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${unreadNotifications > 0 ? 'rgba(255,209,102,0.3)' : 'rgba(62,72,78,0.25)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                position: 'relative',
-                transition: 'all 0.25s ease',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,209,102,0.15)'
-                e.currentTarget.style.borderColor = 'rgba(255,209,102,0.45)'
-                e.currentTarget.style.transform = 'scale(1.08)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = unreadNotifications > 0 
-                  ? 'linear-gradient(135deg, rgba(255,209,102,0.15), rgba(255,209,102,0.05))'
-                  : 'rgba(255,255,255,0.04)'
-                e.currentTarget.style.borderColor = unreadNotifications > 0 ? 'rgba(255,209,102,0.3)' : 'rgba(62,72,78,0.25)'
-                e.currentTarget.style.transform = 'scale(1)'
-              }}
-            >
-              <i className="fa-regular fa-bell" style={{ 
-                fontSize: 17, 
-                color: unreadNotifications > 0 ? '#ffd166' : '#889299',
-                transition: 'color 0.2s',
-              }} />
-              
-              {/* Unread Badge (with pulse animation if > 0) */}
-              {unreadNotifications > 0 && (
-                <div className="notification-badge-pulse" style={{
-                  position: 'absolute',
-                  top: -3,
-                  right: -3,
-                  minWidth: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg, #e63946 0%, #c1121f 100%)',
-                  border: '2.5px solid #0f0f11',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 6px',
-                  boxShadow: `
-                    0 2px 8px rgba(230,57,70,0.6),
-                    0 0 12px rgba(230,57,70,0.3)
-                  `,
-                }}>
-                  <span style={{
-                    fontFamily: 'Inter',
-                    fontSize: 10,
-                    fontWeight: 800,
-                    color: '#ffffff',
-                    lineHeight: 1,
-                    textShadow: '0 1px 2px rgba(0,0,0,0.5)',
-                  }}>
-                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Share Button (with Dropdown Menu) */}
-            <div style={{ position: 'relative' }}>
-              <div 
-                onClick={handleShare}
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 11,
-                  background: shareMenuOpen 
-                    ? 'linear-gradient(135deg, rgba(160,85,247,0.25), rgba(236,153,153,0.2))'
-                    : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${shareMenuOpen ? 'rgba(160,85,247,0.5)' : 'rgba(62,72,78,0.25)'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                  WebkitTapHighlightColor: 'transparent',
-                }}
-                onMouseEnter={e => {
-                  if (!shareMenuOpen) {
-                    e.currentTarget.style.background = 'rgba(160,85,247,0.1)'
-                    e.currentTarget.style.borderColor = 'rgba(160,85,247,0.35)'
-                  }
-                  e.currentTarget.style.transform = 'scale(1.08)'
-                }}
-                onMouseLeave={e => {
-                  if (!shareMenuOpen) {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                    e.currentTarget.style.borderColor = 'rgba(62,72,78,0.25)'
-                  }
-                  e.currentTarget.style.transform = 'scale(1)'
-                }}
-              >
-                <i className="fa-solid fa-share-nodes" style={{ 
-                  fontSize: 16, 
-                  color: shareMenuOpen ? '#A055F7' : '#e8e8e8',
-                  transform: shareMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  filter: shareMenuOpen ? 'drop-shadow(0 0 8px rgba(160,85,247,0.6))' : 'none',
-                }} />
-              </div>
-
-              {/* ═══ DROPDOWN MENU (Opens downward from header) ═══ */}
-              {shareMenuOpen && (
-                <div style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 10px)',
-                  right: 0,
-                  minWidth: 240,
-                  background: '#16161a',
-                  border: '1px solid rgba(160,85,247,0.3)',
-                  borderRadius: 16,
-                  padding: 10,
-                  boxShadow: `
-                    0 12px 48px rgba(0,0,0,0.7),
-                    0 0 24px rgba(160,85,247,0.2),
-                    inset 0 1px 0 rgba(255,255,255,0.08)
-                  `,
-                  zIndex: 2000,
-                  animation: 'headerDropDown 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                }}>
-                  
-                  {/* Dropdown Header */}
-                  <div style={{
-                    padding: '12px 14px 10px',
-                    borderBottom: '1px solid rgba(255,255,255,0.08)',
-                    marginBottom: 8,
-                  }}>
-                    <div style={{
-                      fontFamily: 'Plus Jakarta Sans',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#A055F7',
-                      letterSpacing: '0.12em',
-                      textTransform: 'uppercase',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 7,
-                    }}>
-                      <i className="fa-solid fa-bullhorn" style={{ fontSize: 11 }} />
-                      Share Tournament
-                    </div>
-                  </div>
-
-                  {/* Copy Link Option */}
-                  <div
-                    onClick={handleCopyLink}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 14,
-                      padding: '14px 16px',
-                      borderRadius: 12,
-                      cursor: 'pointer',
-                      background: copiedLink ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${copiedLink ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.06)'}`,
-                      marginBottom: 6,
-                      transition: 'all 0.2s ease',
-                    }}
-                    onMouseEnter={e => {
-                      if (!copiedLink) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-                        e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)'
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!copiedLink) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                        e.currentTarget.style.border = '1px solid rgba(255,255,255,0.06)'
-                      }
-                    }}
-                  >
-                    <div style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      background: copiedLink ? 'rgba(16,185,129,0.2)' : 'rgba(97,205,255,0.1)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      <i className={`fas ${copiedLink ? 'fa-check' : 'fa-link'}`} 
-                         style={{ 
-                           fontSize: 15, 
-                           color: copiedLink ? '#10B981': '#61cdff',
-                           fontWeight: 900,
-                         }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: copiedLink ? '#10B981' : '#e8e8e8',
-                        lineHeight: 1.2,
-                      }}>
-                        {copiedLink ? '✓ Copied!' : 'Copy Link'}
-                      </div>
-                      {!copiedLink && (
-                        <div style={{
-                          fontFamily: 'Inter',
-                          fontSize: 10,
-                          color: '#555555',
-                          marginTop: 3,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {getMatchUrl(match.id)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div style={{
-                    height: 1,
-                    background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent)',
-                    margin: '10px 10px',
-                  }} />
-
-                  {/* Social Media Grid (2x2) */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: 8,
-                  }}>
-                    
-                    {/* WhatsApp */}
-                    <div
-                      onClick={() => handleSocialShare('whatsapp')}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '16px 12px',
-                        borderRadius: 12,
-                        cursor: 'pointer',
-                        background: 'rgba(37,211,102,0.08)',
-                        border: '1px solid rgba(37,211,102,0.15)',
-                        transition: 'all 0.25s ease',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(37,211,102,0.15)'
-                        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = 'rgba(37,211,102,0.08)'
-                        e.currentTarget.style.transform = 'translateY(0) scale(1)'
-                      }}
-                    >
-                      <i className="fab fa-whatsapp" style={{ fontSize: 24, color: '#25D366' }} />
-                      <span style={{
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: '#25D366',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                      }}>WhatsApp</span>
-                    </div>
-
-                    {/* Facebook */}
-                    <div
-                      onClick={() => handleSocialShare('facebook')}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '16px 12px',
-                        borderRadius: 12,
-                        cursor: 'pointer',
-                        background: 'rgba(59,89,152,0.08)',
-                        border: '1px solid rgba(59,89,152,0.15)',
-                        transition: 'all 0.25s ease',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(59,89,152,0.15)'
-                        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = 'rgba(59,89,152,0.08)'
-                        e.currentTarget.style.transform = 'translateY(0) scale(1)'
-                      }}
-                    >
-                      <i className="fab fa-facebook-f" style={{ fontSize: 22, color: '#4267B2' }} />
-                      <span style={{
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: '#4267B2',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                      }}>Facebook</span>
-                    </div>
-
-                    {/* Telegram */}
-                    <div
-                      onClick={() => handleSocialShare('telegram')}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '16px 12px',
-                        borderRadius: 12,
-                        cursor: 'pointer',
-                        background: 'rgba(0,136,204,0.08)',
-                        border: '1px solid rgba(0,136,204,0.15)',
-                        transition: 'all 0.25s ease',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(0,136,204,0.15)'
-                        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = 'rgba(0,136,204,0.08)'
-                        e.currentTarget.style.transform = 'translateY(0) scale(1)'
-                      }}
-                    >
-                      <i className="fab fa-telegram" style={{ fontSize: 24, color: '#0088cc' }} />
-                      <span style={{
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: '#0088cc',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                      }}>Telegram</span>
-                    </div>
-
-                    {/* Twitter/X */}
-                    <div
-                      onClick={() => handleSocialShare('twitter')}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '16px 12px',
-                        borderRadius: 12,
-                        cursor: 'pointer',
-                        background: 'rgba(29,161,242,0.08)',
-                        border: '1px solid rgba(29,161,242,0.15)',
-                        transition: 'all 0.25s ease',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(29,161,242,0.15)'
-                        e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = 'rgba(29,161,242,0.08)'
-                        e.currentTarget.style.transform = 'translateY(0) scale(1)'
-                      }}
-                    >
-                      <i className="fab fa-twitter" style={{ fontSize: 21, color: '#1DA1F2' }} />
-                      <span style={{
-                        fontFamily: 'Plus Jakarta Sans',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: '#1DA1F2',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                      }}>Twitter</span>
-                    </div>
-                  </div>
-
-                  {/* Footer Note */}
-                  <div style={{
-                    marginTop: 10,
-                    padding: '10px 14px',
-                    background: 'rgba(160,85,247,0.05)',
-                    borderRadius: 10,
-                    textAlign: 'center',
-                  }}>
-                    <div style={{
-                      fontFamily: 'Inter',
-                      fontSize: 9,
-                      fontWeight: 500,
-                      color: '#889299',
-                      lineHeight: 1.4,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 5,
-                    }}>
-                      <i className="fa-solid fa-lock" style={{ fontSize: 9, opacity: 0.6 }} />
-                      Secure sharing • No login required • Instant
-                    </div>
-                  </div>
-                </div>
-              )}
-              {/* ═══ END DROPDOWN MENU ═══ */}
+            <div className="md-brand-text">
+              <span className="md-brand-title">ZENO LEAGUE</span>
+              <span className="md-brand-sub">Esports Platform</span>
             </div>
           </div>
         </div>
-      </div>
-      {/* ═══ END PROFESSIONAL FIXED HEADER BAR ═══ */}
+        <div className="md-header-right" ref={shareMenuRef}>
+          <button className={`md-notify-btn ${unreadNotifications > 0 ? 'has-unread' : ''}`} onClick={handleNotifications} aria-label="Notifications">
+            <i className={`fa-${unreadNotifications > 0 ? 'solid' : 'regular'} fa-bell`} style={{ fontSize: 17 }} />
+            {unreadNotifications > 0 && (
+              <span className="md-notify-badge">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>
+            )}
+          </button>
+          <div className="md-share-wrap">
+            <button className={`md-share-btn ${shareMenuOpen ? 'active' : ''}`} onClick={handleShare} aria-label="Share">
+              <i className="fa-solid fa-share-nodes" />
+            </button>
+            {shareMenuOpen && (
+              <div className="md-share-dropdown">
+                <div className="md-dropdown-header">
+                  <i className="fa-solid fa-bullhorn" /> Share Tournament
+                </div>
+                <div className={`md-copy-row ${copiedLink ? 'copied' : ''}`} onClick={handleCopyLink}>
+                  <div className={`md-copy-icon ${copiedLink ? 'copied' : ''}`}>
+                    <i className={`fas ${copiedLink ? 'fa-check' : 'fa-link'}`} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="md-copy-title">{copiedLink ? '✓ Copied!' : 'Copy Link'}</div>
+                    {!copiedLink && <div className="md-copy-url">{getMatchUrl(match.id)}</div>}
+                  </div>
+                </div>
+                <div style={{ height: 1, background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent)', margin: '10px 10px' }} />
+                <div className="md-social-grid">
+                  <div className="md-social-btn whatsapp" onClick={() => handleSocialShare('whatsapp')}>
+                    <i className="fab fa-whatsapp" />
+                    <span className="md-social-label">WhatsApp</span>
+                  </div>
+                  <div className="md-social-btn facebook" onClick={() => handleSocialShare('facebook')}>
+                    <i className="fab fa-facebook-f" />
+                    <span className="md-social-label">Facebook</span>
+                  </div>
+                  <div className="md-social-btn telegram" onClick={() => handleSocialShare('telegram')}>
+                    <i className="fab fa-telegram" />
+                    <span className="md-social-label">Telegram</span>
+                  </div>
+                  <div className="md-social-btn twitter" onClick={() => handleSocialShare('twitter')}>
+                    <i className="fab fa-twitter" />
+                    <span className="md-social-label">Twitter</span>
+                  </div>
+                </div>
+                <div className="md-dropdown-footer">
+                  <i className="fa-solid fa-lock" style={{ fontSize: 9, opacity: 0.6 }} />
+                  Secure sharing • No login required • Instant
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
 
-      {/* BANNER */}
-      <div style={{
-        position: 'relative', borderRadius: 16, overflow: 'hidden',
-        height: 200, marginBottom: 0,
-        boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-        outline: '1px solid rgba(62,72,78,0.15)', outlineOffset: '-1px',
-      }}>
-        <img src={bannerImg} alt={match.map}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block',
-            filter: 'saturate(0.2) brightness(0.8)', opacity: 0.7 }}
-          onError={e => { e.target.style.display = 'none' }}
-        />
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(180deg, rgba(14,14,16,0.10) 0%, rgba(14,14,16,0.40) 50%, rgba(14,14,16,0.95) 100%)',
-        }} />
-        {phase === 'live' && (
-          <div style={{
-            position: 'absolute', inset: '-4px',
-            background: 'radial-gradient(ellipse at center, rgba(230,57,70,0.15) 0%, transparent 70%)',
-            filter: 'blur(20px)', pointerEvents: 'none',
-          }} />
+      {/* ═══════ BANNER ═══════ */}
+      <div className="md-banner">
+        {!imageLoaded && (
+          <div className="md-banner-placeholder" style={{ background: mapConfig.gradient }} />
         )}
-        <div style={{ position: 'absolute', top: 14, left: 14, right: 14, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            padding: '4px 10px', borderRadius: 8, fontSize: 10, fontWeight: 700,
-            fontFamily: 'Plus Jakarta Sans', letterSpacing: '0.05em',
-            background: phasePillBg, color: phasePillFg,
-            border: `1px solid ${phasePillBrd}`,
-          }}>
-            {phase === 'live' && <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff', flexShrink: 0 }} />}
-            {phase === 'upcoming' ? 'UPCOMING' : phase === 'live' ? 'LIVE' : 'COMPLETED'}
+        <img
+          src={bannerImg}
+          alt={`${match.map} - ${match.mode}`}
+          className={`md-banner-img ${imageLoaded ? 'loaded' : 'loading'}`}
+          onLoad={() => setImageLoaded(true)}
+          onError={e => {
+            if (e.target.src !== FREE_FIRE_MAP_IMAGES.Bermuda.url) {
+              e.target.src = FREE_FIRE_MAP_IMAGES.Bermuda.url
+            } else {
+              e.target.style.display = 'none'
+            }
+          }}
+          loading="lazy"
+        />
+        <div className="md-banner-overlay" style={{ '--md-banner-tint': mapConfig.overlayTint }} />
+        {phase === 'live' && <div className="md-banner-live-glow" />}
+        <div className="md-banner-badges">
+          <span className={`md-badge status-${phase}`}>
+            {phase === 'live' && <span className="md-live-dot" />}
+            {phase === 'upcoming' ? 'UPCOMING' : phase === 'live' ? '🔴 LIVE' : 'COMPLETED'}
           </span>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            padding: '4px 10px', borderRadius: 8, fontSize: 10, fontWeight: 700,
-            fontFamily: 'Plus Jakarta Sans',
-            background: '#201f21', color: '#e8e8e8',
-            border: '1px solid rgba(62,72,78,0.15)',
-          }}>{match.mode}</span>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            padding: '4px 10px', borderRadius: 8, fontSize: 10, fontWeight: 600,
-            fontFamily: 'Plus Jakarta Sans',
-            background: '#201f21', color: '#e8e8e8',
-            border: '1px solid rgba(62,72,78,0.15)',
-          }}>{match.map}</span>
+          <span className="md-badge mode" style={{
+            '--md-mode-bg': modeConfig.bgGradient,
+            '--md-mode-color': modeConfig.color,
+            '--md-mode-border': modeConfig.borderGradient,
+          }}>
+            <i className={modeConfig.icon} style={{ fontSize: 9 }} />
+            {modeConfig.label}
+          </span>
+          <span className="md-badge map" style={{
+            '--md-map-color': mapConfig.accentColor,
+            '--md-map-border': mapConfig.accentColor + '33',
+          }}>
+            📍 {match.map}
+          </span>
         </div>
-        <div style={{ position: 'absolute', bottom: 14, left: 14, right: 14 }}>
-          <h1 style={{
-            fontFamily: 'Lexend', fontSize: 24, fontWeight: 900,
-            color: '#ffffff', margin: '0 0 6px', lineHeight: 1.15,
-            fontStyle: 'italic', textTransform: 'uppercase', letterSpacing: '0.02em',
-            textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-          }}>{match.title}</h1>
+        <div className="md-banner-content">
+          <h1 className="md-banner-title">{match.title}</h1>
           {st.date && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <i className="fa-regular fa-calendar" style={{ fontSize: 11, color: '#bdc8cf' }} />
-              <span style={{
-                fontSize: 12, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans', fontWeight: 500,
-                textShadow: '0 1px 3px rgba(0,0,0,0.6)',
-              }}>
+            <div className="md-banner-meta">
+              <i className="fa-regular fa-calendar" />
+              <span>
                 {phase === 'upcoming' && cdStart > 0
-                  ? `Starts in ${cdFormat(cdStart)}`
+                  ? `⏱ Starts in ${cdFormat(cdStart)}`
                   : phase === 'live' && cdEnd > 0
-                    ? `Live — ends in ${cdFormat(cdEnd)}`
-                    : `${st.date} · ${st.time}`}
+                    ? `🔴 Live — ends in ${cdFormat(cdEnd)}`
+                    : `📅 ${st.date} · ${st.time}`}
               </span>
             </div>
           )}
         </div>
       </div>
 
-      {/* CONTENT WRAPPER */}
-      <div style={{
-        background: 'linear-gradient(145deg, #1b1b1d, #131315)',
-        borderRadius: '0 0 16px 16px',
-        padding: '18px 16px',
-        marginBottom: 20,
-        boxShadow: 'inset 0 4px 16px rgba(0,0,0,0.2)',
-        border: '1px solid rgba(62,72,78,0.15)', borderTop: 'none',
-      }}>
+      {/* ═══════ CONTENT ═══════ */}
+      <div className="md-content">
+        {/* Countdown */}
         {phase === 'upcoming' && cdStart > 0 && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 14,
-            background: '#201f21', border: '1px solid rgba(62,72,78,0.15)',
-            borderRadius: 12, padding: '12px 16px', marginBottom: 16,
+          <div className="md-countdown" style={{
+            '--md-countdown-border': mapConfig.accentColor + '22',
+            '--md-countdown-color': mapConfig.accentColor,
           }}>
-            <i className="fa-solid fa-clock" style={{ color: '#61cdff', fontSize: 16 }} />
+            <i className="fa-solid fa-clock" />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 9, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 2 }}>Starts in</div>
-              <div style={{ fontFamily: 'Inter', fontSize: 24, fontWeight: 700, color: '#61cdff', letterSpacing: 1, lineHeight: 1 }}>{cdFormat(cdStart)}</div>
+              <div className="md-countdown-label">Starts in</div>
+              <div className="md-countdown-time">{cdFormat(cdStart)}</div>
             </div>
           </div>
         )}
+
+        {/* Live Pill */}
         {phase === 'live' && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(230,57,70,0.12)', border: '1px solid rgba(230,57,70,0.3)',
-            borderRadius: 10, padding: '10px 18px', marginBottom: 16,
-          }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e63946' }} />
-            <span style={{ fontFamily: 'Plus Jakarta Sans', fontSize: 13, fontWeight: 700, color: '#e63946', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Match is Live</span>
+          <div className="md-live-pill">
+            <span className="md-live-pill-dot" />
+            <span className="md-live-pill-text">🔴 Match is LIVE NOW!</span>
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-          {[
-            { ico: 'fa-solid fa-coins', lbl: 'Entry Fee', val: formatTK(match.entryFee), clr: '#FFC857' },
-            { ico: 'fa-solid fa-trophy', lbl: 'Prize Pool', val: formatTK(eco.prizePool), clr: '#a78bfa' },
-            { ico: 'fa-solid fa-crosshairs', lbl: 'Per Kill', val: formatTK(match.perKill || 0), clr: '#06d6a0' },
-            { ico: 'fa-solid fa-users', lbl: 'Slots Open', val: `${match.maxSlots - joinCount} / ${match.maxSlots}`, clr: '#61cdff', valClr: '#61cdff' },
-          ].map((s, i) => (
-            <div key={i} style={{ ...esportsCard, padding: 16, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: s.clr }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, paddingLeft: 6 }}>
-                <i className={s.ico} style={{ color: s.clr, fontSize: 14 }} />
-                <span style={{ fontSize: 10, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{s.lbl}</span>
+        {/* Timeline */}
+        <div className="md-timeline">
+          {timelineSteps.map((step, i) => (
+            <div key={step.id} className="md-timeline-step">
+              <div className={`md-timeline-dot ${step.completed ? 'completed' : step.active ? 'active' : 'pending'}`}>
+                {step.completed ? <i className="fa-solid fa-check" style={{ fontSize: 10 }} /> : i + 1}
               </div>
-              <span style={{ fontFamily: 'Inter', fontSize: 22, fontWeight: 900, paddingLeft: 6, color: s.valClr || '#ffffff' }}>{s.val}</span>
+              <span className={`md-timeline-label ${step.completed ? 'completed' : step.active ? 'active' : ''}`}>
+                {step.label}
+              </span>
             </div>
           ))}
         </div>
 
-        <div style={{ marginBottom: 4 }}>
-          <div style={{ width: '100%', height: 6, borderRadius: 999, background: '#353437', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
-            <div style={{ width: pct + '%', height: '100%', borderRadius: 999, background: full ? '#06d6a0' : 'linear-gradient(90deg, #61cdff, #a78bfa)', transition: 'width 0.3s' }} />
+        {/* Format Info Grid */}
+        <div className="md-format-grid">
+          {[
+            { icon: 'fa-solid fa-coins', label: 'Entry Fee', value: formatTK(match.entryFee), color: '#FFC857', bg: 'rgba(255,200,87,0.08)' },
+            { icon: 'fa-solid fa-trophy', label: 'Prize Pool', value: formatTK(eco.prizePool), color: mapConfig.accentColor, bg: mapConfig.accentColor + '15' },
+            { icon: 'fa-solid fa-crosshairs', label: 'Per Kill', value: formatTK(match.perKill || 0), color: '#06d6a0', bg: 'rgba(6,214,160,0.08)' },
+            { icon: 'fa-solid fa-users', label: 'Slots', value: `${match.maxSlots - joinCount} / ${match.maxSlots}`, color: '#61cdff', bg: 'rgba(97,205,255,0.08)' },
+            { icon: 'fa-solid fa-layer-group', label: 'Game Type', value: match.gameType || 'BR', color: '#a78bfa', bg: 'rgba(167,139,250,0.08)' },
+            { icon: 'fa-solid fa-clock', label: 'Duration', value: match.gameType === 'BR' ? '25 min' : '15 min', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+          ].map((s, i) => (
+            <div key={i} className="md-format-cell">
+              <div className="md-format-icon" style={{ background: s.bg, color: s.color }}>
+                <i className={s.icon} />
+              </div>
+              <div className="md-format-value" style={{ color: s.color }}>{s.value}</div>
+              <div className="md-format-label">{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Progress Bar */}
+        <div className="md-progress-wrap">
+          <div className="md-progress-track">
+            <div className="md-progress-fill" style={{
+              width: pct + '%',
+              '--md-progress-bg': full ? '#06d6a0' : `linear-gradient(90deg, ${mapConfig.accentColor}, #a78bfa)`,
+              '--md-progress-glow': full ? 'rgba(6,214,160,0.3)' : mapConfig.accentColor + '4d',
+            }} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-            <span style={{ fontSize: 11, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans', fontWeight: 500 }}>{joinCount}/{match.maxSlots} joined</span>
-            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'Inter', color: '#61cdff' }}>{pct}%</span>
+          <div className="md-progress-meta">
+            <span>{joinCount}/{match.maxSlots} joined</span>
+            <span className="md-progress-pct" style={{ '--md-progress-color': mapConfig.accentColor }}>{pct}%</span>
           </div>
         </div>
       </div>
 
-      {/* VIEW JOINED PLAYERS */}
-      <div onClick={() => { setShowPlayers(!showPlayers); setHoveredSlot(null) }} style={{
-        width: '100%', marginTop: 2, marginBottom: 20,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        padding: '14px 0', borderRadius: 10, cursor: 'pointer',
-        background: 'linear-gradient(135deg, #1A222D, #131315)',
-        border: '1px solid rgba(79,209,255,0.2)',
-        WebkitTapHighlightColor: 'transparent',
-      }}>
-        <i className="fa-solid fa-users" style={{ color: '#61cdff', fontSize: 16 }} />
-        <span style={{ fontFamily: 'Plus Jakarta Sans', fontWeight: 700, fontSize: 13, color: '#61cdff', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          {showPlayers ? 'HIDE JOINED PLAYERS' : 'VIEW JOINED PLAYERS'}
-        </span>
-      </div>
+      {/* ═══════ TABS ═══════ */}
+      <nav style={{ padding: '0 16px', marginBottom: '16px', position: 'relative', zIndex: 2 }}>
+        <div className="md-tabs">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              className={`md-tab ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <i className={tab.icon} style={{ marginRight: 6, fontSize: 11 }} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </nav>
 
-      {/* PLAYER SLOTS */}
-      {showPlayers && (
-        <div style={{ marginBottom: 20 }}>
-          <SectionHead label={`Player Slots — ${joinCount}/${match.maxSlots}`} />
-          <div style={{ ...esportsCard, padding: 14 }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${Math.min(match.maxSlots, 10)}, 1fr)`,
-              gap: 6,
-            }}>
-              {slotItems.map(s => {
-                const isHovered = hoveredSlot === s.key
-                return (
-                  <div key={s.key}
-                    onClick={() => setHoveredSlot(isHovered ? null : s.key)}
-                    style={{
-                      aspectRatio: '1', borderRadius: 6,
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'Inter', fontSize: s.type === 'empty' ? 11 : 9, fontWeight: 700,
-                      cursor: s.type !== 'empty' ? 'pointer' : 'default',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      transition: 'transform 0.1s',
-                      transform: isHovered ? 'scale(1.08)' : 'scale(1)',
-                      ...(s.type === 'me'
-                        ? { background: 'rgba(97,205,255,0.15)', border: '1px solid rgba(97,205,255,0.35)', color: '#61cdff' }
-                        : s.type === 'filled'
-                          ? { background: 'rgba(167,139,250,0.10)', border: isHovered ? '1px solid rgba(167,139,250,0.5)' : '1px solid rgba(167,139,250,0.20)', color: '#a78bfa' }
-                          : { background: '#201f21', border: '1px solid rgba(62,72,78,0.15)', color: '#555555' }),
-                    }}
-                  >
-                    {s.type === 'me' ? 'YOU' : s.type === 'filled' ? (s.user?.ign?.substring(0, 5) || '#') : (s.key + 1)}
-                  </div>
-                )
-              })}
-            </div>
+      {/* ═══════ TAB PANELS ═══════ */}
+      <div style={{ padding: '0 16px', position: 'relative', zIndex: 2 }}>
 
-            {slotTooltip && slotTooltip.type !== 'empty' && (
-              <div style={{
-                marginTop: 12, padding: '12px 14px',
-                background: '#201f21', border: '1px solid rgba(62,72,78,0.15)',
-                borderRadius: 10, display: 'flex', alignItems: 'center', gap: 12,
-              }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 8,
-                  background: slotTooltip.type === 'me' ? 'rgba(97,205,255,0.15)' : 'rgba(167,139,250,0.10)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <i className="fa-solid fa-user" style={{
-                    color: slotTooltip.type === 'me' ? '#61cdff' : '#a78bfa', fontSize: 14,
-                  }} />
+        {/* ─── OVERVIEW TAB ─── */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Stream Card (if live) */}
+            {phase === 'live' && (
+              <div className="md-stream-card">
+                <div className="md-stream-icon">
+                  <i className="fa-brands fa-youtube" />
                 </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{
-                    fontFamily: 'Plus Jakarta Sans', fontWeight: 700, fontSize: 14,
-                    color: slotTooltip.type === 'me' ? '#61cdff' : '#e8e8e8',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {slotTooltip.type === 'me'
-                      ? (cu?.displayName || cu?.ign || 'You')
-                      : (slotTooltip.user?.displayName || slotTooltip.user?.ign || 'Player')}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#555555', fontFamily: 'Plus Jakarta Sans', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {slotTooltip.type === 'me' ? (
-                      <span>Slot #{slotTooltip.key + 1} — Joined</span>
-                    ) : (
-                      <>
-                        <span>IGN: {slotTooltip.user?.ign || 'N/A'}</span>
-                        {team && <span style={{ color: '#444444' }}>|</span>}
-                        {team && <span style={{ color: '#FFC857' }}>Team: {slotTooltip.user?.teamName || 'N/A'}</span>}
-                      </>
-                    )}
-                  </div>
+                <div className="md-stream-title">🔴 Live Stream Available</div>
+                <div className="md-stream-hint">Watch the match live on our official channel</div>
+              </div>
+            )}
+
+            {/* Room Credentials */}
+            {joined && (
+              <div style={{ marginBottom: 20 }}>
+                <div className="md-section-head">
+                  <span><i className="fa-solid fa-key" style={{ marginRight: 8, color: '#7C3AED' }} />Room Credentials</span>
                 </div>
-                <div onClick={(e) => { e.stopPropagation(); setHoveredSlot(null) }} style={{
-                  width: 28, height: 28, borderRadius: 6,
-                  background: 'rgba(255,255,255,0.04)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', flexShrink: 0,
-                }}>
-                  <i className="fa-solid fa-xmark" style={{ color: '#555555', fontSize: 11 }} />
+                <div className="md-creds-card" style={{ '--md-creds-border': roomVisible ? '#06d6a0' : '#FFC857' }}>
+                  {roomVisible ? (
+                    <div className="md-creds-unlocked">
+                      <div className="md-creds-banner">
+                        <i className="fa-solid fa-lock-open" />
+                        <span className="md-creds-banner-text">🔓 Unlocked — Join in Free Fire now</span>
+                      </div>
+                      <div className="md-creds-grid">
+                        {[
+                          { label: 'Room ID', value: match.roomId, color: '#61cdff' },
+                          { label: 'Password', value: match.roomPassword, color: '#06d6a0' },
+                        ].map((item, idx) => (
+                          <div key={idx} className="md-cred-item">
+                            <div className="md-cred-label">{item.label}</div>
+                            <div className="md-cred-row">
+                              <span className="md-cred-value" style={{ '--md-cred-color': item.color }}>{item.value || 'Not set'}</span>
+                              <button className="md-cred-copy" onClick={() => copy(item.value)} aria-label={`Copy ${item.label}`}>
+                                <i className="fa-regular fa-copy" style={{ fontSize: 11 }} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="md-creds-locked">
+                      <i className="fa-solid fa-hourglass-half" />
+                      <div className="md-creds-locked-label">Unlocks 10 min before match</div>
+                      {roomCd && roomCd !== 'UNLOCKED' && (
+                        <div className="md-creds-locked-time">{roomCd.replace('Unlocks in ', '')}</div>
+                      )}
+                      <div className="md-creds-locked-hint">Stay on this page — credentials appear automatically</div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-              {[
-                { bg: 'rgba(97,205,255,0.15)', bd: 'rgba(97,205,255,0.35)', label: 'You' },
-                { bg: 'rgba(167,139,250,0.10)', bd: 'rgba(167,139,250,0.20)', label: 'Filled' },
-                { bg: '#201f21', bd: 'rgba(62,72,78,0.15)', label: 'Open' },
-              ].map(l => (
-                <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 0, background: l.bg, border: `1px solid ${l.bd}` }} />
-                  <span style={{ fontSize: 10, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans' }}>{l.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ROOM CREDENTIALS */}
-      {joined && (
-        <div style={{ marginBottom: 20 }}>
-          <SectionHead label="Room Credentials" />
-          <div style={{ ...esportsCard, padding: 0, overflow: 'hidden', borderLeft: '4px solid ' + (roomVisible ? '#06d6a0' : '#FFC857') }}>
-            {roomVisible ? (
-              <div style={{ padding: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: '#201f21', borderLeft: '2px solid #06d6a0', marginBottom: 14 }}>
-                  <i className="fa-solid fa-lock-open" style={{ color: '#06d6a0', fontSize: 18, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: '#e8e8e8', lineHeight: 1.6, fontFamily: 'Plus Jakarta Sans', fontWeight: 500 }}>Unlocked — Join in Free Fire now</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {[
-                    { lbl: 'Room ID', val: match.roomId, clr: '#61cdff' },
-                    { lbl: 'Password', val: match.roomPassword, clr: '#06d6a0' },
-                  ].map((item, idx) => (
-                    <div key={idx} style={{ padding: 12, background: '#201f21', border: '1px solid rgba(62,72,78,0.15)', borderRadius: 8 }}>
-                      <div style={{ fontSize: 9, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 6 }}>{item.lbl}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 700, color: item.clr, letterSpacing: 0.5, wordBreak: 'break-all' }}>{item.val || 'Not set'}</span>
-                        <div onClick={() => copy(item.val)} style={{
-                          width: 30, height: 30, background: 'rgba(97,205,255,0.08)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: 'pointer', borderRadius: 6, flexShrink: 0,
-                        }}>
-                          <i className="fa-regular fa-copy" style={{ color: '#61cdff', fontSize: 11 }} />
+            {/* Prize Distribution */}
+            <div style={{ marginBottom: 20 }}>
+              <div className="md-section-head">
+                <span><i className="fa-solid fa-coins" style={{ marginRight: 8, color: '#7C3AED' }} />💰 Prize Distribution</span>
+              </div>
+              {eco.prizes && eco.prizes.length > 0 ? (
+                <div className="md-prize-list">
+                  {eco.prizes.map((p) => {
+                    const cfg = RANK_CFG[p.rank]
+                    const isTop3 = !!cfg
+                    return (
+                      <div key={p.rank} className={`md-prize-row ${isTop3 ? 'top3' : ''}`} style={{
+                        '--md-prize-bar': cfg?.barBg,
+                        '--md-prize-glow': cfg?.glow,
+                      }}>
+                        <div className="md-prize-rank">
+                          <span className={`md-prize-badge ${cfg?.cls || 'other'}`}>{ordinal(p.rank)}</span>
+                          <span className="md-prize-label">Place</span>
                         </div>
+                        <span className={`md-prize-amount ${cfg?.cls || ''}`}>{formatTK(p.amount)}</span>
                       </div>
+                    )
+                  })}
+                  {match.perKill > 0 && (
+                    <div className="md-prize-kill">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div className="md-prize-kill-icon">
+                          <i className="fa-solid fa-crosshairs" />
+                        </div>
+                        <span style={{ fontFamily: 'Plus Jakarta Sans', fontWeight: 500, fontSize: 14, color: '#bdc8cf' }}>Per Kill</span>
+                      </div>
+                      <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: 16, color: '#61cdff' }}>{formatTK(match.perKill)}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="md-card">
+                  <div className="md-empty">
+                    <i className="fa-solid fa-users-slash" />
+                    <div>Prize breakdown updates when players join</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Admin Buttons */}
+            {isAdmin && phase !== 'completed' && (
+              <div className="md-admin-bar">
+                <button className="md-admin-btn room" onClick={() => dispatch({ type: 'SHOW_MODAL', payload: { type: 'room', data: { matchId: match.id } } })}>
+                  <i className="fa-solid fa-key" /> Set Room
+                </button>
+                <button className="md-admin-btn result" onClick={() => dispatch({ type: 'SHOW_MODAL', payload: { type: 'result', data: { matchId: match.id } } })}>
+                  <i className="fa-solid fa-trophy" /> Submit Result
+                </button>
+              </div>
+            )}
+            {isAdmin && phase === 'completed' && !match.result && (
+              <button className="md-admin-btn result full" onClick={() => dispatch({ type: 'SHOW_MODAL', payload: { type: 'result', data: { matchId: match.id } } })}>
+                <i className="fa-solid fa-trophy" /> Submit Result
+              </button>
+            )}
+
+            {/* Team Name Input */}
+            {team && !joined && phase !== 'completed' && !full && cu && (
+              <div className="md-team-card">
+                <div className="md-section-head" style={{ marginBottom: 10 }}>
+                  <span>{match.mode} Team Name — Required</span>
+                </div>
+                <div className="md-team-hint">
+                  <i className="fa-solid fa-people-group" />
+                  Enter your {match.mode} team name before joining. This will be shown in match results.
+                </div>
+                <div className="md-input-wrap">
+                  <i className="fa-solid fa-shield-halved" />
+                  <input
+                    type="text"
+                    placeholder={`e.g. ${match.mode === 'Squad' ? 'Dragon Squad' : 'Duo Kings'}`}
+                    value={teamName}
+                    onChange={e => { setTeamName(e.target.value); setTeamNameError('') }}
+                    maxLength={30}
+                    className={`md-input ${teamNameError ? 'error' : ''}`}
+                  />
+                  {teamName && (
+                    <button className="md-input-clear" onClick={() => setTeamName('')} aria-label="Clear">
+                      <i className="fa-solid fa-xmark" style={{ fontSize: 10 }} />
+                    </button>
+                  )}
+                </div>
+                {teamNameError && (
+                  <div className="md-input-error">
+                    <i className="fa-solid fa-circle-exclamation" style={{ fontSize: 11, flexShrink: 0 }} />
+                    {teamNameError}
+                  </div>
+                )}
+                {teamName.trim() && !teamNameError && (
+                  <div className="md-input-success">
+                    <i className="fa-solid fa-check-circle" style={{ fontSize: 12 }} />
+                    Team: <strong>"{teamName.trim()}"</strong>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No Refund Warning */}
+            {cu && !joined && !full && phase !== 'completed' && (
+              <div className="md-refund-box">
+                <div className="md-refund-header">
+                  <i className="fa-solid fa-shield-halved" />
+                  <span>⚠️ No Refund Policy</span>
+                </div>
+                <div className="md-refund-body">
+                  <p>Entry fee is NON-REFUNDABLE once you join this match.</p>
+                  <div className="md-refund-tags">
+                    {['No-show', 'Disconnect', 'Match lost', 'Cannot leave'].map(tag => (
+                      <span key={tag} className="md-refund-tag">
+                        <i className="fa-solid fa-xmark" /> {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="md-refund-note">
+                    <i className="fa-solid fa-circle-info" style={{ fontSize: 9 }} />
+                    Only admin-cancelled matches get full refund
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Action Bar */}
+            <div style={{ marginBottom: 20 }}>
+              {!cu ? (
+                <button className="md-btn md-btn-primary" onClick={() => navigate('login')}>
+                  <i className="fa-solid fa-right-to-bracket" style={{ fontSize: 16 }} />
+                  Login to Join
+                </button>
+              ) : joined ? (
+                <div className="md-btn md-btn-primary" style={{
+                  background: '#1b1b1d',
+                  border: '1px solid rgba(6,214,160,0.2)',
+                  color: '#06d6a0',
+                  cursor: 'default',
+                  boxShadow: 'none',
+                }}>
+                  <i className="fa-solid fa-circle-check" />
+                  You have joined{team && cu?.teamName ? ` — ${cu.teamName}` : ''}
+                </div>
+              ) : full ? (
+                <div className="md-btn md-btn-primary" style={{
+                  background: '#1b1b1d',
+                  border: '1px solid rgba(62,72,78,0.15)',
+                  color: '#889299',
+                  cursor: 'default',
+                  boxShadow: 'none',
+                }}>
+                  <i className="fa-solid fa-ban" />
+                  Slots Full
+                </div>
+              ) : phase === 'completed' ? (
+                <div className="md-btn md-btn-primary" style={{
+                  background: '#1b1b1d',
+                  border: '1px solid rgba(62,72,78,0.15)',
+                  color: '#555555',
+                  cursor: 'default',
+                  boxShadow: 'none',
+                }}>
+                  <i className="fa-solid fa-flag-checkered" />
+                  Completed
+                </div>
+              ) : (
+                <button className="md-btn md-btn-primary" onClick={handleJoin}>
+                  <i className="fa-solid fa-bolt" style={{ fontSize: 16 }} />
+                  ⚡ Join Battle — {formatTK(match.entryFee)}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ─── PLAYERS TAB ─── */}
+        {activeTab === 'players' && (
+          <>
+            <button className="md-slots-toggle" onClick={() => setShowPlayers(!showPlayers)}>
+              <i className="fa-solid fa-users" />
+              {showPlayers ? '▼ HIDE PLAYERS' : '▲ VIEW JOINED PLAYERS'}
+            </button>
+
+            {showPlayers && (
+              <div className="md-card" style={{ marginBottom: 20 }}>
+                <div className="md-card-title">
+                  <i className="fa-solid fa-users" /> Player Slots — {joinCount}/{match.maxSlots}
+                </div>
+                <div className="md-slots-grid">
+                  {slotItems.map(s => (
+                    <div
+                      key={s.key}
+                      onClick={() => setHoveredSlot(hoveredSlot === s.key ? null : s.key)}
+                      className={`md-slot ${s.type}`}
+                    >
+                      {s.type === 'me' ? 'YOU' : s.type === 'filled' ? (s.user?.ign?.substring(0, 5) || '#') : (s.key + 1)}
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '24px 16px' }}>
-                <i className="fa-solid fa-hourglass-half" style={{ fontSize: 28, color: '#889299', marginBottom: 10, display: 'block' }} />
-                <div style={{ fontSize: 9, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>Unlocks 10 min before match</div>
-                {roomCd && roomCd !== 'UNLOCKED' && (
-                  <div style={{ fontFamily: 'Inter', fontSize: 22, fontWeight: 700, color: '#FFC857', letterSpacing: 1, lineHeight: 1 }}>
-                    {roomCd.replace('Unlocks in ', '')}
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: '#555555', fontFamily: 'Plus Jakarta Sans', marginTop: 8 }}>Stay on this page — credentials appear automatically</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* PRIZE DISTRIBUTION */}
-      <div style={{ marginBottom: 20 }}>
-        <SectionHead label="Prize Distribution" />
-        {eco.prizes && eco.prizes.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {eco.prizes.map((p) => {
-              const cfg = RANK_CFG[p.rank]
-              const isTop3 = !!cfg
-              if (isTop3) {
-                return (
-                  <div key={p.rank} style={{ ...esportsCard, padding: '12px 14px', position: 'relative', overflow: 'hidden', boxShadow: cfg.glow }}>
-                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: cfg.barBg }} />
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingLeft: 6 }}>
-                        <span style={{ fontFamily: 'Inter', fontWeight: 900, fontSize: 14, width: 32, height: 32, borderRadius: 8, background: cfg.badgeBg, color: cfg.badgeTxt, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{p.rank}</span>
-                        <span style={{ fontFamily: 'Plus Jakarta Sans', fontWeight: 700, fontSize: 14, color: '#ffffff', letterSpacing: '0.03em' }}>Place</span>
-                      </div>
-                      <span style={{ ...gradientText(cfg.amtBg, 18, 900) }}>{formatTK(p.amount)}</span>
+                {slotTooltip && slotTooltip.type !== 'empty' && (
+                  <div className="md-slot-tooltip">
+                    <div className={`md-slot-tooltip-avatar ${slotTooltip.type}`}>
+                      <i className="fa-solid fa-user" style={{ fontSize: 14 }} />
                     </div>
-                  </div>
-                )
-              }
-              return (
-                <div key={p.rank} style={{ background: '#201f21', border: '1px solid rgba(62,72,78,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: 14, width: 32, height: 32, borderRadius: 8, background: '#1b1b1d', border: '1px solid rgba(62,72,78,0.15)', color: '#bdc8cf', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{p.rank}</span>
-                    <span style={{ fontFamily: 'Plus Jakarta Sans', fontWeight: 500, fontSize: 14, color: '#bdc8cf', letterSpacing: '0.03em' }}>Place</span>
-                  </div>
-                  <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: 16, color: '#bdc8cf' }}>{formatTK(p.amount)}</span>
-                </div>
-              )
-            })}
-            {match.perKill > 0 && (
-              <div style={{ background: '#201f21', border: '1px solid rgba(62,72,78,0.15)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(97,205,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <i className="fa-solid fa-crosshairs" style={{ color: '#61cdff', fontSize: 14 }} />
-                  </span>
-                  <span style={{ fontFamily: 'Plus Jakarta Sans', fontWeight: 500, fontSize: 14, color: '#bdc8cf' }}>Per Kill</span>
-                </div>
-                <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: 16, color: '#61cdff' }}>{formatTK(match.perKill)}</span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ ...esportsCard, padding: '28px 16px', textAlign: 'center' }}>
-            <i className="fa-solid fa-users-slash" style={{ fontSize: 22, color: '#555555', display: 'block', marginBottom: 8 }} />
-            <div style={{ fontSize: 13, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans' }}>Prize breakdown updates when players join</div>
-          </div>
-        )}
-      </div>
-
-      {/* RESULTS — with team names for squad/duo */}
-      {phase === 'completed' && match.result && match.result.players && (
-        <div style={{ marginBottom: 20 }}>
-          <SectionHead label="Match Results" />
-          <div style={{ ...esportsCard, padding: 0, overflow: 'hidden' }}>
-            {match.result.players.map((p, i) => {
-              const rc = rankColor(p.rank || p.position)
-              const isTop3 = !!rc
-              const isMe = cu && p.ign === cu.ign
-              const last = i === match.result.players.length - 1
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '13px 16px',
-                  borderBottom: last ? 'none' : '1px solid rgba(62,72,78,0.15)',
-                  background: isMe ? 'rgba(97,205,255,0.06)' : 'transparent',
-                  borderLeft: isTop3 ? `3px solid ${rc}` : (isMe ? '3px solid #61cdff' : '3px solid transparent'),
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-                    <span style={{
-                      fontFamily: 'Inter', fontWeight: 900, fontSize: 13,
-                      width: 32, height: 32, borderRadius: 8,
-                      background: isTop3 ? (RANK_CFG[p.rank || p.position]?.badgeBg || '#201f21') : '#201f21',
-                      border: isTop3 ? 'none' : '1px solid rgba(62,72,78,0.15)',
-                      color: isTop3 ? (RANK_CFG[p.rank || p.position]?.badgeTxt || '#bdc8cf') : '#bdc8cf',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>{p.rank || p.position}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: 'Plus Jakarta Sans', fontWeight: 600, fontSize: 14, color: isMe ? '#61cdff' : '#e8e8e8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {p.teamName ? (
-                          <span style={{ color: '#FFC857' }}>{p.teamName}</span>
-                        ) : null}
-                        {p.teamName && p.ign ? ' — ' : ''}
-                        {p.ign}{isMe ? ' (You)' : ''}
+                    <div className="md-slot-tooltip-info">
+                      <div className="md-slot-tooltip-name" style={{ color: slotTooltip.type === 'me' ? '#61cdff' : '#e8e8e8' }}>
+                        {slotTooltip.type === 'me'
+                          ? (cu?.displayName || cu?.ign || 'You')
+                          : (slotTooltip.user?.displayName || slotTooltip.user?.ign || 'Player')}
                       </div>
-                      <div style={{ fontSize: 11, color: '#555555', fontFamily: 'Plus Jakarta Sans', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
-                        {team ? (
-                          <>
-                            <i className="fa-solid fa-star" style={{ fontSize: 9, color: '#FFC857' }} />
-                            <span>{p.points != null ? p.points : p.kills} pts</span>
-                          </>
+                      <div className="md-slot-tooltip-meta">
+                        {slotTooltip.type === 'me' ? (
+                          <span>Slot #{slotTooltip.key + 1} — Joined</span>
                         ) : (
                           <>
-                            <i className="fa-solid fa-crosshairs" style={{ fontSize: 9 }} />
-                            <span>{p.kills} kills</span>
+                            <span>IGN: {slotTooltip.user?.ign || 'N/A'}</span>
+                            {team && <span style={{ color: '#444444' }}>|</span>}
+                            {team && <span style={{ color: '#FFC857' }}>Team: {slotTooltip.user?.teamName || 'N/A'}</span>}
                           </>
                         )}
                       </div>
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setHoveredSlot(null) }}
+                      style={{
+                        width: 28, height: 28, borderRadius: 6,
+                        background: 'rgba(255,255,255,0.04)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', flexShrink: 0, border: 'none', color: '#555',
+                      }}
+                    >
+                      <i className="fa-solid fa-xmark" style={{ fontSize: 11 }} />
+                    </button>
                   </div>
-                  {p.prize != null && (
-                    <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: 16, color: isTop3 ? rc : '#bdc8cf', flexShrink: 0, marginLeft: 12 }}>{formatTK(p.prize)}</span>
-                  )}
+                )}
+
+                <div className="md-slot-legend">
+                  {[
+                    { bg: 'rgba(97,205,255,0.15)', bd: 'rgba(97,205,255,0.35)', label: 'You' },
+                    { bg: 'rgba(167,139,250,0.10)', bd: 'rgba(167,139,250,0.20)', label: 'Filled' },
+                    { bg: '#201f21', bd: 'rgba(62,72,78,0.15)', label: 'Open' },
+                  ].map(l => (
+                    <div key={l.label} className="md-slot-legend-item">
+                      <div className="md-slot-legend-box" style={{ background: l.bg, border: `1px solid ${l.bd}` }} />
+                      {l.label}
+                    </div>
+                  ))}
                 </div>
-              )
-            })}
-          </div>
-          {match.result.submittedAt && (
-            <div style={{ marginTop: 8, fontSize: 11, color: '#555555', fontFamily: 'Plus Jakarta Sans', textAlign: 'right' }}>
-              Submitted {match.result.submittedAt}{match.result.method === 'screenshot' ? ' via screenshot' : ' manually'}
-            </div>
-          )}
-        </div>
-      )}
-
-      {phase === 'completed' && (!match.result || !match.result.players) && (
-        <div style={{ marginBottom: 20, ...esportsCard, padding: '32px 16px', textAlign: 'center' }}>
-          <i className="fa-solid fa-hourglass-half" style={{ fontSize: 24, color: '#555555', display: 'block', marginBottom: 10 }} />
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans' }}>Results Pending</div>
-          <div style={{ fontSize: 12, color: '#555555', fontFamily: 'Plus Jakarta Sans', marginTop: 4 }}>Admin hasn't submitted results yet.</div>
-        </div>
-      )}
-
-      {/* ADMIN BUTTONS */}
-      {isAdmin && phase !== 'completed' && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-          {[
-            { lbl: 'Set Room', ico: 'fa-solid fa-key', clr: '#61cdff', bg: 'rgba(97,205,255,0.08)', brd: 'rgba(97,205,255,0.2)', act: () => dispatch({ type: 'SHOW_MODAL', payload: { type: 'room', data: { matchId: match.id } } }) },
-            { lbl: 'Submit Result', ico: 'fa-solid fa-trophy', clr: '#06d6a0', bg: 'rgba(6,214,160,0.08)', brd: 'rgba(6,214,160,0.2)', act: () => dispatch({ type: 'SHOW_MODAL', payload: { type: 'result', data: { matchId: match.id } } }) },
-          ].map((b, i) => (
-            <div key={i} onClick={b.act} style={{ flex: 1, height: 48, background: b.bg, border: `1px solid ${b.brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', borderRadius: 10 }}>
-              <i className={b.ico} style={{ color: b.clr, fontSize: 13 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: b.clr, fontFamily: 'Lexend' }}>{b.lbl}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {isAdmin && phase === 'completed' && !match.result && (
-        <div onClick={() => dispatch({ type: 'SHOW_MODAL', payload: { type: 'result', data: { matchId: match.id } } })} style={{ marginBottom: 20, height: 48, background: 'rgba(6,214,160,0.08)', border: '1px solid rgba(6,214,160,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', borderRadius: 10 }}>
-          <i className="fa-solid fa-trophy" style={{ color: '#06d6a0', fontSize: 13 }} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#06d6a0', fontFamily: 'Lexend' }}>Submit Result</span>
-        </div>
-      )}
-
-      {/* RULES — EN/BN toggle with your exact 15 rules */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingLeft: 4, paddingRight: 4 }}>
-          <div style={{
-            fontFamily: 'Lexend', fontWeight: 700, fontSize: 12, color: '#e8e8e8',
-            textTransform: 'uppercase', fontStyle: 'italic', letterSpacing: 0.5,
-          }}>
-            {rulesLang === 'bn' ? 'ম্যাচ নিয়ম' : 'Match Rules'}
-          </div>
-          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(62,72,78,0.15)' }}>
-            {[
-              { code: 'en', label: 'EN' },
-              { code: 'bn', label: 'বা' },
-            ].map(l => (
-              <div key={l.code} onClick={() => setRulesLang(l.code)} style={{
-                padding: '5px 14px', fontSize: 11, fontWeight: 700,
-                fontFamily: 'Inter', cursor: 'pointer',
-                background: rulesLang === l.code ? 'rgba(97,205,255,0.15)' : 'transparent',
-                color: rulesLang === l.code ? '#61cdff' : '#555555',
-                borderRight: l.code === 'en' ? '1px solid rgba(62,72,78,0.15)' : 'none',
-                letterSpacing: 0.5,
-              }}>{l.label}</div>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {rules.map((r, i) => (
-            <div key={i} style={{ ...esportsCard, padding: '14px 14px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <span style={{ fontSize: 15, marginTop: 1, flexShrink: 0, opacity: 0.8 }}>{r.e}</span>
-              <span style={{ fontSize: 13, color: '#bdc8cf', lineHeight: 1.6, fontFamily: 'Plus Jakarta Sans', fontWeight: 500 }}>{r.t}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* TEAM NAME INPUT — only for Squad/Duo */}
-      {team && !joined && phase !== 'completed' && !full && cu && (
-        <div style={{ marginBottom: 16 }}>
-          <SectionHead label={`${match.mode} Team Name — Required`} />
-          <div style={{ ...esportsCard, padding: '16px 14px', borderLeft: '3px solid #FFC857' }}>
-            <div style={{
-              fontSize: 11, color: '#bdc8cf', fontFamily: 'Plus Jakarta Sans', fontWeight: 500,
-              marginBottom: 10, lineHeight: 1.5,
-            }}>
-              <i className="fa-solid fa-people-group" style={{ color: '#FFC857', marginRight: 6 }}></i>
-              Enter your {match.mode} team name before joining. This will be shown in match results.
-            </div>
-            <div style={{ position: 'relative' }}>
-              <i className="fa-solid fa-shield-halved" style={{
-                position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                fontSize: 13, color: '#FFC857',
-              }}></i>
-              <input
-                type="text"
-                placeholder={`e.g. ${match.mode === 'Squad' ? 'Dragon Squad' : 'Duo Kings'}`}
-                value={teamName}
-                onChange={e => { setTeamName(e.target.value); setTeamNameError('') }}
-                maxLength={30}
-                style={{
-                  width: '100%', padding: '14px 14px 14px 42px', borderRadius: 10,
-                  border: `1px solid ${teamNameError ? 'rgba(230,57,70,0.5)' : 'rgba(62,72,78,0.15)'}`,
-                  background: '#201f21',
-                  color: '#ffffff', fontFamily: 'Inter', fontSize: 15, fontWeight: 700,
-                  letterSpacing: 0.5, outline: 'none', boxSizing: 'border-box',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={e => { if (!teamNameError) e.target.style.borderColor = 'rgba(255,200,87,0.4)' }}
-                onBlur={e => { if (!teamNameError) e.target.style.borderColor = 'rgba(62,72,78,0.15)' }}
-              />
-              {teamName && (
-                <div onClick={() => setTeamName('')} style={{
-                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  width: 24, height: 24, borderRadius: 6,
-                  background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
-                }}>
-                  <i className="fa-solid fa-xmark" style={{ color: '#555', fontSize: 10 }}></i>
-                </div>
-              )}
-            </div>
-            {teamNameError && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 12px', marginTop: 8,
-                background: 'rgba(230,57,70,0.08)',
-                border: '1px solid rgba(230,57,70,0.15)',
-                borderRadius: 8,
-              }}>
-                <i className="fa-solid fa-circle-exclamation" style={{ fontSize: 11, color: '#e63946', flexShrink: 0 }}></i>
-                <span style={{ fontSize: 12, color: '#e63946', fontFamily: 'Plus Jakarta Sans', fontWeight: 500 }}>{teamNameError}</span>
               </div>
             )}
-            {teamName.trim() && (
-              <div style={{
-                marginTop: 8, padding: '8px 12px',
-                background: 'rgba(255,200,87,0.06)', border: '1px solid rgba(255,200,87,0.15)',
-                borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                <i className="fa-solid fa-check-circle" style={{ color: '#FFC857', fontSize: 12 }}></i>
-                <span style={{ fontSize: 12, color: '#FFC857', fontFamily: 'Plus Jakarta Sans', fontWeight: 600 }}>
-                  Team: <strong>"{teamName.trim()}"</strong>
-                </span>
+          </>
+        )}
+
+        {/* ─── RULES TAB ─── */}
+        {activeTab === 'rules' && (
+          <>
+            <div className="md-rules-header">
+              <span className="md-rules-title">
+                {rulesLang === 'bn' ? '📜 ম্যাচ নিয়ম' : '📜 Match Rules'}
+              </span>
+              <div className="md-lang-toggle">
+                {[{ code: 'en', label: 'EN' }, { code: 'bn', label: 'বাং' }].map(l => (
+                  <button
+                    key={l.code}
+                    className={`md-lang-btn ${rulesLang === l.code ? 'active' : ''}`}
+                    onClick={() => setRulesLang(l.code)}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {rules.map((r, i) => (
+                <div key={i} className="md-rule-item">
+                  <span className="md-rule-emoji">{r.e}</span>
+                  <span className="md-rule-text">{r.t}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ─── RESULTS TAB ─── */}
+        {activeTab === 'results' && (
+          <>
+            {phase === 'completed' && match.result && match.result.players ? (
+              <>
+                <div className="md-section-head">
+                  <span><i className="fa-solid fa-trophy" style={{ marginRight: 8, color: '#7C3AED' }} />🏆 Match Results</span>
+                </div>
+                <div className="md-result-list">
+                  {match.result.players.map((p, i) => {
+                    const rc = rankColor(p.rank || p.position)
+                    const isTop3 = !!rc
+                    const isMe = cu && p.ign === cu.ign
+                    const last = i === match.result.players.length - 1
+                    const rankCls = p.rank === 1 ? 'gold' : p.rank === 2 ? 'silver' : p.rank === 3 ? 'bronze' : 'other'
+                    return (
+                      <div key={i} className={`md-result-row ${isMe ? 'is-me' : ''} ${isTop3 ? 'top' + p.rank : ''}`}>
+                        <div className="md-result-player">
+                          <span className={`md-result-rank ${rankCls}`}>{ordinal(p.rank || p.position)}</span>
+                          <div className="md-result-info">
+                            <div className={`md-result-name ${isMe ? 'is-me' : ''}`}>
+                              {p.teamName && <span className="md-result-team">{p.teamName}</span>}
+                              {p.teamName && p.ign ? ' — ' : ''}
+                              {p.ign}{isMe ? ' (You)' : ''}
+                            </div>
+                            <div className="md-result-meta">
+                              {team ? (
+                                <>
+                                  <i className="fa-solid fa-star" style={{ color: '#FFC857' }} />
+                                  <span>{p.points != null ? p.points : p.kills} pts</span>
+                                </>
+                              ) : (
+                                <>
+                                  <i className="fa-solid fa-crosshairs" />
+                                  <span>{p.kills} kills</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {p.prize != null && (
+                          <span className={`md-result-prize ${rankCls}`}>{formatTK(p.prize)}</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                {match.result.submittedAt && (
+                  <div className="md-result-submitted">
+                    Submitted {match.result.submittedAt}{match.result.method === 'screenshot' ? ' via screenshot' : ' manually'}
+                  </div>
+                )}
+              </>
+            ) : phase === 'completed' && (!match.result || !match.result.players) ? (
+              <div className="md-card" style={{ marginBottom: 20 }}>
+                <div className="md-empty">
+                  <i className="fa-solid fa-hourglass-half" />
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#bdc8cf', marginBottom: 4 }}>Results Pending</div>
+                  <div style={{ fontSize: 12, color: '#555555' }}>Admin hasn't submitted results yet.</div>
+                </div>
+              </div>
+            ) : (
+              <div className="md-card" style={{ marginBottom: 20 }}>
+                <div className="md-empty">
+                  <i className="fa-solid fa-clock" />
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#bdc8cf', marginBottom: 4 }}>Match Not Completed</div>
+                  <div style={{ fontSize: 12, color: '#555555' }}>Results will appear here after the match ends.</div>
+                </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ PHASE 4.4: NO REFUND WARNING ═══ */}
-      {cu && !joined && !full && phase !== 'completed' && (
-        <div style={{
-          borderRadius: 10, overflow: 'hidden', marginBottom: 14,
-          border: '2px solid #f87171',
-          background: 'linear-gradient(135deg, rgba(248,113,113,0.10) 0%, rgba(248,113,113,0.02) 60%), #1c1b1d',
-          boxShadow: '0 0 16px rgba(248,113,113,0.06)',
-        }}>
-          <div style={{
-            padding: '10px 14px',
-            background: 'linear-gradient(135deg, rgba(248,113,113,0.12) 0%, rgba(248,113,113,0.04) 100%)',
-            borderBottom: '1px solid rgba(248,113,113,0.15)',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <i className="fa-solid fa-shield-halved" style={{ color: '#f87171', fontSize: 13 }} />
-            <span style={{
-              fontFamily: "'Lexend', sans-serif", fontSize: 12, fontWeight: 700,
-              color: '#f87171', letterSpacing: '0.06em', textTransform: 'uppercase',
-            }}>
-              No Refund Policy
-            </span>
-          </div>
-          <div style={{ padding: '10px 14px' }}>
-            <p style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11,
-              color: '#f87171', fontWeight: 700, margin: '0 0 6px 0', lineHeight: 1.4,
-            }}>
-              Entry fee is NON-REFUNDABLE once you join this match.
-            </p>
-            <div style={{
-              display: 'flex', flexWrap: 'wrap', gap: '4px 12px',
-              fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 10,
-              color: '#bdc8cf', fontWeight: 500,
-            }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <i className="fa-solid fa-xmark" style={{ color: '#f87171', fontSize: 9 }} /> No-show
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <i className="fa-solid fa-xmark" style={{ color: '#f87171', fontSize: 9 }} /> Disconnect
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <i className="fa-solid fa-xmark" style={{ color: '#f87171', fontSize: 9 }} /> Match lost
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <i className="fa-solid fa-xmark" style={{ color: '#f87171', fontSize: 9 }} /> Cannot leave
-              </span>
-            </div>
-            <p style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 10,
-              color: '#4ade80', fontWeight: 600, margin: '8px 0 0 0',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}>
-              <i className="fa-solid fa-circle-info" style={{ fontSize: 9 }} />
-              Only admin-cancelled matches get full refund
-            </p>
-          </div>
-        </div>
-      )}
-      {/* ═══ END NO REFUND WARNING ═══ */}
-
-      {/* ✅ NOTE: OLD SHARE BUTTON SECTION REMOVED - Now in Professional Header Bar! */}
-
-      {/* ACTION BAR */}
-      <div>
-        {!cu ? (
-          <div onClick={() => navigate('login')} style={{
-            width: '100%', height: 56, borderRadius: 10,
-            background: 'linear-gradient(135deg, #61cdff, #a78bfa)',
-            color: '#0e0e10', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            fontFamily: 'Plus Jakarta Sans', fontSize: 14, fontWeight: 700,
-            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
-          }}>
-            <i className="fa-solid fa-right-to-bracket" style={{ fontSize: 16 }} />
-            Login to Join
-          </div>
-        ) : joined ? (
-          <div style={{
-            width: '100%', height: 56, borderRadius: 10,
-            background: '#1b1b1d', border: '1px solid rgba(6,214,160,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            fontFamily: 'Plus Jakarta Sans', fontSize: 13, fontWeight: 700,
-            color: '#06d6a0', letterSpacing: '0.1em', textTransform: 'uppercase',
-          }}>
-            <i className="fa-solid fa-circle-check" />
-            You have joined{team && cu?.teamName ? ` — ${cu.teamName}` : ''}
-          </div>
-        ) : full ? (
-          <div style={{
-            width: '100%', height: 56, borderRadius: 10,
-            background: '#1b1b1d', border: '1px solid rgba(62,72,78,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            fontFamily: 'Plus Jakarta Sans', fontSize: 13, fontWeight: 700,
-            color: '#889299', letterSpacing: '0.1em', textTransform: 'uppercase',
-          }}>
-            <i className="fa-solid fa-ban" />
-            Slots Full
-          </div>
-        ) : phase === 'completed' ? (
-          <div style={{
-            width: '100%', height: 56, borderRadius: 10,
-            background: '#1b1b1d', border: '1px solid rgba(62,72,78,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            fontFamily: 'Plus Jakarta Sans', fontSize: 13, fontWeight: 700,
-            color: '#555555', letterSpacing: '0.1em', textTransform: 'uppercase',
-          }}>
-            <i className="fa-solid fa-flag-checkered" />
-            Completed
-          </div>
-        ) : (
-          <div onClick={handleJoin} style={{
-            width: '100%', height: 56, borderRadius: 10,
-            background: 'linear-gradient(135deg, #61cdff, #a78bfa)',
-            color: '#0e0e10', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            fontFamily: 'Plus Jakarta Sans', fontSize: 14, fontWeight: 700,
-            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
-            WebkitTapHighlightColor: 'transparent',
-          }}>
-            <i className="fa-solid fa-bolt" style={{ fontSize: 16 }} />
-            Join Battle — {formatTK(match.entryFee)}
-          </div>
+          </>
         )}
       </div>
     </div>

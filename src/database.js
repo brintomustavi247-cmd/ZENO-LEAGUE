@@ -1178,3 +1178,158 @@ export async function savePointcalcResult(matchId, resultData) {
   await batch.commit();
   return { success: true, prizeDistribution, savedResult };
 }
+// ═══════════════════════════════════════════════════════════════════════
+//  V6.0: SQUAD / TEAM DATA STRUCTURES
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function saveSquadToCloud(userId, squadData) {
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) throw new Error('User not found');
+
+  const sanitizedSquad = {
+    name: sanitize(squadData.name || ''),
+    tag: sanitize((squadData.tag || '').toUpperCase()).slice(0, 4),
+    logo: sanitize(squadData.logo || ''),
+    members: (squadData.members || []).map(m => ({
+      name: sanitize(m.name || ''),
+      ign: sanitize(m.ign || ''),
+      role: ['Captain', 'Fragger', 'Support', 'IGL', 'Substitute'].includes(m.role) ? m.role : 'Substitute',
+    })).filter(m => m.name),
+    updatedAt: new Date().toISOString(),
+    createdAt: squadData.createdAt || new Date().toISOString(),
+  };
+
+  await updateDoc(userRef, { squad: sanitizedSquad });
+  return sanitizedSquad;
+}
+
+export async function fetchSquadByTag(tag) {
+  if (!tag) return null;
+  const usersCol = collection(db, 'users');
+  const q = query(usersCol, where('squad.tag', '==', tag.toUpperCase().trim()));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return { userId: doc.id, ...doc.data().squad };
+}
+
+export async function fetchAllSquads() {
+  const usersCol = collection(db, 'users');
+  const snap = await getDocs(usersCol);
+  const squads = [];
+  snap.docs.forEach(d => {
+    const data = d.data();
+    if (data.squad && data.squad.name) {
+      squads.push({
+        id: d.id,
+        userId: d.id,
+        ...data.squad,
+        // Calculate derived stats from matches
+        matchesPlayed: data.totalMatchesPlayed || 0,
+        wins: data.totalWins || 0,
+        winRate: data.totalMatchesPlayed > 0 ? Math.round((data.totalWins / data.totalMatchesPlayed) * 100) : 0,
+      });
+    }
+  });
+  return squads;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  V6.0: NEWS & COMMUNITY CONTENT MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function createNewsPost(data) {
+  const newsRef = doc(db, 'news', data.id);
+  await setDoc(newsRef, {
+    title: sanitize(data.title || ''),
+    body: sanitize(data.body || ''),
+    image: sanitize(data.image || ''),
+    tag: ['Tournament', 'Update', 'Feature', 'Announcement', 'Maintenance'].includes(data.tag) ? data.tag : 'Announcement',
+    publishDate: data.publishDate || new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    authorId: data.authorId || 'admin',
+    status: 'published',
+  });
+}
+
+export async function updateNewsPost(id, data) {
+  const newsRef = doc(db, 'news', id);
+  await updateDoc(newsRef, {
+    ...data,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function deleteNewsPost(id) {
+  const newsRef = doc(db, 'news', id);
+  await updateDoc(newsRef, { status: 'deleted', deletedAt: new Date().toISOString() });
+}
+
+export async function fetchNewsPosts(limit = 10) {
+  const newsCol = collection(db, 'news');
+  const q = query(newsCol, where('status', '==', 'published'), orderBy('createdAt', 'desc'), limit(limit));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export function subscribeToNews(onUpdate) {
+  const newsCol = collection(db, 'news');
+  const q = query(newsCol, where('status', '==', 'published'), orderBy('createdAt', 'desc'));
+  const unsubscribe = onSnapshot(q, (snap) => {
+    const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    onUpdate(results);
+  }, (error) => {
+    console.error('[DB] News subscription error:', error);
+    onUpdate([]);
+  });
+  return unsubscribe;
+}
+
+export async function addCommunityContent(data) {
+  const contentRef = doc(db, 'communityContent', data.id);
+  await setDoc(contentRef, {
+    title: sanitize(data.title || ''),
+    type: ['highlight', 'reel', 'video'].includes(data.type) ? data.type : 'highlight',
+    thumbnailUrl: sanitize(data.thumbnailUrl || ''),
+    videoUrl: sanitize(data.videoUrl || ''),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    authorId: data.authorId || 'admin',
+    status: 'active',
+  });
+}
+
+export async function updateCommunityContent(id, data) {
+  const contentRef = doc(db, 'communityContent', id);
+  await updateDoc(contentRef, {
+    ...data,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function deleteCommunityContent(id) {
+  const contentRef = doc(db, 'communityContent', id);
+  await updateDoc(contentRef, { status: 'deleted', deletedAt: new Date().toISOString() });
+}
+
+export async function fetchCommunityContent(limit = 20) {
+  const col = collection(db, 'communityContent');
+  const q = query(col, where('status', '==', 'active'), orderBy('createdAt', 'desc'), limit(limit));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export function subscribeToCommunityContent(onUpdate) {
+  const col = collection(db, 'communityContent');
+  const q = query(col, where('status', '==', 'active'), orderBy('createdAt', 'desc'));
+  const unsubscribe = onSnapshot(q, (snap) => {
+    const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    onUpdate(results);
+  }, (error) => {
+    console.error('[DB] Community content subscription error:', error);
+    onUpdate([]);
+  });
+  return unsubscribe;
+}

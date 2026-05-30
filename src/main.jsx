@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { AppProvider } from './context'
 import App from './App'
 import './App.css'
+import './styles/dashboard-premium.css' 
 import './styles/header-bar.css' // Add this line
 
 // 👇 ADD THESE 2 LINES FOR PWA SERVICE WORKER

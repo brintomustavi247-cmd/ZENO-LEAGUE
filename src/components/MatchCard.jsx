@@ -1,8 +1,48 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useApp } from '../context'
 import { formatTK, slotPercent, getMatchPhase, getMatchCountdown } from '../utils'
-import './MatchCard.css'  // ← THIS LINE MUST EXIST
+import './MatchCard.css'
 
+// ═══════════════════════════════════════════════════════════════════════
+//  ★ ZENO LEAGUE — CUSTOM FREE FIRE MAP BACKGROUNDS
+//  Priority: Admin Upload → These Default FF Map Images → Gradient Fallback
+// ═══════════════════════════════════════════════════════════════════════
+const MAP_BACKGROUNDS = {
+  Bermuda: {
+    primary: 'https://z-cdn-media.chatglm.cn/files/7dd05de5-886f-49ce-b030-ad7effd217d7.jpg?auth_key=1879443065-4d0113aafd9a43c1b17e880d1556554a-0-343c3dc45b02f0da39231ec282a5059e',
+    gradient: 'linear-gradient(135deg, rgba(6,182,212,0.35) 0%, rgba(8,145,178,0.55) 100%)',
+    accentColor: '#06b6d4',
+    name: 'Bermuda',
+    description: 'Classic tropical island - swimming to victory',
+  },
+  Kalahari: {
+    primary: 'https://z-cdn-media.chatglm.cn/files/739b993f-a154-4be2-81e1-980c1264439f.jpg?auth_key=1879443065-89b8f8483ffd414397e740e74e900b0f-0-566cf06aa9daabe9a8be9c588a9f9aa0',
+    gradient: 'linear-gradient(135deg, rgba(245,158,11,0.35) 0%, rgba(217,119,6,0.55) 100%)',
+    accentColor: '#f59e0b',
+    name: 'Kalahari',
+    description: 'Desert industrial zone - dominate the battlefield',
+  },
+  Alpine: {
+    primary: 'https://z-cdn-media.chatglm.cn/files/d09f242d-0ab7-43a5-8c1a-467f74694c42.jpg?auth_key=1879443065-08fbd830d6e2428d9681dde2e6e236fc-0-b35c5d9845530606927d3b376404818d',
+    gradient: 'linear-gradient(135deg, rgba(34,197,94,0.35) 0%, rgba(22,163,74,0.55) 100%)',
+    accentColor: '#22c55e',
+    name: 'Alpine',
+    description: 'Modern zone - burger bus & facilities',
+  },
+  Purgatory: {
+    primary: 'https://z-cdn-media.chatglm.cn/files/23f1a948-f661-415d-94be-bcfa3107acd6.jpg?auth_key=1879443065-ecec5cf2c7be4f3cb223a929046ad603-0-17dd00712517b1717e171da8cf5c069f',
+    gradient: 'linear-gradient(135deg, rgba(239,68,68,0.35) 0%, rgba(220,38,38,0.55) 100%)',
+    accentColor: '#ef4444',
+    name: 'Purgatory',
+    description: 'Volcanic battlefield - zipline to glory',
+  },
+};
+
+const DEFAULT_MAP_BG = MAP_BACKGROUNDS.Bermuda;
+
+// ═══════════════════════════════════════════════════════════════════════
+//  TIME PARSER
+// ═══════════════════════════════════════════════════════════════════════
 function parseMatchTime(startTime) {
   if (!startTime) return null
   if (startTime && typeof startTime.toDate === 'function') return startTime.toDate().getTime()
@@ -43,7 +83,7 @@ function DigitalCountdown({ ms }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  PROGRESS RING (Slots) — Gambit CIS inspired
+//  PROGRESS RING (Slots)
 // ═══════════════════════════════════════════════════════════════════════
 function SlotRing({ current, max, phase }) {
   const pct = Math.min((current / max) * 100, 100)
@@ -65,7 +105,7 @@ function SlotRing({ current, max, phase }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  AVATAR STACK (Inspired by eSports Mobile)
+//  AVATAR STACK
 // ═══════════════════════════════════════════════════════════════════════
 function AvatarStack({ participants = [], maxShow = 4 }) {
   const displayCount = Math.min(participants.length, maxShow)
@@ -88,14 +128,47 @@ function AvatarStack({ participants = [], maxShow = 4 }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3D TILT HOOK
+//  MOBILE DETECTION HOOK
 // ═══════════════════════════════════════════════════════════════════════
-function useTilt() {
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const isTouchDevice = 'ontouchstart' in window
+      const isSmallScreen = window.innerWidth < 768
+      const isLowCoherence = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      setIsMobile(isSmallScreen || isTouchDevice || isLowCoherence)
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    motionQuery.addEventListener('change', checkMobile)
+
+    return () => {
+      window.removeEventListener('resize', checkMobile)
+      motionQuery.removeEventListener('change', checkMobile)
+    }
+  }, [])
+
+  return isMobile
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  3D TILT HOOK (Desktop only)
+// ═══════════════════════════════════════════════════════════════════════
+function useTilt(disabled = false) {
   const ref = useRef(null)
   const [style, setStyle] = useState({})
+  const lastUpdateRef = useRef(0)
 
   const onMouseMove = useCallback((e) => {
-    if (!ref.current) return
+    if (!ref.current || disabled) return
+    const now = performance.now()
+    if (now - lastUpdateRef.current < 33) return
+    lastUpdateRef.current = now
+
     const rect = ref.current.getBoundingClientRect()
     const x = (e.clientX - rect.left) / rect.width
     const y = (e.clientY - rect.top) / rect.height
@@ -105,14 +178,15 @@ function useTilt() {
       transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`,
       transition: 'transform 0.1s ease-out',
     })
-  }, [])
+  }, [disabled])
 
   const onMouseLeave = useCallback(() => {
+    if (disabled) return
     setStyle({
       transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)',
       transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
     })
-  }, [])
+  }, [disabled])
 
   return { ref, style, onMouseMove, onMouseLeave }
 }
@@ -120,21 +194,22 @@ function useTilt() {
 // ═══════════════════════════════════════════════════════════════════════
 //  PARTICLE BURST ON JOIN
 // ═══════════════════════════════════════════════════════════════════════
-function ParticleBurst({ trigger }) {
+function ParticleBurst({ trigger, isMobile }) {
   const [particles, setParticles] = useState([])
 
   useEffect(() => {
     if (!trigger) return
-    const newParticles = Array.from({ length: 12 }, (_, i) => ({
+    const particleCount = isMobile ? 6 : 12
+    const newParticles = Array.from({ length: particleCount }, (_, i) => ({
       id: Date.now() + i,
-      angle: (i / 12) * 360,
-      color: ['#06b6d4', '#8b5cf6', '#f59e0b', '#ffffff'][i % 4],
+      angle: (i / particleCount) * 360,
+      color: ['#7C3AED', '#8B5CF6', '#F59E0B', '#ffffff'][i % 4],
       delay: i * 30,
     }))
     setParticles(newParticles)
     const timer = setTimeout(() => setParticles([]), 1000)
     return () => clearTimeout(timer)
-  }, [trigger])
+  }, [trigger, isMobile])
 
   if (particles.length === 0) return null
 
@@ -153,7 +228,7 @@ function ParticleBurst({ trigger }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  WHATSAPP SHARE BUTTON — V5.0 Growth Engine
+//  WHATSAPP SHARE BUTTON
 // ═══════════════════════════════════════════════════════════════════════
 function WhatsAppShare({ match, onShare }) {
   const handleShare = (e) => {
@@ -161,8 +236,8 @@ function WhatsAppShare({ match, onShare }) {
     const text = `🔥 *${match.title}* on ZENO LEAGUE!\n\n` +
       `🎮 Mode: ${match.mode}\n` +
       `🗺️ Map: ${match.map}\n` +
-      `💰 Prize Pool: ${formatTK(match.prizePool || match.entryFee * match.maxSlots * 0.8)} TK\n` +
-      `🎫 Entry: ${formatTK(match.entryFee)} TK\n` +
+      `💰 Prize Pool: ${formatTK(match.prizePool || match.entryFee * match.maxSlots * 0.8)}\n` +
+      `🎫 Entry: ${formatTK(match.entryFee)}\n` +
       `👥 ${match.joinedCount || 0}/${match.maxSlots} Joined\n\n` +
       `Join now: https://zeno-league.vercel.app/match/${match.id}`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
@@ -177,32 +252,34 @@ function WhatsAppShare({ match, onShare }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  PRIZE BADGE — Floating trophy indicator
+//  PRIZE BADGE
 // ═══════════════════════════════════════════════════════════════════════
 function PrizeBadge({ amount }) {
   return (
     <div className="prize-badge">
       <i className="fa-solid fa-trophy" />
-      <span>{formatTK(amount)} TK</span>
+      <span>{formatTK(amount)}</span>
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  MAIN MATCH CARD V2 — COMPLETE GAMING AESTHETIC
+//  MAIN MATCH CARD V3 — PREMIUM ULTRA-DARK
 // ═══════════════════════════════════════════════════════════════════════
 export default function MatchCard({ match, variant = 'default', index = 0 }) {
   const { dispatch, navigate } = useApp()
   const [countdown, setCountdown] = useState(getMatchCountdown(match))
   const [burstTrigger, setBurstTrigger] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
-  const { ref, style, onMouseMove, onMouseLeave } = useTilt()
+  const isMobile = useIsMobile()
+  const { ref, style, onMouseMove, onMouseLeave } = useTilt(isMobile)
 
   const phase = getMatchPhase(match)
   const isLive = phase === 'live'
   const isUpcoming = phase === 'upcoming'
   const isCompleted = phase === 'completed'
   const pct = slotPercent(match)
+
   const prizePoolValue = match.prizePool || Math.round(match.entryFee * match.maxSlots * 0.8)
 
   useEffect(() => {
@@ -243,9 +320,9 @@ export default function MatchCard({ match, variant = 'default', index = 0 }) {
   const isDim = variant === 'dim'
 
   const phaseColors = {
-    live: { accent: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444, #f97316)', glow: 'rgba(239, 68, 68, 0.3)' },
-    upcoming: { accent: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6, #06b6d4)', glow: 'rgba(139, 92, 246, 0.3)' },
-    completed: { accent: '#6b7280', gradient: 'linear-gradient(135deg, #374151, #4b5563)', glow: 'transparent' },
+    live: { accent: '#EF4444', gradient: 'linear-gradient(135deg, #EF4444, #F97316)', glow: 'rgba(239, 68, 68, 0.3)' },
+    upcoming: { accent: '#7C3AED', gradient: 'linear-gradient(135deg, #7C3AED, #06B6D4)', glow: 'rgba(124, 58, 237, 0.3)' },
+    completed: { accent: '#71717A', gradient: 'linear-gradient(135deg, #3f3f46, #52525b)', glow: 'transparent' },
   }
   const pc = phaseColors[phase] || phaseColors.upcoming
 
@@ -256,46 +333,78 @@ export default function MatchCard({ match, variant = 'default', index = 0 }) {
       onMouseMove={onMouseMove}
       onMouseLeave={(e) => { onMouseLeave(e); setIsHovered(false) }}
       onMouseEnter={() => setIsHovered(true)}
-      className={`match-card-v2 ${isGlow ? 'match-card-glow' : ''} ${isDim ? 'match-card-dim' : ''}`}
-      style={{ ...style, animationDelay: `${index * 80}ms`, '--card-accent': pc.accent, '--card-glow': pc.glow }}
+      className={`match-card-v3 ${isGlow ? 'match-card-glow' : ''} ${isDim ? 'match-card-dim' : ''}`}
+      style={{
+        ...style,
+        animationDelay: `${index * 80}ms`,
+        '--card-accent': pc.accent,
+        '--card-glow': pc.glow,
+      }}
     >
-      {isGlow && <div className={`card-glow-border ${isHovered ? 'active' : ''}`} style={{ background: pc.gradient }} />}
-      <div className="holographic-shine" />
+      {/* Holographic shine — desktop only */}
+      {!isMobile && <div className="holographic-shine" />}
+
+      {/* Live pulse ring */}
       {isLive && <div className="live-pulse-ring" />}
 
+      {/* Card Header */}
       <div className="match-card-header">
-        {match.image ? (
-          <img src={match.image} alt="" className="match-card-bg" />
-        ) : (
-          <div className="match-card-bg-fallback" style={{ background: pc.gradient }} />
-        )}
+        {(() => {
+          if (match.image) {
+            return <img src={match.image} alt="" className="match-card-bg" />
+          }
+          if (match.map && MAP_BACKGROUNDS[match.map]) {
+            return (
+              <>
+                <img
+                  src={MAP_BACKGROUNDS[match.map].primary}
+                  alt={`${match.map} map`}
+                  className="match-card-bg"
+                />
+                <div className={`mode-overlay mode-${match.mode?.toLowerCase()?.replace(' ', '-')}`} />
+              </>
+            )
+          }
+          return (
+            <div
+              className="match-card-bg-fallback"
+              style={{ background: pc.gradient }}
+            />
+          )
+        })()}
         <div className="match-card-overlay" />
 
+        {/* Status Badge */}
         <div className="status-badge" style={{ background: pc.gradient, boxShadow: `0 0 20px ${pc.glow}` }}>
           {isLive && <span className="live-dot" />}
           <i className={isLive ? 'fa-solid fa-tower-broadcast' : isUpcoming ? 'fa-regular fa-clock' : 'fa-solid fa-check-circle'} />
           {isLive ? 'LIVE NOW' : isUpcoming ? matchTimeStr || 'UPCOMING' : 'COMPLETED'}
         </div>
 
+        {/* Prize Badge */}
         <div className="prize-badge-wrapper">
           <PrizeBadge amount={prizePoolValue} />
         </div>
 
+        {/* No Refund Badge */}
         {!isCompleted && (
           <div className="no-refund-badge">
-            <i className="fa-solid fa-shield-halved" /> No Refund
+            <i className="fa-solid fa-shield-halved" /> <span>No Refund</span>
           </div>
         )}
 
+        {/* Mode Badge */}
         <div className="mode-badge">
           <i className={`fa-solid ${modeIcon}`} style={{ color: pc.accent }} />
           {match.mode}
         </div>
 
+        {/* Slot Ring */}
         <div className="slot-ring-wrapper">
           <SlotRing current={match.joinedCount || 0} max={match.maxSlots} phase={phase} />
         </div>
 
+        {/* Share Button */}
         {!isCompleted && (
           <div className="share-wrapper">
             <WhatsAppShare match={match} onShare={handleShareMatch} />
@@ -303,6 +412,7 @@ export default function MatchCard({ match, variant = 'default', index = 0 }) {
         )}
       </div>
 
+      {/* Card Content */}
       <div className="match-card-content">
         <h3 className="match-title" style={{ textShadow: isLive ? `0 0 20px ${pc.glow}` : 'none' }}>
           {match.title}
@@ -346,20 +456,27 @@ export default function MatchCard({ match, variant = 'default', index = 0 }) {
         <div className="prize-row">
           <div className="prize-item">
             <div className="prize-label">Entry Fee</div>
-            <div className="prize-value"><i className="fa-solid fa-ticket" style={{ color: '#8b5cf6' }} />{formatTK(match.entryFee)}</div>
+            <div className="prize-value">
+              <i className="fa-solid fa-ticket" style={{ color: '#8B5CF6' }} />
+              {formatTK(match.entryFee)}
+            </div>
           </div>
           <div className="prize-item right">
             <div className="prize-label">Prize Pool</div>
-            <div className="prize-value gold"><i className="fa-solid fa-trophy" />{formatTK(prizePoolValue)}</div>
+            <div className="prize-value gold">
+              <i className="fa-solid fa-trophy" />
+              {formatTK(prizePoolValue)}
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Actions */}
       {!isCompleted && (
         <div className="match-card-actions">
-          <ParticleBurst trigger={burstTrigger} />
+          <ParticleBurst trigger={burstTrigger} isMobile={isMobile} />
           <button
-            className="join-btn-v2"
+            className="join-btn-v3"
             style={{ background: pc.gradient, boxShadow: `0 4px 20px ${pc.glow}` }}
             onClick={handleJoin}
             onMouseEnter={e => {
@@ -374,15 +491,18 @@ export default function MatchCard({ match, variant = 'default', index = 0 }) {
             <span className="btn-shine" />
             <i className={isLive ? 'fa-solid fa-play' : 'fa-solid fa-bolt'} />
             {isLive ? 'Watch Live' : 'Join Match'}
-    <span className="join-fee">{formatTK(match.entryFee)}</span>
+            <span className="join-fee">{formatTK(match.entryFee)}</span>
             <i className="fa-solid fa-arrow-right" />
           </button>
         </div>
       )}
 
+      {/* Completed Overlay */}
       {isCompleted && (
         <div className="completed-overlay">
-          <div className="completed-badge"><i className="fa-solid fa-flag-checkered" />Match Ended</div>
+          <div className="completed-badge">
+            <i className="fa-solid fa-flag-checkered" />Match Ended
+          </div>
         </div>
       )}
     </div>

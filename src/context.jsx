@@ -18,7 +18,7 @@ import {
 import { createContext, useContext, useReducer, useEffect, useCallback, useMemo, useRef } from 'react'
 import { calculateMatchEconomics, calculateJoinCost, showToast } from './utils'
 import { auth, db } from './firebase'
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore'
+import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 
 const AppContext = createContext(null)
@@ -147,7 +147,13 @@ const initialState = {
   now: Date.now(),
   loading: false,
   sidebarOpen: false,
-  language: persistedSession.language || 'en',
+  language: (() => {
+    try {
+      return localStorage.getItem('zeno-lang') || 'bn';
+    } catch {
+      return 'bn';
+    }
+  })(),
 
   // Phase 1: Pending async operations
   pendingPrizeDistribution: null,
@@ -412,29 +418,9 @@ users: state.users.map(u => u.id === updated.id ? { ...u, ...action.payload } : 
     // ════════════════════════════════════════
     //  MATCH: CREATE
     // ════════════════════════════════════════
-    case 'CREATE_MATCH': {
-      const fd = action.payload
-      const eco = calculateMatchEconomics(fd.entryFee, fd.maxSlots, fd.gameType, fd.include4th, fd.include5th)
-      const newMatchId = 'm' + Date.now()
-      const newMatch = {
-        id: newMatchId,
-        title: fd.title, mode: fd.mode, map: fd.map, gameType: fd.gameType,
-        entryFee: Number(fd.entryFee), maxSlots: Number(fd.maxSlots),
-        joinedCount: 0, perKill: Number(fd.perKill) || 0,
-        include4th: !!fd.include4th, include5th: !!fd.include5th,
-        status: 'upcoming', startTime: fd.startTime || '',
-        roomId: '', roomPassword: '', image: fd.image || '',
-        participants: [], prizePool: eco.prizePool, prizes: eco.prizes,
-        createdBy: state.currentUser?.id, createdAt: new Date().toISOString(),
-        escrow: { collected: 0, refunded: 0, distributed: 0 },
-        minPlayers: Number(fd.minPlayers) || 10,
-        joined: [],
-      }
-
-      createMatchInDb(newMatchId, newMatch).catch(err => console.error("Cloud save failed:", err))
-      return { ...state, matches: [newMatch, ...state.matches] }
-    }
-
+    case 'CREATE_MATCH':
+      // logic moved to Admin.jsx component to prevent double-creation
+      return state
     case 'UPDATE_MATCH':
       return { ...state, matches: state.matches.map(m => m.id === action.payload.id ? { ...m, ...action.payload } : m) }
 
@@ -947,6 +933,7 @@ users: state.users.map(u => u.id === updated.id ? { ...u, ...action.payload } : 
     }
 
     case 'SET_LANGUAGE':
+      try { localStorage.setItem('zeno-lang', action.payload); } catch {}
       return { ...state, language: action.payload }
 
     case 'TOGGLE_RIGHT_PANEL':
@@ -1266,9 +1253,9 @@ export function AppProvider({ children }) {
     const fallbackPoll = async () => {
       try {
         // LIMIT TO LAST 50 DOCS INSTEAD OF FETCHING ALL
-        const snap = await getDocs(
-          query(collection(db, 'addMoneyRequests'), orderBy('createdAt', 'desc')).limit(50)
-        )
+       const snap = await getDocs(
+  query(collection(db, 'addMoneyRequests'), orderBy('createdAt', 'desc'), limit(50))
+)
         const results = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'pending')
         
         // USE LENGTH CHECK + FIRST ID INSTEAD OF EXPENSIVE JSON.STRINGIFY
@@ -1311,9 +1298,9 @@ export function AppProvider({ children }) {
     const fallbackPoll = async () => {
       try {
         // LIMIT TO LAST 50 DOCS
-        const wdSnap = await getDocs(
-          query(collection(db, 'withdrawals'), orderBy('createdAt', 'desc')).limit(50)
-        )
+       const wdSnap = await getDocs(
+  query(collection(db, 'withdrawals'), orderBy('createdAt', 'desc'), limit(50))
+)
         const results = wdSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(w => w.status === 'pending')
         
         // USE LENGTH CHECK + FIRST ID INSTEAD OF JSON.STRINGIFY
@@ -1365,7 +1352,7 @@ export function AppProvider({ children }) {
       dispatch({ type: 'BATCH_MATCH_UPDATE', payload: cloudMatches })
     })
     return () => unsubscribe()
-  }, [])
+  }, [state.currentUser?.firebaseUid])
 
   // ════════════════════════════════════════
   //  V5.0: REFERRAL STATS LOADER

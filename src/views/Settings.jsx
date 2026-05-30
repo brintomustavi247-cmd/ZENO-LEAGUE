@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useApp } from '../context'
+import { useLanguage } from '../hooks/useLanguage'
 
 export default function Settings() {
   const { state, dispatch, navigate } = useApp()
+  const { t } = useLanguage()
   const { currentUser } = state
 
   const [notifEnabled, setNotifEnabled] = useState(true)
@@ -102,12 +104,15 @@ export default function Settings() {
   )
 
   const handleLogout = () => {
-    dispatch({ type: 'LOGOUT' })
-    window.location.hash = 'login'
+    const confirmed = window.confirm(t('settings.logout_confirm'))
+    if (confirmed) {
+      dispatch({ type: 'LOGOUT' })
+      window.location.hash = 'login'
+    }
   }
 
   const handleClearData = () => {
-    if (confirm('This will delete all your saved data. Continue?')) {
+    if (confirm(t('settings.clear_data_confirm'))) {
       localStorage.removeItem('zeno_league')
       window.location.reload()
     }
@@ -123,92 +128,92 @@ export default function Settings() {
           color: '#fff', margin: '0 0 4px', lineHeight: 1.2,
         }}>
           <i className="fa-solid fa-gear" style={{ marginRight: 10, color: '#64748b' }}></i>
-          Settings
+          {t('settings.title')}
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted, #777)', fontFamily: 'var(--font-body)', margin: 0 }}>
-          Manage your account preferences
+          {t('settings.manage_preferences')}
         </p>
       </div>
 
       {/* ===== PRIVACY ===== */}
-      <SettingSection title="Privacy" icon="fa-solid fa-shield-halved" iconColor="#a78bfa">
+      <SettingSection title={t('settings.privacy')} icon="fa-solid fa-shield-halved" iconColor="#a78bfa">
         <SettingRow
           icon="fa-solid fa-eye"
           iconColor="#a78bfa"
-          label="Show Online Status"
-          description="Let others see when you're online"
+          label={t('settings.show_online')}
+          description={t('settings.show_online_desc')}
         >
           <Toggle enabled={showOnline} onToggle={() => setShowOnline(!showOnline)} color="#a78bfa" />
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-user-group"
           iconColor="#a78bfa"
-          label="Public Profile"
-          description="Allow others to view your profile"
+          label={t('settings.public_profile')}
+          description={t('settings.public_profile_desc')}
         >
           <Toggle enabled={true} onToggle={() => {}} color="#a78bfa" />
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-chart-bar"
           iconColor="#a78bfa"
-          label="Show Match History"
-          description="Display your joined matches on profile"
+          label={t('settings.show_match_history')}
+          description={t('settings.show_match_history_desc')}
         >
           <Toggle enabled={true} onToggle={() => {}} color="#a78bfa" />
         </SettingRow>
       </SettingSection>
 
       {/* ===== NOTIFICATIONS ===== */}
-      <SettingSection title="Notifications" icon="fa-solid fa-bell" iconColor="#fbbf24">
+      <SettingSection title={t('notif.title')} icon="fa-solid fa-bell" iconColor="#fbbf24">
         <SettingRow
           icon="fa-solid fa-bell"
           iconColor="#fbbf24"
-          label="Push Notifications"
-          description="Get notified about matches and results"
+          label={t('settings.push_notif')}
+          description={t('settings.push_notif_desc')}
         >
           <Toggle enabled={notifEnabled} onToggle={() => setNotifEnabled(!notifEnabled)} color="#fbbf24" />
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-key"
           iconColor="#fbbf24"
-          label="Room Unlock Alerts"
-          description="Alert when room credentials become visible"
+          label={t('settings.room_alerts')}
+          description={t('settings.room_alerts_desc')}
         >
           <Toggle enabled={true} onToggle={() => {}} color="#fbbf24" />
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-trophy"
           iconColor="#fbbf24"
-          label="Result Notifications"
-          description="Get notified when match results are published"
+          label={t('settings.result_notif')}
+          description={t('settings.result_notif_desc')}
         >
           <Toggle enabled={true} onToggle={() => {}} color="#fbbf24" />
         </SettingRow>
       </SettingSection>
 
       {/* ===== APPEARANCE ===== */}
-      <SettingSection title="Appearance" icon="fa-solid fa-palette" iconColor="#00f0ff">
+      <SettingSection title={t('settings.appearance')} icon="fa-solid fa-palette" iconColor="#00f0ff">
         <SettingRow
           icon="fa-solid fa-volume-high"
           iconColor="#00f0ff"
-          label="Sound Effects"
-          description="Play sounds for actions"
+          label={t('settings.sound')}
+          description={t('settings.sound_desc')}
         >
           <Toggle enabled={soundEnabled} onToggle={() => setSoundEnabled(!soundEnabled)} color="#00f0ff" />
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-moon"
           iconColor="#00f0ff"
-          label="Dark Mode"
-          description="Always dark theme for gaming"
+          label={t('settings.dark_mode')}
+          description={t('settings.dark_mode_desc')}
         >
           <Toggle enabled={darkMode} onToggle={() => setDarkMode(!darkMode)} color="#00f0ff" />
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-language"
           iconColor="#00f0ff"
-          label="Language"
-          description="App display language"
+          label={t('settings.language')}
+          description={t('settings.language_desc')}
         >
           <div style={{
             padding: '7px 14px', borderRadius: 8,
@@ -217,18 +222,18 @@ export default function Settings() {
             fontFamily: 'var(--font-heading)', fontSize: 12, fontWeight: 700,
             color: '#00f0ff',
           }}>
-            English
+            {t('lang.current')}
           </div>
         </SettingRow>
       </SettingSection>
 
       {/* ===== SECURITY ===== */}
-      <SettingSection title="Security" icon="fa-solid fa-lock" iconColor="#22c55e">
+      <SettingSection title={t('settings.security')} icon="fa-solid fa-lock" iconColor="#22c55e">
         <SettingRow
           icon="fa-solid fa-key"
           iconColor="#22c55e"
-          label="Change Password"
-          description="Update your account password"
+          label={t('settings.change_password')}
+          description={t('settings.change_password_desc')}
         >
           <button style={{
             padding: '7px 16px', borderRadius: 8,
@@ -237,14 +242,14 @@ export default function Settings() {
             color: '#22c55e', fontFamily: 'var(--font-display)', fontSize: 11,
             fontWeight: 700, cursor: 'pointer',
           }}>
-            Change
+            {t('common.change')}
           </button>
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-shield-halved"
           iconColor="#22c55e"
-          label="Two-Factor Auth"
-          description="Add extra security to your account"
+          label={t('settings.two_factor')}
+          description={t('settings.two_factor_desc')}
         >
           <span style={{
             padding: '7px 16px', borderRadius: 8,
@@ -253,14 +258,14 @@ export default function Settings() {
             color: 'var(--text-muted, #666)', fontFamily: 'var(--font-display)', fontSize: 11,
             fontWeight: 600,
           }}>
-            Coming Soon
+            {t('settings.coming_soon')}
           </span>
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-clock-rotate-left"
           iconColor="#22c55e"
-          label="Login History"
-          description="View recent login activity"
+          label={t('settings.login_history')}
+          description={t('settings.login_history_desc')}
         >
           <button style={{
             padding: '7px 16px', borderRadius: 8,
@@ -269,18 +274,18 @@ export default function Settings() {
             color: '#22c55e', fontFamily: 'var(--font-display)', fontSize: 11,
             fontWeight: 700, cursor: 'pointer',
           }}>
-            View
+            {t('settings.view')}
           </button>
         </SettingRow>
       </SettingSection>
 
       {/* ===== ACCOUNT ===== */}
-      <SettingSection title="Account" icon="fa-solid fa-user-gear" iconColor="#6c8cff">
+      <SettingSection title={t('settings.account')} icon="fa-solid fa-user-gear" iconColor="#6c8cff">
         <SettingRow
           icon="fa-solid fa-user-pen"
           iconColor="#6c8cff"
-          label="Edit Profile"
-          description="Change your name, IGN, and avatar"
+          label={t('profile.edit')}
+          description={t('settings.edit_profile_desc')}
         >
           <button
             onClick={() => navigate('profile')}
@@ -292,14 +297,14 @@ export default function Settings() {
               fontWeight: 700, cursor: 'pointer',
             }}
           >
-            Edit
+            {t('common.edit')}
           </button>
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-wallet"
           iconColor="#6c8cff"
-          label="Wallet"
-          description="Manage your balance and transactions"
+          label={t('wallet.title')}
+          description={t('settings.manage_balance')}
         >
           <button
             onClick={() => navigate('wallet')}
@@ -311,18 +316,18 @@ export default function Settings() {
               fontWeight: 700, cursor: 'pointer',
             }}
           >
-            Open
+            {t('settings.open')}
           </button>
         </SettingRow>
       </SettingSection>
 
       {/* ===== DANGER ZONE ===== */}
-      <SettingSection title="Danger Zone" icon="fa-solid fa-triangle-exclamation" iconColor="#ef4444">
+      <SettingSection title={t('settings.danger_zone')} icon="fa-solid fa-triangle-exclamation" iconColor="#ef4444">
         <SettingRow
           icon="fa-solid fa-trash-can"
           iconColor="#ef4444"
-          label="Clear App Data"
-          description="Delete all locally saved data including login"
+          label={t('settings.clear_data')}
+          description={t('settings.clear_data_desc')}
         >
           <button
             onClick={handleClearData}
@@ -334,14 +339,14 @@ export default function Settings() {
               fontWeight: 700, cursor: 'pointer',
             }}
           >
-            Clear
+            {t('settings.clear_btn')}
           </button>
         </SettingRow>
         <SettingRow
           icon="fa-solid fa-right-from-bracket"
           iconColor="#ef4444"
-          label="Logout"
-          description={`Sign out of ${currentUser.name}`}
+          label={t('auth.logout')}
+          description={`${t('settings.sign_out')} ${currentUser.name}`}
         >
           <button
             onClick={handleLogout}
@@ -354,7 +359,7 @@ export default function Settings() {
               boxShadow: '0 2px 12px rgba(239,68,68,0.1)',
             }}
           >
-            Logout
+            {t('auth.logout')}
           </button>
         </SettingRow>
       </SettingSection>
@@ -379,14 +384,14 @@ export default function Settings() {
             fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 700,
             color: '#fff', margin: '0 0 4px',
           }}>
-            ZENO LEAGUE
+            {t('app.name')}
           </h3>
           <p style={{
             fontSize: 11, color: 'var(--text-muted, #555)',
             fontFamily: 'var(--font-display)', letterSpacing: 1,
             margin: '0 0 14px',
           }}>
-            VERSION 8.0 — BUILD 2025
+            {t('settings.version_info')}
           </p>
 
           <div style={{
@@ -394,9 +399,9 @@ export default function Settings() {
             flexWrap: 'wrap',
           }}>
             {[
-              { label: 'Platform', value: 'Free Fire' },
-              { label: 'Engine', value: 'React + Vite' },
-              { label: 'Backend', value: 'Firebase' },
+              { label: t('settings.platform'), value: 'Free Fire' },
+              { label: t('settings.engine'), value: 'React + Vite' },
+              { label: t('settings.backend'), value: 'Firebase' },
             ].map(info => (
               <div key={info.label} style={{ textAlign: 'center' }}>
                 <div style={{
@@ -422,9 +427,9 @@ export default function Settings() {
             fontSize: 10, color: 'var(--text-muted, #444)',
             fontFamily: 'var(--font-body)', lineHeight: 1.6,
           }}>
-            <p style={{ margin: '0 0 4px' }}>🔥 Built for esports tournament management</p>
-            <p style={{ margin: '0 0 4px' }}>📱 Mobile-first design for on-the-go admin control</p>
-            <p style={{ margin: 0 }}>© 2025 ZENO LEAGUE. All rights reserved.</p>
+            <p style={{ margin: '0 0 4px' }}>🔥 {t('settings.built_for')}</p>
+            <p style={{ margin: '0 0 4px' }}>📱 {t('settings.mobile_first')}</p>
+            <p style={{ margin: 0 }}>© 2025 {t('app.name')}. {t('settings.all_rights')}</p>
           </div>
         </div>
       </div>

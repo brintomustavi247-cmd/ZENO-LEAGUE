@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useApp } from '../context'
 import { timeAgo } from '../utils'
+import '../styles/notifications-premium.css'
 
 export default function Notifications() {
   const { state, dispatch } = useApp()
@@ -11,11 +12,11 @@ export default function Notifications() {
   }, [dispatch])
 
   const config = {
-    room:   { icon: 'fa-solid fa-key',       color: '#00f0ff', bg: 'rgba(0,240,255,0.1)',    border: 'rgba(0,240,255,0.25)',    label: 'Room' },
-    result: { icon: 'fa-solid fa-trophy',     color: '#22c55e', bg: 'rgba(34,197,94,0.1)',    border: 'rgba(34,197,94,0.25)',    label: 'Result' },
-    match:  { icon: 'fa-solid fa-gamepad',    color: '#fbbf24', bg: 'rgba(251,191,36,0.1)',   border: 'rgba(251,191,36,0.25)',   label: 'Match' },
-    wallet: { icon: 'fa-solid fa-wallet',     color: '#a78bfa', bg: 'rgba(167,139,250,0.1)',  border: 'rgba(167,139,250,0.25)', label: 'Wallet' },
-    system: { icon: 'fa-solid fa-circle-info', color: '#64748b', bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.15)', label: 'System' },
+    room:   { icon: 'fa-solid fa-key',       color: '#06B6D4', bg: 'rgba(6,182,212,0.08)',    border: 'rgba(6,182,212,0.20)',    label: 'Room' },
+    result: { icon: 'fa-solid fa-trophy',     color: '#10B981', bg: 'rgba(16,185,129,0.08)',   border: 'rgba(16,185,129,0.20)',    label: 'Result' },
+    match:  { icon: 'fa-solid fa-gamepad',    color: '#F59E0B', bg: 'rgba(245,158,11,0.08)',   border: 'rgba(245,158,11,0.20)',   label: 'Match' },
+    wallet: { icon: 'fa-solid fa-wallet',     color: '#8B5CF6', bg: 'rgba(139,92,246,0.08)',   border: 'rgba(139,92,246,0.20)',   label: 'Wallet' },
+    system: { icon: 'fa-solid fa-circle-info', color: '#71717A', bg: 'rgba(113,113,122,0.06)',  border: 'rgba(113,113,122,0.12)',   label: 'System' },
   }
 
   const unread = notifications.filter(n => !n.read).length
@@ -29,119 +30,76 @@ export default function Notifications() {
   }, {})
 
   return (
-    <div style={{ padding: '0 0 80px 0' }}>
+    <div className="notifications-premium">
 
-      {/* ===== PAGE HEADER ===== */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{
-          fontFamily: 'var(--font-heading)', fontSize: 26, fontWeight: 800,
-          color: '#fff', margin: '0 0 4px', lineHeight: 1.2,
-        }}>
-          <i className="fa-solid fa-bell" style={{ marginRight: 10, color: '#00f0ff' }}></i>
+      {/* ═══ PAGE HEADER ═══ */}
+      <header className="n-header">
+        <h1 className="n-title">
+          <i className="fa-solid fa-bell" />
           Notifications
         </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted, #777)', fontFamily: 'var(--font-body)', margin: 0 }}>
+        <p className="n-subtitle">
           {notifications.length} total • {unread} unread
         </p>
-      </div>
+      </header>
 
-      {/* ===== MARK ALL READ INDICATOR ===== */}
+      {/* ═══ MARK ALL READ BANNER ═══ */}
       {unread > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '10px 16px', borderRadius: 12, marginBottom: 18,
-          background: 'rgba(0,240,255,0.06)', border: '1px solid rgba(0,240,255,0.15)',
-        }}>
-          <i className="fa-solid fa-check-double" style={{ color: '#00f0ff', fontSize: 13 }}></i>
-          <span style={{ fontSize: 12, color: '#00f0ff', fontFamily: 'var(--font-body)', fontWeight: 600 }}>
-            All notifications marked as read
-          </span>
+        <div className="n-read-banner">
+          <i className="fa-solid fa-check-double" />
+          <span>All notifications marked as read</span>
         </div>
       )}
 
-      {/* ===== NOTIFICATION LIST ===== */}
+      {/* ═══ NOTIFICATION LIST ═══ */}
       {notifications.length === 0 ? (
-        <div style={{
-          textAlign: 'center', padding: '60px 20px',
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.05)',
-          borderRadius: 18,
-        }}>
-          <i className="fa-solid fa-bell-slash" style={{ fontSize: 40, color: 'rgba(255,255,255,0.12)', marginBottom: 16, display: 'block' }}></i>
-          <p style={{ color: 'var(--text-muted, #555)', fontFamily: 'var(--font-heading)', fontSize: 15, margin: '0 0 6px' }}>
-            No notifications yet
-          </p>
-          <p style={{ color: 'var(--text-muted, #444)', fontFamily: 'var(--font-body)', fontSize: 13, margin: 0 }}>
+        <div className="n-empty">
+          <i className="fa-solid fa-bell-slash n-empty-icon" />
+          <p className="n-empty-title">No notifications yet</p>
+          <p className="n-empty-desc">
             They'll appear here when you join matches or get results
           </p>
         </div>
       ) : (
-        <div style={{
-          borderRadius: 18, overflow: 'hidden',
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.05)',
-        }}>
+        <div className="n-list">
           {notifications.map((n, i) => {
             const cfg = config[n.type] || config.system
             const isLast = i === notifications.length - 1
+            const isUnread = !n.read
 
             return (
               <div
                 key={n.id}
+                className={`n-item ${isUnread ? 'n-item-unread' : 'n-item-read'}`}
                 style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 14,
-                  padding: '16px 18px',
                   borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.04)',
-                  background: n.read ? 'transparent' : `${cfg.bg}`,
-                  borderLeft: n.read ? '3px solid transparent' : `3px solid ${cfg.border}`,
-                  transition: 'all 0.2s ease',
+                  borderLeft: isUnread ? `3px solid ${cfg.border}` : '3px solid transparent',
+                  background: isUnread ? cfg.bg : 'transparent',
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                onMouseLeave={e => e.currentTarget.style.background = n.read ? 'transparent' : cfg.bg}
               >
                 {/* Icon */}
-                <div style={{
-                  width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-                  background: n.read ? 'rgba(255,255,255,0.04)' : cfg.bg,
-                  border: `1px solid ${n.read ? 'rgba(255,255,255,0.06)' : cfg.border}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <i className={cfg.icon} style={{
-                    fontSize: 15,
-                    color: n.read ? 'var(--text-muted, #555)' : cfg.color,
-                    opacity: n.read ? 0.6 : 1,
-                  }}></i>
+                <div
+                  className="n-icon"
+                  style={{
+                    background: isUnread ? cfg.bg : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${isUnread ? cfg.border : 'rgba(255,255,255,0.06)'}`,
+                    color: isUnread ? cfg.color : 'var(--pr-text-muted)',
+                  }}
+                >
+                  <i className={cfg.icon} style={{ opacity: isUnread ? 1 : 0.6 }} />
                 </div>
 
                 {/* Content */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Type label */}
-                  <div style={{
-                    fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-display)',
-                    letterSpacing: 1, textTransform: 'uppercase',
-                    color: n.read ? 'var(--text-muted, #555)' : cfg.color,
-                    marginBottom: 4, opacity: n.read ? 0.6 : 1,
-                  }}>
+                <div className="n-content">
+                  <div
+                    className="n-type-label"
+                    style={{ color: isUnread ? cfg.color : 'var(--pr-text-muted)', opacity: isUnread ? 1 : 0.6 }}
+                  >
                     {cfg.label}
                   </div>
-
-                  {/* Message */}
-                  <div style={{
-                    fontSize: 13, fontWeight: n.read ? 400 : 600,
-                    color: n.read ? 'var(--text-muted, #888)' : 'var(--text-primary, #eee)',
-                    fontFamily: 'var(--font-body)', lineHeight: 1.5,
-                    marginBottom: 4,
-                  }}>
-                    {n.text}
-                  </div>
-
-                  {/* Time */}
-                  <div style={{
-                    fontSize: 11, color: 'var(--text-muted, #555)',
-                    fontFamily: 'var(--font-body)',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
-                    <i className="fa-regular fa-clock" style={{ fontSize: 10 }}></i>
+                  <div className="n-message">{n.text}</div>
+                  <div className="n-time">
+                    <i className="fa-regular fa-clock" />
                     {typeof n.time === 'string' && (n.time.includes('ago') || n.time.includes('just'))
                       ? n.time
                       : timeAgo(n.time)
@@ -150,13 +108,11 @@ export default function Notifications() {
                 </div>
 
                 {/* Unread dot */}
-                {!n.read && (
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: cfg.color, flexShrink: 0, marginTop: 16,
-                    boxShadow: `0 0 8px ${cfg.color}66`,
-                    animation: 'pulse 2s infinite',
-                  }}></div>
+                {isUnread && (
+                  <div
+                    className="n-unread-dot"
+                    style={{ background: cfg.color, boxShadow: `0 0 8px ${cfg.color}66` }}
+                  />
                 )}
               </div>
             )
@@ -164,29 +120,17 @@ export default function Notifications() {
         </div>
       )}
 
-      {/* ===== TYPE LEGEND ===== */}
+      {/* ═══ TYPE LEGEND ═══ */}
       {notifications.length > 0 && (
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', gap: 12,
-          marginTop: 18, padding: '0 4px',
-        }}>
+        <div className="n-legend">
           {Object.entries(config).map(([key, cfg]) => {
             const count = grouped[key]?.length || 0
             if (count === 0) return null
             return (
-              <div key={key} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                fontSize: 11, color: 'var(--text-muted, #666)', fontFamily: 'var(--font-body)',
-              }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: 3,
-                  background: cfg.color, opacity: 0.7,
-                }}></div>
+              <div key={key} className="n-legend-item">
+                <div className="n-legend-swatch" style={{ background: cfg.color }} />
                 <span>{cfg.label}</span>
-                <span style={{
-                  fontFamily: 'var(--font-display)', fontWeight: 700,
-                  color: cfg.color, fontSize: 11,
-                }}>
+                <span className="n-legend-count" style={{ color: cfg.color }}>
                   {count}
                 </span>
               </div>

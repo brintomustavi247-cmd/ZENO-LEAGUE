@@ -6,7 +6,7 @@
 // ✅ Clean console output (suppressed deprecation noise)
 
 import { initializeApp } from "firebase/app";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 // ════════════════════════════════════════
@@ -46,27 +46,13 @@ try {
   // Step 1: Initialize app
   app = initializeApp(firebaseConfig);
   
-  // Step 2: Get Firestore instance
-  db = getFirestore(app);
-  
-  // ✅ FIX #1: Enable persistence IMMEDIATELY (synchronous, before anything else!)
-  // This MUST happen before any getDoc(), onSnapshot(), collection() calls
-  if (typeof window !== 'undefined') {
-    enableIndexedDbPersistence(db)
-      .then(() => {
-        console.log('📴 Offline persistence: ENABLED');
-      })
-      .catch((err) => {
-        // Gracefully handle known cases (not real errors)
-        if (err.code === 'failed-precondition') {
-          console.warn('⚠️ Persistence: Multiple tabs open (using existing cache)');
-        } else if (err.code === 'unimplemented') {
-          console.log('ℹ️ Persistence: Not supported (incognito/private browsing?)');
-        } else {
-          console.warn('⚠️ Persistence:', err.message);
-        }
-      });
-  }
+  // Step 2: Initialize Firestore with modern cache settings (replaces deprecated enableIndexedDbPersistence)
+  db = initializeFirestore(app, {
+    cache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  });
+  console.log('📴 Offline persistence: ENABLED (via FirestoreSettings.cache)');
   
   // Step 3: Get Auth (after Firestore is fully configured)
   if (typeof window !== 'undefined') {
@@ -112,10 +98,15 @@ if (typeof window !== 'undefined' && app) {
   });
 
   // ─── PERFORMANCE MONITORING ───
-  import('firebase/performance').then(({ getPerformance }) => {
-    getPerformance(app);
-    console.log('⚡ Performance monitoring: ACTIVE');
-  });
+  // Disabled in development to avoid blocked requests; enable in production only
+  if (isProduction) {
+    import('firebase/performance').then(({ getPerformance }) => {
+      getPerformance(app);
+      console.log('⚡ Performance monitoring: ACTIVE');
+    });
+  } else {
+    console.log('⚡ Performance monitoring: DISABLED in development');
+  }
 
   // ─── APP CHECK (Security) ───
   if (isDev) {

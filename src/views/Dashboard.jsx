@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context'
+import { useLanguage } from '../hooks/useLanguage'
 import MatchCard from '../components/MatchCard'
 import { formatTK, getMatchPhase, getMatchCountdown } from '../utils'
 
@@ -56,13 +57,13 @@ function useAnimatedCounter(target, duration = 1200) {
 //  BACKGROUND PARTICLES
 // ═══════════════════════════════════════════════════════════════════════
 function BackgroundParticles() {
-  const particles = Array.from({ length: 40 }, (_, i) => ({
+  const particles = Array.from({ length: 30 }, (_, i) => ({
     id: i,
     left: Math.random() * 100,
-    delay: Math.random() * 20,
-    duration: 15 + Math.random() * 10,
-    size: 2 + Math.random() * 2,
-    opacity: 0.2 + Math.random() * 0.3,
+    delay: Math.random() * 25,
+    duration: 18 + Math.random() * 12,
+    size: 1.5 + Math.random() * 2,
+    opacity: 0.15 + Math.random() * 0.25,
   }))
 
   return (
@@ -86,9 +87,16 @@ function BackgroundParticles() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  HERO BANNER v3 — Valorant/Gambit Style
+//  NOISE OVERLAY
 // ═══════════════════════════════════════════════════════════════════════
-function HeroBannerV3({ hero, heroPhase, heroCountdown, heroJoined, heroTime, onJoin, onNavigate }) {
+function NoiseOverlay() {
+  return <div className="noise-overlay" aria-hidden="true" />
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  HERO BANNER — Premium Dark
+// ═══════════════════════════════════════════════════════════════════════
+function HeroBannerV4({ hero, heroPhase, heroCountdown, heroJoined, heroTime, onJoin, onNavigate, t }) {
   const [countdown, setCountdown] = useState(heroCountdown)
 
   useEffect(() => {
@@ -101,58 +109,64 @@ function HeroBannerV3({ hero, heroPhase, heroCountdown, heroJoined, heroTime, on
 
   if (!hero) return null
 
+  const cd = cdFormat(countdown)
+
   return (
-    <div className="hero-banner-v3" onClick={() => onNavigate(`match-detail/${hero.id}`)}>
-      <div className="hero-bg-v3" />
+    <div className="hero-banner-v4" onClick={() => onNavigate(`match-detail/${hero.id}`)}>
+      <div className="hero-banner-glow" />
 
-      {/* Character silhouette - replace src with your game character */}
-      <div className="hero-character-v3">
-        <img 
-          src="https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&h=800&fit=crop" 
-          alt="Character" 
-        />
-      </div>
-
-      <div className="hero-content-v3">
-        <div className="hero-badge-row-v3">
+      <div className="hero-content-v4">
+        <div className="hero-badge-row-v4">
           {heroPhase === 'live' ? (
-            <span className="hero-badge-live">LIVE NOW</span>
+            <span className="zeno-badge zeno-badge-live">
+              <span className="live-dot" /> {t('matches.live_now')}
+            </span>
           ) : (
-            <span className="hero-badge-live" style={{ background: 'rgba(139,92,246,0.15)', borderColor: 'rgba(139,92,246,0.3)', color: '#8b5cf6' }}>
-              <span className="live-dot" style={{ background: '#8b5cf6', animation: 'none' }} /> UPCOMING
+            <span className="zeno-badge zeno-badge-upcoming">
+              <span className="live-dot" style={{ background: '#8b5cf6', animation: 'none', boxShadow: 'none' }} /> {t('matches.upcoming')}
             </span>
           )}
-          <span className="hero-badge-prize">
-            <i className="fa-solid fa-trophy" /> {formatTK(hero.prizePool || 0)} TK
+          <span className="zeno-badge zeno-badge-prize">
+            <i className="fa-solid fa-trophy" /> {formatTK(hero.prizePool || 0)}
           </span>
         </div>
 
-        <h2 className="hero-title-v3">
-          {hero.title || 'Clutch Arena'}<br />
-          <span>Tournament</span>
+        <h2 className="hero-title-v4">
+          {hero.title || 'Clutch Arena'}
         </h2>
+        <p className="hero-subtitle-v4">Tournament</p>
 
-        <div className="hero-meta-v3">
-          <span className="meta-pill-v3"><i className="fa-solid fa-gamepad" /> {hero.mode || 'Solo'}</span>
-          <span className="meta-pill-v3"><i className="fa-solid fa-map" /> {hero.map || 'Erangel'}</span>
-          <span className="meta-pill-v3"><i className="fa-regular fa-clock" /> {heroTime.time}</span>
-          <span className="meta-pill-v3"><i className="fa-solid fa-users" /> {hero.participants?.length || 0}/{hero.maxPlayers || 50}</span>
+        <div className="hero-meta-v4">
+          <span className="meta-pill-v4"><i className="fa-solid fa-gamepad" /> {hero.mode || 'Solo'}</span>
+          <span className="meta-pill-v4"><i className="fa-solid fa-map" /> {hero.map || 'Bermuda'}</span>
+          <span className="meta-pill-v4"><i className="fa-regular fa-clock" /> {heroTime.time}</span>
+          <span className="meta-pill-v4"><i className="fa-solid fa-users" /> {hero.participants?.length || 0}/{hero.maxPlayers || 50}</span>
         </div>
 
-        <div className="hero-actions-v3">
+        {cd && (
+          <div className="hero-countdown-v4">
+            <div className="countdown-item"><span>{cd.split(':')[0]}</span><label>HRS</label></div>
+            <span className="countdown-sep">:</span>
+            <div className="countdown-item"><span>{cd.split(':')[1]}</span><label>MIN</label></div>
+            <span className="countdown-sep">:</span>
+            <div className="countdown-item"><span>{cd.split(':')[2]}</span><label>SEC</label></div>
+          </div>
+        )}
+
+        <div className="hero-actions-v4">
           <button
-            className="btn-hero-primary"
+            className="btn-zeno btn-zeno-primary"
             onClick={(e) => { e.stopPropagation(); if (!heroJoined) onJoin(hero.id) }}
             disabled={heroJoined}
           >
             {heroJoined ? (
               <><i className="fa-solid fa-check" /> Joined</>
             ) : (
-              <><i className="fa-solid fa-bolt" /> Join Arena</>
+              <><i className="fa-solid fa-bolt" /> {t('matches.join_match')}</>
             )}
           </button>
-          <button className="btn-hero-secondary" onClick={(e) => e.stopPropagation()}>
-            <i className="fa-solid fa-share-nodes" /> Share
+          <button className="btn-zeno btn-zeno-ghost" onClick={(e) => e.stopPropagation()}>
+            <i className="fa-solid fa-share-nodes" />
           </button>
         </div>
       </div>
@@ -161,345 +175,327 @@ function HeroBannerV3({ hero, heroPhase, heroCountdown, heroJoined, heroTime, on
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  AGENT CARDS — Valorant Style
+//  CIRCULAR STAT
 // ═══════════════════════════════════════════════════════════════════════
-const AGENTS = [
-  { id: 'jett', name: 'Jett', role: 'Duelist', roleIcon: 'fa-solid fa-wind', pickRate: 32, winRate: 51, image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&h=600&fit=crop' },
-  { id: 'raze', name: 'Raze', role: 'Duelist', roleIcon: 'fa-solid fa-bomb', pickRate: 28, winRate: 49, image: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=400&h=600&fit=crop' },
-  { id: 'breach', name: 'Breach', role: 'Initiator', roleIcon: 'fa-solid fa-fist-raised', pickRate: 24, winRate: 53, image: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=400&h=600&fit=crop' },
-  { id: 'omen', name: 'Omen', role: 'Controller', roleIcon: 'fa-solid fa-mask', pickRate: 35, winRate: 55, image: 'https://images.unsplash.com/photo-1552820728-8b83bb6b2b0a?w=400&h=600&fit=crop' },
-  { id: 'brimstone', name: 'Brimstone', role: 'Controller', roleIcon: 'fa-solid fa-fire', pickRate: 18, winRate: 47, image: 'https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=400&h=600&fit=crop' },
-]
-
-function AgentCardV3({ agent, selected, onSelect }) {
-  return (
-    <div 
-      className={`agent-card-v3 ${selected ? 'selected' : ''}`} 
-      onClick={() => onSelect(agent.id)}
-    >
-      <img src={agent.image} alt={agent.name} className="agent-image-v3" />
-      <div className="agent-info-v3">
-        <div className="agent-name-v3">{agent.name}</div>
-        <div className="agent-role-v3">
-          <i className={agent.roleIcon} /> {agent.role}
-        </div>
-        <div className="agent-stats-v3">
-          <div className="agent-stat-v3">
-            <span className="agent-stat-value-v3">{agent.pickRate}%</span>
-            <span className="agent-stat-label-v3">Pick Rate</span>
-          </div>
-          <div className="agent-stat-v3">
-            <span className="agent-stat-value-v3">{agent.winRate}%</span>
-            <span className="agent-stat-label-v3">Win Rate</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AgentsSectionV3() {
-  const [selected, setSelected] = useState('omen')
-
-  return (
-    <div className="agents-section">
-      <div className="section-header-v3">
-        <h2 className="section-title-v3">Top Agents</h2>
-        <span className="view-all-v3">View All <i className="fa-solid fa-arrow-right" /></span>
-      </div>
-      <div className="agents-grid">
-        {AGENTS.map(agent => (
-          <AgentCardV3 
-            key={agent.id} 
-            agent={agent} 
-            selected={selected === agent.id}
-            onSelect={setSelected}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  LIVE CHANNELS — Unity Style
-// ═══════════════════════════════════════════════════════════════════════
-const CHANNELS = [
-  { id: 1, title: '2024 World Championship Finals - Live Commentary', streamer: 'TenZ', game: 'Valorant', viewers: '12.4K', image: 'https://images.unsplash.com/photo-1542751110-97427bbecf20?w=600&h=400&fit=crop', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop' },
-  { id: 2, title: 'Team Flash vs Saigon Phantom - VCS Finals', streamer: 'Caedrel', game: 'League of Legends', viewers: '8.7K', image: 'https://images.unsplash.com/photo-1511882150382-421056c89033?w=600&h=400&fit=crop', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop' },
-  { id: 3, title: 'Ranked Grind to Radiant - Day 15', streamer: 'Shroud', game: 'Valorant', viewers: '5.2K', image: 'https://images.unsplash.com/photo-1560253023-3ec5d502959f?w=600&h=400&fit=crop', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop' },
-  { id: 4, title: 'CS2 Major Qualifiers - Team Analysis', streamer: 'Scrawny', game: 'CS2', viewers: '3.8K', image: 'https://images.unsplash.com/photo-1534423861386-85a16f5d13fd?w=600&h=400&fit=crop', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop' },
-]
-
-function ChannelCardV3({ channel }) {
-  return (
-    <div className="channel-card-v3">
-      <div className="channel-thumbnail-v3">
-        <img src={channel.image} alt={channel.title} />
-        <div className="channel-overlay-v3">
-          <div className="channel-live-badge">
-            <i className="fa-solid fa-circle" /> {channel.viewers} viewers
-          </div>
-        </div>
-      </div>
-      <div className="channel-info-v3">
-        <div className="channel-title-v3">{channel.title}</div>
-        <div className="channel-meta-v3">
-          <img src={channel.avatar} alt={channel.streamer} />
-          <span>{channel.streamer}</span>
-          <div className="channel-online-dot" />
-          <span>{channel.game}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ChannelsSectionV3() {
-  return (
-    <div className="channels-section">
-      <div className="section-header-v3">
-        <h2 className="section-title-v3">Live Channels</h2>
-        <span className="view-all-v3">View All <i className="fa-solid fa-arrow-right" /></span>
-      </div>
-      <div className="channels-grid">
-        {CHANNELS.map(channel => (
-          <ChannelCardV3 key={channel.id} channel={channel} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  STATS SECTION — Gambit CIS Style
-// ═══════════════════════════════════════════════════════════════════════
-const META_STATS = [
-  { rank: 1, name: 'Sage', role: 'Sentinel', roleIcon: 'fa-solid fa-plus-circle', percentage: 20.1, avatar: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=100&h=100&fit=crop' },
-  { rank: 2, name: 'Raze', role: 'Duelist', roleIcon: 'fa-solid fa-bomb', percentage: 17.6, avatar: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=100&h=100&fit=crop' },
-  { rank: 3, name: 'Omen', role: 'Controller', roleIcon: 'fa-solid fa-mask', percentage: 15.2, avatar: 'https://images.unsplash.com/photo-1552820728-8b83bb6b2b0a?w=100&h=100&fit=crop' },
-  { rank: 4, name: 'Phoenix', role: 'Duelist', roleIcon: 'fa-solid fa-fire', percentage: 13.5, avatar: 'https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=100&h=100&fit=crop' },
-]
-
-const TOURNAMENT_STATS = [
-  { rank: 1, name: 'VCT Masters Tokyo', detail: '$500,000 Prize Pool', value: '48', suffix: 'Teams' },
-  { rank: 2, name: 'ESL Pro League S18', detail: '$750,000 Prize Pool', value: '59', suffix: '% Fill' },
-  { rank: 3, name: 'Worlds 2024', detail: '$2,225,000 Prize Pool', value: '$561K', suffix: 'Top Prize' },
-  { rank: 4, name: 'BLAST Premier', detail: '$425,000 Prize Pool', value: '32', suffix: 'Teams' },
-]
-
-function StatsSectionV3() {
-  return (
-    <div className="stats-section-v3">
-      <div className="stats-card-v3">
-        <div className="stats-header-v3">
-          <h3 className="stats-title-v3">Agent Meta</h3>
-          <span className="trend-up-v3"><i className="fa-solid fa-arrow-trend-up" /> +12% this week</span>
-        </div>
-        {META_STATS.map(stat => (
-          <div key={stat.rank} className="stat-row-v3">
-            <span className="stat-rank-v3">{stat.rank}</span>
-            <img src={stat.avatar} alt={stat.name} className="stat-avatar-v3" />
-            <div className="stat-details-v3">
-              <div className="stat-name-v3">{stat.name}</div>
-              <div className="stat-role-v3"><i className={stat.roleIcon} /> {stat.role}</div>
-            </div>
-            <span className="stat-percentage-v3">{stat.percentage}%</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="stats-card-v3">
-        <div className="stats-header-v3">
-          <h3 className="stats-title-v3">Tournaments</h3>
-          <span className="trend-up-v3"><i className="fa-solid fa-arrow-trend-up" /> +8% this month</span>
-        </div>
-        {TOURNAMENT_STATS.map(stat => (
-          <div key={stat.rank} className="stat-row-v3">
-            <span className="stat-rank-v3">{stat.rank}</span>
-            <div className="stat-details-v3" style={{ marginLeft: 0 }}>
-              <div className="stat-name-v3">{stat.name}</div>
-              <div className="stat-role-v3">{stat.detail}</div>
-            </div>
-            <span className="stat-percentage-v3">{stat.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  NEWS SECTION — Gambit Style
-// ═══════════════════════════════════════════════════════════════════════
-const NEWS = [
-  { id: 1, title: 'Diamondprox rejoins Gambit LCL team as captain for Summer Split', date: 'April 28, 2026', excerpt: 'The legendary support player returns to lead the team after a brief hiatus...', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&h=400&fit=crop' },
-  { id: 2, title: 'Gambit Esports wins victory at CS:GO PGL Major Stockholm', date: 'April 27, 2026', excerpt: 'A dominant performance throughout the tournament secures the championship...', image: 'https://images.unsplash.com/photo-1511882150382-421056c89033?w=600&h=400&fit=crop' },
-  { id: 3, title: 'Gambit is invited to DreamHack Masters Malmo 2026', date: 'April 25, 2026', excerpt: 'The team receives a direct invitation to one of the biggest events of the year...', image: 'https://images.unsplash.com/photo-1560253023-3ec5d502959f?w=600&h=400&fit=crop' },
-]
-
-function NewsSectionV3() {
-  return (
-    <div className="news-section">
-      <div className="section-header-v3">
-        <h2 className="section-title-v3">Latest News</h2>
-        <span className="view-all-v3">View All <i className="fa-solid fa-arrow-right" /></span>
-      </div>
-      <div className="news-grid-v3">
-        {NEWS.map(news => (
-          <div key={news.id} className="news-card-v3">
-            <img src={news.image} alt={news.title} className="news-image-v3" />
-            <div className="news-content-v3">
-              <div className="news-date-v3">{news.date}</div>
-              <div className="news-title-v3">{news.title}</div>
-              <div className="news-excerpt-v3">{news.excerpt}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  PARTNERS BAR
-// ═══════════════════════════════════════════════════════════════════════
-function PartnersSectionV3() {
-  const partners = ['LEON', 'VISA', 'BENQ', 'HYPERX', 'DROPGUN']
-  return (
-    <div className="partners-section-v3">
-      {partners.map(p => (
-        <div key={p} className="partner-logo-v3">{p}</div>
-      ))}
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-//  CIRCULAR STAT BADGE
-// ═══════════════════════════════════════════════════════════════════════
-function CircularStatV3({ value, label, color, icon, suffix = '' }) {
-  const size = 72
-  const stroke = 4
+function CircularStatV4({ value, label, color, icon, suffix = '' }) {
+  const size = 68
+  const stroke = 3.5
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
   const pct = Math.min(value / 100, 1)
   const offset = circumference - pct * circumference
+  const animatedValue = useAnimatedCounter(value, 1000)
 
   return (
-    <div className="circular-stat" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <div style={{ position: 'relative', width: size, height: size }}>
+    <div className="circular-stat-v4">
+      <div className="circular-stat-ring" style={{ width: size, height: size }}>
         <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-          <circle fill="none" stroke="rgba(255,255,255,0.05)" cx={size/2} cy={size/2} r={radius} strokeWidth={stroke} />
+          <circle fill="none" stroke="rgba(255,255,255,0.04)" cx={size/2} cy={size/2} r={radius} strokeWidth={stroke} />
           <circle
             fill="none"
             strokeLinecap="round"
             cx={size/2} cy={size/2} r={radius} strokeWidth={stroke}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
-            style={{ stroke: color, transition: 'stroke-dashoffset 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+            style={{ stroke: color, transition: 'stroke-dashoffset 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
           />
         </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-          <i className={icon} style={{ color, fontSize: 14 }} />
-          <span style={{ color, fontSize: 16, fontWeight: 800, fontFamily: 'var(--font-display)' }}>{value}{suffix}</span>
+        <div className="circular-stat-center">
+          <i className={icon} style={{ color, fontSize: 12 }} />
+          <span style={{ color, fontSize: 14, fontWeight: 800, fontFamily: 'var(--db-font-mono)' }}>
+            {animatedValue}{suffix}
+          </span>
         </div>
       </div>
-      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)' }}>{label}</span>
+      <span className="circular-stat-label">{label}</span>
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  WALLET V3
+//  WALLET — Premium Dark
 // ═══════════════════════════════════════════════════════════════════════
-function WalletVaultV3({ balance, lockedBalance, onDeposit, onWithdraw, onNavigate }) {
+function WalletVaultV4({ balance, lockedBalance, onDeposit, onWithdraw, onNavigate, t }) {
   const animatedBalance = useAnimatedCounter(balance, 1500)
   const animatedLocked = useAnimatedCounter(lockedBalance, 1500)
 
   return (
-    <div className="wallet-v3" onClick={() => onNavigate('wallet')} style={{
-      position: 'relative',
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border-subtle)',
-      borderRadius: 'var(--radius)',
-      padding: '24px',
-      marginBottom: '24px',
-      cursor: 'pointer',
-      overflow: 'hidden',
-      transition: 'var(--transition)',
-    }}>
-      <div style={{
-        position: 'absolute',
-        top: '-50%',
-        right: '-20%',
-        width: '200px',
-        height: '200px',
-        background: 'radial-gradient(circle, rgba(139,92,246,0.12), transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <i className="fa-solid fa-wallet" /> Available Balance
-          </div>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <i className="fa-solid fa-lock" /> {formatTK(animatedLocked)} TK locked
-          </div>
+    <div className="zeno-card zeno-card-interactive" onClick={() => onNavigate('wallet')}>
+      <div className="zeno-card-shine" />
+
+      <div className="wallet-header-v4">
+        <div className="wallet-label">
+          <i className="fa-solid fa-wallet" /> {t('wallet.total_balance')}
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '20px' }}>
-          <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--cyan)' }}>৳</span>
-          <span style={{ fontSize: '36px', fontWeight: 900, color: 'var(--text)', letterSpacing: '-0.03em', fontFamily: 'var(--font-display)' }}>{formatTK(animatedBalance)}</span>
-          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-secondary)' }}>TK</span>
+        <div className="wallet-locked">
+          <i className="fa-solid fa-lock" /> {formatTK(animatedLocked)} locked
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button style={{
-            flex: 1,
-            padding: '10px',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '12px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            transition: 'var(--transition)',
-            background: 'var(--bg-elevated)',
-            color: 'var(--text)',
-            border: '1px solid var(--border-subtle)',
-          }} onClick={(e) => { e.stopPropagation(); onWithdraw() }}>
-            <i className="fa-solid fa-arrow-up-from-bracket" /> Withdraw
-          </button>
-          <button style={{
-            flex: 1,
-            padding: '10px',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '12px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            transition: 'var(--transition)',
-            background: 'linear-gradient(135deg, var(--purple), var(--pink))',
-            color: '#fff',
-          }} onClick={(e) => { e.stopPropagation(); onDeposit() }}>
-            <i className="fa-solid fa-plus" /> Deposit
-          </button>
-        </div>
+      </div>
+
+      <div className="wallet-balance-v4">
+        <span className="wallet-amount">{formatTK(animatedBalance)}</span>
+        <span className="wallet-currency">TK</span>
+      </div>
+
+      <div className="wallet-actions-v4">
+        <button className="btn-zeno btn-zeno-secondary" onClick={(e) => { e.stopPropagation(); onWithdraw() }}>
+          <i className="fa-solid fa-arrow-up-from-bracket" /> {t('wallet.withdraw')}
+        </button>
+        <button className="btn-zeno btn-zeno-primary" onClick={(e) => { e.stopPropagation(); onDeposit() }}>
+          <i className="fa-solid fa-plus" /> {t('wallet.deposit')}
+        </button>
       </div>
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  MAIN DASHBOARD v3
+//  V6.0: TOP SQUADS — Squad Win Rate Leaderboard (Replaces Top Characters)
+// ═══════════════════════════════════════════════════════════════════════
+function SquadCardV4({ squad, rank, onNavigate }) {
+  const rankColors = ['#fbbf24', '#c0c0c0', '#cd7f32', '#06d6f0', '#a78bfa']
+  const rankColor = rankColors[rank] || '#6c8cff'
+
+  return (
+    <div className="squad-card-v4" onClick={() => onNavigate && onNavigate('leaderboard')}>
+      <div className="squad-rank-ring" style={{ borderColor: `${rankColor}30` }}>
+        <span style={{ color: rankColor, fontSize: rank < 3 ? 20 : 16, fontWeight: 900 }}>
+          {rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `#${rank + 1}`}
+        </span>
+      </div>
+      <div className="squad-logo-wrap">
+        {squad.logo ? (
+          <img src={squad.logo} alt={squad.name} className="squad-logo-img" />
+        ) : (
+          <div className="squad-logo-fallback" style={{ background: `linear-gradient(135deg, ${rankColor}30, ${rankColor}10)` }}>
+            <span style={{ color: rankColor, fontSize: 18, fontWeight: 800 }}>{(squad.name || '?').charAt(0)}</span>
+          </div>
+        )}
+      </div>
+      <div className="squad-info-v4">
+        <div className="squad-name-v4">{squad.name || 'Unknown Squad'}</div>
+        <div className="squad-tag-v4">{squad.tag || 'No Tag'}</div>
+        <div className="squad-stats-v4">
+          <div className="squad-stat-v4">
+            <span className="squad-stat-value-v4" style={{ color: rankColor }}>{squad.winRate || 0}%</span>
+            <span className="squad-stat-label-v4">Win Rate</span>
+          </div>
+          <div className="squad-stat-v4">
+            <span className="squad-stat-value-v4">{squad.matchesPlayed || 0}</span>
+            <span className="squad-stat-label-v4">Matches</span>
+          </div>
+        </div>
+      </div>
+      {/* Win Rate Ring */}
+      <div className="squad-win-ring">
+        <svg width="44" height="44" style={{ transform: 'rotate(-90deg)' }}>
+          <circle fill="none" stroke="rgba(255,255,255,0.04)" cx="22" cy="22" r="18" strokeWidth="3" />
+          <circle
+            fill="none"
+            strokeLinecap="round"
+            cx="22" cy="22" r="18" strokeWidth="3"
+            strokeDasharray={2 * Math.PI * 18}
+            strokeDashoffset={2 * Math.PI * 18 * (1 - Math.min((squad.winRate || 0) / 100, 1))}
+            style={{ stroke: rankColor, transition: 'stroke-dashoffset 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+          />
+        </svg>
+        <div className="squad-win-ring-center">
+          <span style={{ color: rankColor, fontSize: 11, fontWeight: 800 }}>{squad.winRate || 0}%</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TopSquadsSectionV4({ t, squads, onNavigate }) {
+  // Sort by win rate descending, take top 5
+  const topSquads = (squads || [])
+    .sort((a, b) => (b.winRate || 0) - (a.winRate || 0))
+    .slice(0, 5)
+
+  // Fallback demo squads if none exist
+  const demoSquads = topSquads.length > 0 ? topSquads : [
+    { id: 's1', name: 'Zenith', tag: 'ZEN', winRate: 78, matchesPlayed: 24, logo: '' },
+    { id: 's2', name: 'Phoenix', tag: 'PHX', winRate: 65, matchesPlayed: 31, logo: '' },
+    { id: 's3', name: 'Vortex', tag: 'VOR', winRate: 58, matchesPlayed: 19, logo: '' },
+    { id: 's4', name: 'Nemesis', tag: 'NMS', winRate: 52, matchesPlayed: 42, logo: '' },
+    { id: 's5', name: 'Reapers', tag: 'RPR', winRate: 45, matchesPlayed: 28, logo: '' },
+  ]
+
+  return (
+    <section className="dashboard-section">
+      <div className="section-header-v4">
+        <h2 className="section-title-v4">Top Squads</h2>
+        <span className="view-all-v4" onClick={() => onNavigate('leaderboard')}>{t('common.view_all')} <i className="fa-solid fa-arrow-right" /></span>
+      </div>
+      <div className="squads-scroll-v4">
+        {demoSquads.map((squad, i) => (
+          <SquadCardV4 key={squad.id || i} squad={squad} rank={i} onNavigate={onNavigate} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  V6.0: COMMUNITY HUB — Replaces Live Streams
+// ═══════════════════════════════════════════════════════════════════════
+function CommunityHubSectionV4({ t, content, onNavigate }) {
+  const hasContent = content && content.length > 0
+
+  return (
+    <section className="dashboard-section">
+      <div className="section-header-v4">
+        <h2 className="section-title-v4">Community Hub</h2>
+        <span className="view-all-v4" onClick={() => onNavigate('community')}>
+          {hasContent ? 'View All' : 'Coming Soon'} <i className="fa-solid fa-arrow-right" />
+        </span>
+      </div>
+
+      {!hasContent ? (
+        <div className="community-empty-v4">
+          <div className="community-empty-icon">
+            <i className="fa-solid fa-video-slash" />
+          </div>
+          <div className="community-empty-title">Coming Soon</div>
+          <div className="community-empty-subtitle">Highlights, Reels & More</div>
+          <div className="community-empty-hint">
+            Admin can add YouTube links, thumbnails, and video URLs from the Content tab
+          </div>
+        </div>
+      ) : (
+        <div className="channels-scroll-v4">
+          {content.slice(0, 3).map(item => (
+            <div key={item.id} className="channel-card-v4" onClick={() => window.open(item.videoUrl, '_blank')}>
+              <div className="channel-thumbnail-v4">
+                <img src={item.thumbnailUrl} alt={item.title} />
+                <div className="channel-overlay-v4">
+                  <div className="channel-live-badge">
+                    <i className="fa-solid fa-play" /> {item.type === 'highlight' ? 'Highlight' : item.type === 'reel' ? 'Reel' : 'Video'}
+                  </div>
+                </div>
+              </div>
+              <div className="channel-info-v4">
+                <div className="channel-meta-text">
+                  <div className="channel-title-v4">{item.title}</div>
+                  <div className="channel-creator-v4">{new Date(item.createdAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  STATS META — Ranked List
+// ═══════════════════════════════════════════════════════════════════════
+const ZENO_META = [
+  { rank: 1, name: 'Alok', role: 'Most Picked', roleIcon: 'fa-solid fa-crown', percentage: 24.5, avatar: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=100&h=100&fit=crop' },
+  { rank: 2, name: 'Kelly', role: 'Speed King', roleIcon: 'fa-solid fa-bolt', percentage: 19.2, avatar: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=100&h=100&fit=crop' },
+  { rank: 3, name: 'Hayato', role: 'Aggressive', roleIcon: 'fa-solid fa-crosshairs', percentage: 15.8, avatar: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=100&h=100&fit=crop' },
+  { rank: 4, name: 'Chronos', role: 'Tactical', roleIcon: 'fa-solid fa-clock', percentage: 12.3, avatar: 'https://images.unsplash.com/photo-1552820728-8b83bb6b2b0a?w=100&h=100&fit=crop' },
+]
+
+function StatsSectionV4({ t }) {
+  return (
+    <section className="dashboard-section">
+      <div className="section-header-v4">
+        <h2 className="section-title-v4">Meta Stats</h2>
+        <span className="view-all-v4">{t('common.view_all')} <i className="fa-solid fa-arrow-right" /></span>
+      </div>
+      <div className="zeno-card">
+        <div className="stats-header-v4">
+          <h3 className="stats-title-v4">Character Meta</h3>
+          <span className="trend-up-v4"><i className="fa-solid fa-arrow-trend-up" /> +12%</span>
+        </div>
+        {ZENO_META.map(stat => (
+          <div key={stat.rank} className="stat-row-v4">
+            <span className="stat-rank-v4">{stat.rank}</span>
+            <img src={stat.avatar} alt={stat.name} className="stat-avatar-v4" />
+            <div className="stat-details-v4">
+              <div className="stat-name-v4">{stat.name}</div>
+              <div className="stat-role-v4"><i className={stat.roleIcon} /> {stat.role}</div>
+            </div>
+            <div className="stat-bar-track">
+              <div className="stat-bar-fill" style={{ width: `${stat.percentage * 2.5}%` }} />
+            </div>
+            <span className="stat-percentage-v4">{stat.percentage}%</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  NEWS
+// ═══════════════════════════════════════════════════════════════════════
+const ZENO_NEWS = [
+  { id: 1, title: '🏆 New Champion Crowned in ZENO Weekly Finals!', date: 'July 19, 2025', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&h=400&fit=crop', tag: 'Tournament' },
+  { id: 2, title: '🎮 Free Fire MAX: New Character "Maya" Coming!', date: 'July 18, 2025', image: 'https://images.unsplash.com/photo-1511882150382-421056c89033?w=600&h=400&fit=crop', tag: 'Update' },
+  { id: 3, title: '💰 Referral System Live — Earn up to 1500 TK!', date: 'July 17, 2025', image: 'https://images.unsplash.com/photo-1560253023-3ec5d502959f?w=600&h=400&fit=crop', tag: 'Feature' },
+]
+
+function NewsSectionV4({ t }) {
+  return (
+    <section className="dashboard-section">
+      <div className="section-header-v4">
+        <h2 className="section-title-v4">Latest News</h2>
+        <span className="view-all-v4">{t('common.view_all')} <i className="fa-solid fa-arrow-right" /></span>
+      </div>
+      <div className="news-scroll-v4">
+        {ZENO_NEWS.map(news => (
+          <div key={news.id} className="news-card-v4">
+            <img src={news.image} alt={news.title} className="news-image-v4" />
+            <div className="news-content-v4">
+              <div className="news-tag-v4">{news.tag}</div>
+              <div className="news-title-v4">{news.title}</div>
+              <div className="news-date-v4">{news.date}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  QUICK ACTIONS
+// ═══════════════════════════════════════════════════════════════════════
+function QuickActionsV4({ onNavigate, t }) {
+  const actions = [
+    { icon: 'fa-solid fa-trophy', label: 'Tournaments', color: '#6366F1', path: 'matches' },
+    { icon: 'fa-solid fa-chart-line', label: 'Leaderboard', color: '#22C55E', path: 'leaderboard' },
+    { icon: 'fa-solid fa-gift', label: 'Rewards', color: '#F59E0B', path: 'wallet' },
+    { icon: 'fa-solid fa-user-group', label: 'Referral', color: '#06B6D4', path: 'profile' },
+  ]
+
+  return (
+    <section className="dashboard-section">
+      <div className="quick-actions-grid">
+        {actions.map((action, i) => (
+          <button key={i} className="quick-action-card" onClick={() => onNavigate(action.path)}>
+            <div className="quick-action-icon" style={{ background: `${action.color}12`, color: action.color }}>
+              <i className={action.icon} />
+            </div>
+            <span className="quick-action-label">{action.label}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MAIN DASHBOARD — Uses your existing MobileNav.jsx
 // ═══════════════════════════════════════════════════════════════════════
 export default function Dashboard() {
   const { state, dispatch, navigate } = useApp()
-  const { matches, currentUser } = state
+  const { t } = useLanguage()
+  const { matches, currentUser, squads, communityContent } = state
 
   if (!currentUser) return null
 
@@ -522,56 +518,88 @@ export default function Dashboard() {
   const handleWithdraw = () => dispatch({ type: 'SHOW_MODAL', payload: { type: 'withdraw' } })
 
   return (
-    <div className="dashboard-v2">
+    <div className="dashboard-v4">
       <BackgroundParticles />
+      <NoiseOverlay />
 
-      {/* HERO BANNER */}
-      <HeroBannerV3
-        hero={hero}
-        heroPhase={heroPhase}
-        heroCountdown={heroCountdown}
-        heroJoined={heroJoined}
-        heroTime={heroTime}
-        onJoin={handleJoin}
-        onNavigate={navigate}
-      />
+      <div className="dashboard-content">
+        {/* HERO BANNER */}
+        <HeroBannerV4
+          hero={hero}
+          heroPhase={heroPhase}
+          heroCountdown={heroCountdown}
+          heroJoined={heroJoined}
+          heroTime={heroTime}
+          onJoin={handleJoin}
+          onNavigate={navigate}
+          t={t}
+        />
 
-      {/* CIRCULAR STATS ROW */}
-      <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '32px', padding: '20px 0' }}>
-        <CircularStatV3 value={liveCount} label="Live" color="#00d4ff" icon="fa-solid fa-circle-play" />
-        <CircularStatV3 value={myJoinedCount} label="My Matches" color="#8b5cf6" icon="fa-solid fa-user-check" />
-        <CircularStatV3 value={winRate} label="Win Rate" color="#10b981" icon="fa-solid fa-percent" suffix="%" />
-        <CircularStatV3 value={level} label="Level" color="#f59e0b" icon="fa-solid fa-military-tech" />
+        {/* CIRCULAR STATS */}
+        <section className="dashboard-section stats-row-v4">
+          <CircularStatV4 value={liveCount} label="Live" color="#6366F1" icon="fa-solid fa-circle-play" />
+          <CircularStatV4 value={myJoinedCount} label="My Matches" color="#8B5CF6" icon="fa-solid fa-user-check" />
+          <CircularStatV4 value={winRate} label="Win Rate" color="#10B981" icon="fa-solid fa-percent" suffix="%" />
+          <CircularStatV4 value={level} label="Level" color="#F59E0B" icon="fa-solid fa-military-tech" />
+        </section>
+
+        {/* QUICK ACTIONS */}
+        <QuickActionsV4 onNavigate={navigate} t={t} />
+
+        {/* WALLET */}
+        <WalletVaultV4
+          balance={currentUser.balance || 0}
+          lockedBalance={currentUser.lockedBalance || 0}
+          onDeposit={handleDeposit}
+          onWithdraw={handleWithdraw}
+          onNavigate={navigate}
+          t={t}
+        />
+
+        {/* LIVE MATCHES */}
+        {matches.filter(m => m.status === 'live').length > 0 && (
+          <section className="dashboard-section">
+            <div className="section-header-v4">
+              <h2 className="section-title-v4">Live Now</h2>
+              <span className="live-pulse-badge"><span className="live-dot" /> {matches.filter(m => m.status === 'live').length} Active</span>
+            </div>
+            <div className="matches-stack-v4">
+              {matches.filter(m => m.status === 'live').map(match => (
+                <MatchCard key={match.id} match={match} compact />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* UPCOMING MATCHES */}
+        {matches.filter(m => m.status === 'upcoming').length > 0 && (
+          <section className="dashboard-section">
+            <div className="section-header-v4">
+              <h2 className="section-title-v4">Upcoming</h2>
+              <span className="view-all-v4" onClick={() => navigate('matches')}>{t('common.view_all')} <i className="fa-solid fa-arrow-right" /></span>
+            </div>
+            <div className="matches-stack-v4">
+              {matches.filter(m => m.status === 'upcoming').slice(0, 3).map(match => (
+                <MatchCard key={match.id} match={match} compact />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* V6.0: TOP SQUADS (Replaces Top Characters) */}
+        <TopSquadsSectionV4 t={t} squads={squads} onNavigate={navigate} />
+
+        {/* V6.0: COMMUNITY HUB (Replaces Live Streams) */}
+        <CommunityHubSectionV4 t={t} content={communityContent} onNavigate={navigate} />
+
+        {/* STATS */}
+        <StatsSectionV4 t={t} />
+
+        {/* NEWS */}
+        <NewsSectionV4 t={t} />
       </div>
 
-      {/* WALLET */}
-      <WalletVaultV3
-        balance={currentUser.balance || 0}
-        lockedBalance={currentUser.lockedBalance || 0}
-        onDeposit={handleDeposit}
-        onWithdraw={handleWithdraw}
-        onNavigate={navigate}
-      />
-
-      {/* AGENTS SECTION */}
-      <AgentsSectionV3 />
-
-      {/* LIVE CHANNELS */}
-      <ChannelsSectionV3 />
-
-      {/* STATS SECTION */}
-      <StatsSectionV3 />
-
-      {/* NEWS SECTION */}
-      <NewsSectionV3 />
-
-      {/* PARTNERS */}
-      <PartnersSectionV3 />
-
-      {/* YOUR EXISTING MATCH SECTIONS */}
-      {/* Keep your existing live/upcoming/completed match lists here */}
-
-      <div style={{ height: 80 }} />
+      {/* NOTE: Bottom nav is handled by your existing MobileNav.jsx in App.jsx */}
     </div>
   )
 }

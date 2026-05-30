@@ -1,0 +1,155 @@
+/* ════════════════════════════════════════════════════════════════
+   ZENO LEAGUE V19.0 — CRYPDINO-INSPIRED DESIGN TOKENS
+   Premium Esports Aesthetic · Deep Navy + Violet-Indigo Gradients
+   ════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ═══ CORE PALETTE (CrypDino-Inspired) ═══ */
+  --color-primary: #7C3AED;           /* Deep violet */
+  --color-primary-light: #A78BFA;     /* Light violet */
+  --color-secondary: #4F46E5;         /* Rich indigo */
+  --color-secondary-light: #818CF8;   /* Light indigo */
+  --color-accent-cyan: #06B6D4;       /* Cyan accent */
+  --color-accent-pink: #EC4899;       /* Pink accent */
+  --color-success: #22C55E;           /* Green */
+  --color-warning: #F59E0B;           /* Amber */
+  --color-danger: #EF4444;            /* Red */
+  --color-info: #3B82F6;              /* Blue */
+
+  /* ═══ BACKGROUND SYSTEM (Layered Depth) ═══ */
+  --bg-deep-space: #0F0C29;           /* Warm deep navy (was #070714) */
+  --bg-dark-purple: #1A1333;         /* Dark purple tint */
+  --bg-surface: #161032;             /* Surface color */
+  --bg-elevated: #1E1840;            /* Elevated cards */
+  --bg-glass: rgba(255, 255, 255, 0.04);  /* Glass background */
+  --bg-glass-hover: rgba(255, 255, 255, 0.08);  /* Glass hover */
+  --bg-glass-active: rgba(255, 255, 255, 0.12); /* Glass active */
+
+  /* ═══ GRADIENT SYSTEM (Premium Multi-stop) ═══ */
+  --gradient-hero: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-hero-alt: linear-gradient(135deg, #7C3AED 0%, #4F46E5 50%, #06B6D4 100%);
+  --gradient-avatar-ring: conic-gradient(from 0deg, #7C3AED, #4F46E5, #06B6D4, #7C3AED);
+  --gradient-card-shine: linear-gradient(135deg, rgba(124,58,237,0.1) 0%, transparent 50%);
+  --gradient-text-premium: linear-gradient(135deg, #A78BFA 0%, #818CF8 100%);
+  --gradient-success: linear-gradient(135deg, #22C55E 0%, #06B6D4 100%);
+  
+  /* ═══ GLASSMORPHISM EFFECTS ═══ */
+  --glass-blur: blur(24px) saturate(200%);
+  --glass-blur-light: blur(16px) saturate(180%);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.10);
+  --glass-border-hover: 1px solid rgba(124, 58, 237, 0.30);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.40), 0 4px 8px rgba(0, 0, 0, 0.20);
+  --glass-shadow-hover: 0 16px 48px rgba(124, 58, 237, 0.25), 0 8px 16px rgba(0, 0, 0, 0.30);
+  --glass-noise-opacity: 0.02;
+
+  /* ═══ GLOW EFFECTS (Intense & Layered) ═══ */
+  --glow-primary: 0 0 60px rgba(124, 58, 237, 0.35);
+  --glow-secondary: 0 0 60px rgba(79, 70, 229, 0.25);
+  --glow-success: 0 0 40px rgba(34, 197, 94, 0.30);
+  --glow-warning: 0 0 40px rgba(245, 158, 11, 0.30);
+  --glow-text: 0 0 30px rgba(124, 58, 237, 0.5);
+
+  /* ═══ SHADOW SYSTEM (Multi-layered Depth) ═══ */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.30), 0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.40), 0 2px 4px rgba(0, 0, 0, 0.30);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.50), 0 4px 8px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.60), 0 12px 24px rgba(0, 0, 0, 0.50);
+  --shadow-float: 0 32px 80px rgba(0, 0, 0, 0.70), 0 16px 32px rgba(0, 0, 0, 0.50);
+
+  /* ═══ TYPOGRAPHY SCALE (Esports-Grade) ═══ */
+  --font-display: 'Lexend', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  /* Font Sizes (Responsive) */
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-base: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --text-hero: 42px;        /* HUGE balance numbers */
+  --text-display: 56px;
+
+  /* Font Weights */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-extrabold: 800;
+  --weight-black: 900;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.03em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.05em;
+  --tracking-wider: 0.1em;
+  --tracking-widest: 0.15em;
+
+  /* ═══ SPACING SYSTEM (8px Base Unit) ═══ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ═══ BORDER RADIUS (Rounded & Modern) ═══ */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ═══ TRANSITION SYSTEM (Smooth & Fluid) ═══ */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-normal: 300ms;
+  --duration-slow: 400ms;
+  --duration-slower: 500ms;
+  --duration-slowest: 800ms;
+  
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-dramatic: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ═══ Z-INDEX LAYERING ═══ */
+  --z-base: 0;
+  --z-elevated: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-toast: 600;
+  --z-tooltip: 700;
+  --z-max: 9999;
+
+  /* ═══ SAFE AREAS (Mobile Notch/Cutout) ═══ */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ═══ DARK THEME OVERRIDES (Default Active) ═══ */
+[data-theme="dark"] {
+  --color-bg-primary: var(--bg-deep-space);
+  --color-bg-secondary: var(--bg-dark-purple);
+  --color-bg-tertiary: var(--bg-surface);
+  --color-text-primary: #F8F8FF;
+  --color-text-secondary: #A0A0B8;
+  --color-text-muted: #6B6B80;
+  --color-border-default: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.15);
+  --color-border-subtle: rgba(255, 255, 255, 0.04);
+}
