@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { useApp } from '../context'
 import { useLanguage } from '../hooks/useLanguage'
 import MatchCard from '../components/MatchCard'
@@ -26,92 +26,9 @@ function cdFormat(ms) {
   return `${pad(h)}:${pad(m)}:${pad(s)}`
 }
 
-// ─── OPTIONAL REDUCED MOTION (graceful fallback) ───
-let useReducedMotion = () => false
-try {
-  const mod = await import('../hooks/useReducedMotion.js')
-  if (mod.useReducedMotion) useReducedMotion = mod.useReducedMotion
-} catch (e) {
-  /* hook doesn't exist, default to false */
-}
-
-// ─── ANIMATED COUNTER (Reduced Motion Aware) ───
-function useAnimatedCounter(target, duration = 1200) {
-  const prefersReducedMotion = useReducedMotion()
-  const [count, setCount] = useState(prefersReducedMotion ? target : 0)
-  const startRef = useRef(null)
-  const fromRef = useRef(0)
-
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      setCount(target)
-      return
-    }
-    fromRef.current = count
-    startRef.current = null
-    let raf
-    const animate = (timestamp) => {
-      if (!startRef.current) startRef.current = timestamp
-      const progress = Math.min((timestamp - startRef.current) / duration, 1)
-      const easeOut = 1 - Math.pow(1 - progress, 3)
-      const current = Math.round(fromRef.current + (target - fromRef.current) * easeOut)
-      setCount(current)
-      if (progress < 1) raf = requestAnimationFrame(animate)
-    }
-    raf = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(raf)
-  }, [target, duration, prefersReducedMotion])
-
-  return count
-}
-
-// ─── BACKGROUND PARTICLES (Lightweight, 8 max, memoized) ───
-const BackgroundParticles = memo(function BackgroundParticles() {
-  // Simple device check — skip on low memory or touch-only low-end
-  const isLowEnd = typeof navigator !== 'undefined' && (
-    navigator.hardwareConcurrency <= 4 ||
-    /Android [4-6]|Opera Mini|Nokia/i.test(navigator.userAgent)
-  )
-
-  if (isLowEnd) return null
-
-  const particles = useMemo(() =>
-    Array.from({ length: 8 }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      delay: Math.random() * 20,
-      duration: 20 + Math.random() * 10,
-      size: 2 + Math.random() * 2,
-      opacity: 0.1 + Math.random() * 0.15,
-    })), []
-  )
-
-  return (
-    <div className="bg-particles" aria-hidden="true">
-      {particles.map(p => (
-        <div
-          key={p.id}
-          className="particle"
-          style={{
-            left: `${p.left}%`,
-            width: p.size,
-            height: p.size,
-            opacity: p.opacity,
-            animationDelay: `${p.delay}s`,
-            animationDuration: `${p.duration}s`,
-          }}
-        />
-      ))}
-    </div>
-  )
-})
-
-// ─── NOISE OVERLAY (Removed for mobile GPU health) ───
-const NoiseOverlay = memo(function NoiseOverlay() {
-  return null
-})
-
-// ─── HERO BANNER ───
+// ═══════════════════════════════════════════════════════════════════════
+//  HERO BANNER — Flat, zero animations
+// ═══════════════════════════════════════════════════════════════════════
 const HeroBannerV4 = memo(function HeroBannerV4({ hero, heroPhase, heroCountdown, heroJoined, heroTime, onJoin, onNavigate, t }) {
   const [countdown, setCountdown] = useState(heroCountdown)
 
@@ -124,13 +41,10 @@ const HeroBannerV4 = memo(function HeroBannerV4({ hero, heroPhase, heroCountdown
   }, [heroPhase, heroCountdown])
 
   if (!hero) return null
-
   const cd = cdFormat(countdown)
 
   return (
     <div className="hero-banner-v4" onClick={() => onNavigate(`match-detail/${hero.id}`)}>
-      <div className="hero-banner-glow" aria-hidden="true" />
-
       <div className="hero-content-v4">
         <div className="hero-badge-row-v4">
           {heroPhase === 'live' ? (
@@ -139,7 +53,7 @@ const HeroBannerV4 = memo(function HeroBannerV4({ hero, heroPhase, heroCountdown
             </span>
           ) : (
             <span className="zeno-badge zeno-badge-upcoming">
-              <span className="live-dot" style={{ background: '#8b5cf6', animation: 'none', boxShadow: 'none' }} /> {t('matches.upcoming')}
+              <span className="live-dot" style={{ background: '#8b5cf6', animation: 'none' }} /> {t('matches.upcoming')}
             </span>
           )}
           <span className="zeno-badge zeno-badge-prize">
@@ -147,9 +61,7 @@ const HeroBannerV4 = memo(function HeroBannerV4({ hero, heroPhase, heroCountdown
           </span>
         </div>
 
-        <h2 className="hero-title-v4">
-          {hero.title || 'Clutch Arena'}
-        </h2>
+        <h2 className="hero-title-v4">{hero.title || 'Clutch Arena'}</h2>
         <p className="hero-subtitle-v4">Tournament</p>
 
         <div className="hero-meta-v4">
@@ -175,11 +87,7 @@ const HeroBannerV4 = memo(function HeroBannerV4({ hero, heroPhase, heroCountdown
             onClick={(e) => { e.stopPropagation(); if (!heroJoined) onJoin(hero.id) }}
             disabled={heroJoined}
           >
-            {heroJoined ? (
-              <><i className="fa-solid fa-check" /> Joined</>
-            ) : (
-              <><i className="fa-solid fa-bolt" /> {t('matches.join_match')}</>
-            )}
+            {heroJoined ? <><i className="fa-solid fa-check" /> Joined</> : <><i className="fa-solid fa-bolt" /> {t('matches.join_match')}</>}
           </button>
           <button className="btn-zeno btn-zeno-ghost" onClick={(e) => e.stopPropagation()}>
             <i className="fa-solid fa-share-nodes" />
@@ -190,65 +98,33 @@ const HeroBannerV4 = memo(function HeroBannerV4({ hero, heroPhase, heroCountdown
   )
 })
 
-// ─── CIRCULAR STAT ───
-const CircularStatV4 = memo(function CircularStatV4({ value, label, color, icon, suffix = '' }) {
-  const size = 68
-  const stroke = 3.5
-  const radius = (size - stroke) / 2
-  const circumference = 2 * Math.PI * radius
-  const pct = Math.min(value / 100, 1)
-  const offset = circumference - pct * circumference
-  const animatedValue = useAnimatedCounter(value, 1000)
-
+// ═══════════════════════════════════════════════════════════════════════
+//  SIMPLE STAT — No SVG, no animated counter, instant
+// ═══════════════════════════════════════════════════════════════════════
+const SimpleStatV4 = memo(function SimpleStatV4({ value, label, color, icon, suffix = '' }) {
   return (
-    <div className="circular-stat-v4">
-      <div className="circular-stat-ring" style={{ width: size, height: size }}>
-        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-          <circle fill="none" stroke="rgba(255,255,255,0.04)" cx={size/2} cy={size/2} r={radius} strokeWidth={stroke} />
-          <circle
-            fill="none"
-            strokeLinecap="round"
-            cx={size/2} cy={size/2} r={radius} strokeWidth={stroke}
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            style={{ stroke: color, transition: 'stroke-dashoffset 1s ease-out' }}
-          />
-        </svg>
-        <div className="circular-stat-center">
-          <i className={icon} style={{ color, fontSize: 12 }} />
-          <span style={{ color, fontSize: 14, fontWeight: 800, fontFamily: 'var(--db-font-mono)' }}>
-            {animatedValue}{suffix}
-          </span>
-        </div>
-      </div>
-      <span className="circular-stat-label">{label}</span>
+    <div className="simple-stat-v4">
+      <i className={icon} style={{ color, fontSize: 16 }} />
+      <span className="simple-stat-value" style={{ color }}>{value}{suffix}</span>
+      <span className="simple-stat-label">{label}</span>
     </div>
   )
 })
 
-// ─── WALLET ───
+// ═══════════════════════════════════════════════════════════════════════
+//  WALLET — Flat
+// ═══════════════════════════════════════════════════════════════════════
 const WalletVaultV4 = memo(function WalletVaultV4({ balance, lockedBalance, onDeposit, onWithdraw, onNavigate, t }) {
-  const animatedBalance = useAnimatedCounter(balance, 1500)
-  const animatedLocked = useAnimatedCounter(lockedBalance, 1500)
-
   return (
     <div className="zeno-card zeno-card-interactive" onClick={() => onNavigate('wallet')}>
-      <div className="zeno-card-shine" aria-hidden="true" />
-
       <div className="wallet-header-v4">
-        <div className="wallet-label">
-          <i className="fa-solid fa-wallet" /> {t('wallet.total_balance')}
-        </div>
-        <div className="wallet-locked">
-          <i className="fa-solid fa-lock" /> {formatTK(animatedLocked)} locked
-        </div>
+        <div className="wallet-label"><i className="fa-solid fa-wallet" /> {t('wallet.total_balance')}</div>
+        <div className="wallet-locked"><i className="fa-solid fa-lock" /> {formatTK(lockedBalance)} locked</div>
       </div>
-
       <div className="wallet-balance-v4">
-        <span className="wallet-amount">{formatTK(animatedBalance)}</span>
+        <span className="wallet-amount">{formatTK(balance)}</span>
         <span className="wallet-currency">TK</span>
       </div>
-
       <div className="wallet-actions-v4">
         <button className="btn-zeno btn-zeno-secondary" onClick={(e) => { e.stopPropagation(); onWithdraw() }}>
           <i className="fa-solid fa-arrow-up-from-bracket" /> {t('wallet.withdraw')}
@@ -261,17 +137,17 @@ const WalletVaultV4 = memo(function WalletVaultV4({ balance, lockedBalance, onDe
   )
 })
 
-// ─── SQUAD CARD ───
+// ═══════════════════════════════════════════════════════════════════════
+//  SQUAD CARD — No SVG ring, no heavy effects
+// ═══════════════════════════════════════════════════════════════════════
 const SquadCardV4 = memo(function SquadCardV4({ squad, rank, onNavigate }) {
   const rankColors = ['#fbbf24', '#c0c0c0', '#cd7f32', '#06d6f0', '#a78bfa']
   const rankColor = rankColors[rank] || '#6c8cff'
 
   return (
     <div className="squad-card-v4" onClick={() => onNavigate && onNavigate('leaderboard')}>
-      <div className="squad-rank-ring" style={{ borderColor: `${rankColor}30` }}>
-        <span style={{ color: rankColor, fontSize: rank < 3 ? 20 : 16, fontWeight: 900 }}>
-          {rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `#${rank + 1}`}
-        </span>
+      <div className="squad-rank-ring" style={{ borderColor: rankColor, color: rankColor }}>
+        {rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `#${rank + 1}`}
       </div>
       <div className="squad-logo-wrap">
         {squad.logo ? (
@@ -284,7 +160,7 @@ const SquadCardV4 = memo(function SquadCardV4({ squad, rank, onNavigate }) {
       </div>
       <div className="squad-info-v4">
         <div className="squad-name-v4">{squad.name || 'Unknown Squad'}</div>
-        <div className="squad-tag-v4">{squad.tag || 'No Tag'}</div>
+        <div className="squad-tag-v4" style={{ color: rankColor }}>{squad.tag || 'No Tag'}</div>
         <div className="squad-stats-v4">
           <div className="squad-stat-v4">
             <span className="squad-stat-value-v4" style={{ color: rankColor }}>{squad.winRate || 0}%</span>
@@ -296,31 +172,12 @@ const SquadCardV4 = memo(function SquadCardV4({ squad, rank, onNavigate }) {
           </div>
         </div>
       </div>
-      <div className="squad-win-ring">
-        <svg width="44" height="44" style={{ transform: 'rotate(-90deg)' }}>
-          <circle fill="none" stroke="rgba(255,255,255,0.04)" cx="22" cy="22" r="18" strokeWidth="3" />
-          <circle
-            fill="none"
-            strokeLinecap="round"
-            cx="22" cy="22" r="18" strokeWidth="3"
-            strokeDasharray={2 * Math.PI * 18}
-            strokeDashoffset={2 * Math.PI * 18 * (1 - Math.min((squad.winRate || 0) / 100, 1))}
-            style={{ stroke: rankColor, transition: 'stroke-dashoffset 1s ease-out' }}
-          />
-        </svg>
-        <div className="squad-win-ring-center">
-          <span style={{ color: rankColor, fontSize: 11, fontWeight: 800 }}>{squad.winRate || 0}%</span>
-        </div>
-      </div>
     </div>
   )
 })
 
 const TopSquadsSectionV4 = memo(function TopSquadsSectionV4({ t, squads, onNavigate }) {
-  const topSquads = (squads || [])
-    .sort((a, b) => (b.winRate || 0) - (a.winRate || 0))
-    .slice(0, 5)
-
+  const topSquads = (squads || []).sort((a, b) => (b.winRate || 0) - (a.winRate || 0)).slice(0, 5)
   const demoSquads = topSquads.length > 0 ? topSquads : [
     { id: 's1', name: 'Zenith', tag: 'ZEN', winRate: 78, matchesPlayed: 24, logo: '' },
     { id: 's2', name: 'Phoenix', tag: 'PHX', winRate: 65, matchesPlayed: 31, logo: '' },
@@ -344,10 +201,11 @@ const TopSquadsSectionV4 = memo(function TopSquadsSectionV4({ t, squads, onNavig
   )
 })
 
-// ─── COMMUNITY HUB ───
+// ═══════════════════════════════════════════════════════════════════════
+//  COMMUNITY HUB
+// ═══════════════════════════════════════════════════════════════════════
 const CommunityHubSectionV4 = memo(function CommunityHubSectionV4({ t, content, onNavigate }) {
   const hasContent = content && content.length > 0
-
   return (
     <section className="dashboard-section">
       <div className="section-header-v4">
@@ -356,17 +214,12 @@ const CommunityHubSectionV4 = memo(function CommunityHubSectionV4({ t, content, 
           {hasContent ? 'View All' : 'Coming Soon'} <i className="fa-solid fa-arrow-right" />
         </span>
       </div>
-
       {!hasContent ? (
         <div className="community-empty-v4">
-          <div className="community-empty-icon">
-            <i className="fa-solid fa-video-slash" />
-          </div>
+          <div className="community-empty-icon"><i className="fa-solid fa-video-slash" /></div>
           <div className="community-empty-title">Coming Soon</div>
           <div className="community-empty-subtitle">Highlights, Reels & More</div>
-          <div className="community-empty-hint">
-            Admin can add YouTube links, thumbnails, and video URLs from the Content tab
-          </div>
+          <div className="community-empty-hint">Admin can add YouTube links, thumbnails, and video URLs from the Content tab</div>
         </div>
       ) : (
         <div className="channels-scroll-v4">
@@ -375,9 +228,7 @@ const CommunityHubSectionV4 = memo(function CommunityHubSectionV4({ t, content, 
               <div className="channel-thumbnail-v4">
                 <img src={item.thumbnailUrl} alt={item.title} loading="lazy" />
                 <div className="channel-overlay-v4">
-                  <div className="channel-live-badge">
-                    <i className="fa-solid fa-play" /> {item.type === 'highlight' ? 'Highlight' : item.type === 'reel' ? 'Reel' : 'Video'}
-                  </div>
+                  <div className="channel-live-badge"><i className="fa-solid fa-play" /> {item.type === 'highlight' ? 'Highlight' : item.type === 'reel' ? 'Reel' : 'Video'}</div>
                 </div>
               </div>
               <div className="channel-info-v4">
@@ -394,7 +245,9 @@ const CommunityHubSectionV4 = memo(function CommunityHubSectionV4({ t, content, 
   )
 })
 
-// ─── STATS META ───
+// ═══════════════════════════════════════════════════════════════════════
+//  STATS META
+// ═══════════════════════════════════════════════════════════════════════
 const ZENO_META = [
   { rank: 1, name: 'Alok', role: 'Most Picked', roleIcon: 'fa-solid fa-crown', percentage: 24.5, avatar: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=100&h=100&fit=crop' },
   { rank: 2, name: 'Kelly', role: 'Speed King', roleIcon: 'fa-solid fa-bolt', percentage: 19.2, avatar: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=100&h=100&fit=crop' },
@@ -433,7 +286,9 @@ const StatsSectionV4 = memo(function StatsSectionV4({ t }) {
   )
 })
 
-// ─── NEWS ───
+// ═══════════════════════════════════════════════════════════════════════
+//  NEWS
+// ═══════════════════════════════════════════════════════════════════════
 const ZENO_NEWS = [
   { id: 1, title: '🏆 New Champion Crowned in ZENO Weekly Finals!', date: 'July 19, 2025', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&h=400&fit=crop', tag: 'Tournament' },
   { id: 2, title: '🎮 Free Fire MAX: New Character "Maya" Coming!', date: 'July 18, 2025', image: 'https://images.unsplash.com/photo-1511882150382-421056c89033?w=600&h=400&fit=crop', tag: 'Update' },
@@ -463,7 +318,9 @@ const NewsSectionV4 = memo(function NewsSectionV4({ t }) {
   )
 })
 
-// ─── QUICK ACTIONS ───
+// ═══════════════════════════════════════════════════════════════════════
+//  QUICK ACTIONS
+// ═══════════════════════════════════════════════════════════════════════
 const QuickActionsV4 = memo(function QuickActionsV4({ onNavigate, t }) {
   const actions = [
     { icon: 'fa-solid fa-trophy', label: 'Tournaments', color: '#6366F1', path: 'matches' },
@@ -471,15 +328,12 @@ const QuickActionsV4 = memo(function QuickActionsV4({ onNavigate, t }) {
     { icon: 'fa-solid fa-gift', label: 'Rewards', color: '#F59E0B', path: 'wallet' },
     { icon: 'fa-solid fa-user-group', label: 'Referral', color: '#06B6D4', path: 'profile' },
   ]
-
   return (
     <section className="dashboard-section">
       <div className="quick-actions-grid">
         {actions.map((action, i) => (
           <button key={i} className="quick-action-card" onClick={() => onNavigate(action.path)}>
-            <div className="quick-action-icon" style={{ background: `${action.color}12`, color: action.color }}>
-              <i className={action.icon} />
-            </div>
+            <div className="quick-action-icon" style={{ color: action.color }}><i className={action.icon} /></div>
             <span className="quick-action-label">{action.label}</span>
           </button>
         ))}
@@ -488,7 +342,9 @@ const QuickActionsV4 = memo(function QuickActionsV4({ onNavigate, t }) {
   )
 })
 
-// ─── MAIN DASHBOARD ───
+// ═══════════════════════════════════════════════════════════════════════
+//  MAIN DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════
 export default function Dashboard() {
   const { state, dispatch, navigate } = useApp()
   const { t } = useLanguage()
@@ -507,18 +363,12 @@ export default function Dashboard() {
   const winRate = currentUser.winRate || 68.4
   const level = currentUser.level || 5
 
-  const handleJoin = (matchId) => {
-    dispatch({ type: 'SHOW_MODAL', payload: { type: 'join-match', matchId } })
-  }
-
+  const handleJoin = (matchId) => dispatch({ type: 'SHOW_MODAL', payload: { type: 'join-match', matchId } })
   const handleDeposit = () => dispatch({ type: 'SHOW_MODAL', payload: { type: 'add-money' } })
   const handleWithdraw = () => dispatch({ type: 'SHOW_MODAL', payload: { type: 'withdraw' } })
 
   return (
     <div className="dashboard-v4">
-      <BackgroundParticles />
-      <NoiseOverlay />
-
       <div className="dashboard-content">
         <HeroBannerV4
           hero={hero}
@@ -532,10 +382,10 @@ export default function Dashboard() {
         />
 
         <section className="dashboard-section stats-row-v4">
-          <CircularStatV4 value={liveCount} label="Live" color="#6366F1" icon="fa-solid fa-circle-play" />
-          <CircularStatV4 value={myJoinedCount} label="My Matches" color="#8B5CF6" icon="fa-solid fa-user-check" />
-          <CircularStatV4 value={winRate} label="Win Rate" color="#10B981" icon="fa-solid fa-percent" suffix="%" />
-          <CircularStatV4 value={level} label="Level" color="#F59E0B" icon="fa-solid fa-military-tech" />
+          <SimpleStatV4 value={liveCount} label="Live" color="#6366F1" icon="fa-solid fa-circle-play" />
+          <SimpleStatV4 value={myJoinedCount} label="My Matches" color="#8B5CF6" icon="fa-solid fa-user-check" />
+          <SimpleStatV4 value={winRate} label="Win Rate" color="#10B981" icon="fa-solid fa-percent" suffix="%" />
+          <SimpleStatV4 value={level} label="Level" color="#F59E0B" icon="fa-solid fa-military-tech" />
         </section>
 
         <QuickActionsV4 onNavigate={navigate} t={t} />
