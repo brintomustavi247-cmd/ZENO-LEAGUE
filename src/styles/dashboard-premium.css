@@ -1,17 +1,20 @@
-/* ═══════════════════════════════════════════════════════════════════════
-   DASHBOARD PREMIUM v6.0 — VOID PREMIUM DARK
-   Deep void black, subtle ambient glow, no harsh white borders
-   Gaming typography, glassmorphism depth, premium polish
-   File: src/styles/dashboard-premium.css
-   ═══════════════════════════════════════════════════════════════════════ */
+/* === DASHBOARD MOBILE-OPTIMIZED v6.1 ===
+ * Performance wins:
+ * - Zero external fonts (system stack only)
+ * - No backdrop-filter blur (GPU killer on mobile)
+ * - No pseudo-element decorative lines on every card
+ * - No ambient glows / complex layered shadows
+ * - Particles: 8 max, no blur filter
+ * - Noise overlay removed
+ * - @media (hover: hover) guards for touch devices
+ * - content-visibility: auto for off-screen sections
+ * - contain: layout style paint for cards
+ * - Single-layer shadows
+ * - Simplified easing (ease-out instead of bouncy)
+ */
 
-@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
-
-/* ──────────────────────────────────────────────────────────────────────
-   CSS CUSTOM PROPERTIES — VOID PREMIUM PALETTE
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── VARIABLES ─── */
 .dashboard-v4 {
-  /* Void Background Layer */
   --db-bg-void: #07080F;
   --db-bg-deep: #0A0C14;
   --db-bg-base: #0D0F18;
@@ -19,19 +22,12 @@
   --db-bg-hover: #141622;
   --db-bg-nested: #0C0E16;
 
-  /* Surface Layer — deeper, less blue */
-  --db-surface: #11131E;
-  --db-surface-secondary: #141622;
-  --db-surface-tertiary: #181A28;
-
-  /* Border Layer — NO harsh white, subtle violet tint */
-  --db-border: rgba(124, 58, 237, 0.04);
-  --db-border-light: rgba(124, 58, 237, 0.06);
+  --db-border: rgba(124, 58, 237, 0.06);
+  --db-border-light: rgba(124, 58, 237, 0.08);
   --db-border-top: rgba(124, 58, 237, 0.08);
-  --db-border-active: rgba(124, 58, 237, 0.20);
+  --db-border-active: rgba(124, 58, 237, 0.18);
   --db-border-gold: rgba(245, 158, 11, 0.15);
 
-  /* Accent Colors — richer, deeper */
   --db-violet: #6D28D9;
   --db-violet-bright: #7C3AED;
   --db-violet-glow: #8B5CF6;
@@ -45,24 +41,16 @@
   --db-cyan: #0891B2;
   --db-pink: #DB2777;
 
-  /* Glow Shadows — softer, more ambient */
-  --db-glow-violet: 0 0 40px rgba(124, 58, 237, 0.12);
-  --db-glow-green: 0 0 30px rgba(16, 185, 129, 0.10);
-  --db-glow-gold: 0 0 25px rgba(245, 158, 11, 0.08);
-  --db-glow-red: 0 0 20px rgba(239, 68, 68, 0.15);
-
-  /* Text Colors — softer whites, less harsh */
   --db-text: #E8E8ED;
   --db-text-secondary: #A1A1AA;
   --db-text-muted: #71717A;
   --db-text-dim: rgba(255, 255, 255, 0.25);
 
-  /* Typography */
-  --db-font-display: 'Orbitron', 'Lexend', system-ui, sans-serif;
-  --db-font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --db-font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  /* System fonts only — zero network requests */
+  --db-font-display: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --db-font-body: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --db-font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* Spacing */
   --db-space-1: 4px;
   --db-space-2: 8px;
   --db-space-3: 12px;
@@ -70,31 +58,24 @@
   --db-space-5: 20px;
   --db-space-6: 24px;
 
-  /* Radius */
   --db-r-sm: 10px;
   --db-r-md: 14px;
   --db-r-lg: 20px;
   --db-r-xl: 24px;
   --db-r-full: 999px;
 
-  /* Shadows — deeper, more atmospheric */
-  --db-shadow-sm: 0 2px 8px rgba(0,0,0,0.5);
-  --db-shadow-md: 0 8px 24px rgba(0,0,0,0.6);
-  --db-shadow-lg: 0 16px 40px rgba(0,0,0,0.7);
-  --db-shadow-xl: 0 24px 60px rgba(0,0,0,0.8);
-  --db-shadow-inner: inset 0 2px 4px rgba(0,0,0,0.4);
+  /* Single-layer shadows only */
+  --db-shadow-sm: 0 1px 4px rgba(0,0,0,0.4);
+  --db-shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+  --db-shadow-lg: 0 8px 24px rgba(0,0,0,0.6);
+  --db-shadow-xl: 0 12px 32px rgba(0,0,0,0.7);
+  --db-shadow-inner: inset 0 1px 2px rgba(0,0,0,0.3);
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   DASHBOARD SHELL — Deep Void Background
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── SHELL ─── */
 .dashboard-v4 {
   min-height: 100dvh;
   background: var(--db-bg-void);
-  background-image:
-    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(124, 58, 237, 0.04) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(79, 70, 229, 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse 40% 30% at 50% 100%, rgba(124, 58, 237, 0.03) 0%, transparent 50%);
   color: var(--db-text);
   font-family: var(--db-font-body);
   -webkit-font-smoothing: antialiased;
@@ -111,27 +92,14 @@
   z-index: 2;
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   NOISE TEXTURE — Ultra Subtle
-   ────────────────────────────────────────────────────────────────────── */
-.dashboard-v4 .noise-overlay {
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.015'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 100;
-  opacity: 0.5;
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   PARTICLES — Ambient Background
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── PARTICLES (Lightweight) ─── */
 .dashboard-v4 .bg-particles {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 1;
   overflow: hidden;
+  contain: strict;
 }
 .dashboard-v4 .bg-particles .particle {
   position: absolute;
@@ -139,83 +107,52 @@
   border-radius: 50%;
   background: var(--db-violet-glow);
   animation: db-particle-rise linear infinite;
-  filter: blur(1px);
+  will-change: transform, opacity;
 }
 @keyframes db-particle-rise {
-  0% { transform: translateY(0) scale(0.6); opacity: 0; }
-  8% { opacity: 0.4; }
-  92% { opacity: 0.2; }
-  100% { transform: translateY(-110vh) scale(0.2); opacity: 0; }
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.25; }
+  90% { opacity: 0.1; }
+  100% { transform: translateY(-110vh); opacity: 0; }
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   SECTIONS
-   ────────────────────────────────────────────────────────────────────── */
-.dashboard-v4 .dashboard-section { margin-bottom: var(--db-space-5); }
+/* ─── SECTIONS ─── */
+.dashboard-v4 .dashboard-section {
+  margin-bottom: var(--db-space-5);
+  content-visibility: auto;
+  contain-intrinsic-size: 0 300px;
+}
 
-/* ──────────────────────────────────────────────────────────────────────
-   ZENO CARD — Void Glassmorphism
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── CARDS ─── */
 .dashboard-v4 .zeno-card {
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
   border-radius: var(--db-r-lg);
-  box-shadow: var(--db-shadow-lg), 0 0 0 1px rgba(0,0,0,0.3);
+  box-shadow: var(--db-shadow-lg);
   position: relative;
   overflow: hidden;
   padding: var(--db-space-5);
-}
-.dashboard-v4 .zeno-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.15), transparent);
-}
-.dashboard-v4 .zeno-card::after {
-  content: '';
-  position: absolute;
-  top: -40%; left: -20%;
-  width: 140%; height: 80%;
-  background: radial-gradient(ellipse at center, rgba(124,58,237,0.02), transparent 70%);
-  pointer-events: none;
+  transform: translateZ(0);
+  contain: layout style paint;
 }
 
-/* Interactive Card */
 .dashboard-v4 .zeno-card-interactive {
   cursor: pointer;
-  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 300ms ease,
-              border-color 300ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.dashboard-v4 .zeno-card-interactive:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--db-shadow-xl), var(--db-glow-violet);
-  border-color: var(--db-border-active);
-  border-top-color: rgba(124, 58, 237, 0.12);
+@media (hover: hover) {
+  .dashboard-v4 .zeno-card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--db-shadow-xl);
+    border-color: var(--db-border-active);
+  }
 }
 .dashboard-v4 .zeno-card-interactive:active {
-  transform: translateY(-1px) scale(0.995);
+  transform: translateY(0) scale(0.995);
 }
 
-/* Card Shine Effect */
-.dashboard-v4 .zeno-card-shine {
-  position: absolute;
-  top: -60%; right: -30%;
-  width: 250px; height: 250px;
-  background: radial-gradient(circle, rgba(124,58,237,0.06), transparent 65%);
-  pointer-events: none;
-  transition: 400ms ease;
-}
-.dashboard-v4 .zeno-card-interactive:hover .zeno-card-shine {
-  right: -15%;
-  opacity: 1.3;
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   SECTION HEADER
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── SECTION HEADER ─── */
 .dashboard-v4 .section-header-v4 {
   display: flex;
   justify-content: space-between;
@@ -244,24 +181,24 @@
   border-radius: var(--db-r-sm);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
 }
-.dashboard-v4 .view-all-v4:hover {
-  color: var(--db-violet-glow);
-  background: rgba(124, 58, 237, 0.06);
+@media (hover: hover) {
+  .dashboard-v4 .view-all-v4:hover {
+    color: var(--db-violet-glow);
+    background: rgba(124, 58, 237, 0.06);
+  }
+  .dashboard-v4 .view-all-v4:hover i { transform: translateX(3px); }
 }
 .dashboard-v4 .view-all-v4 i { font-size: 9px; transition: transform 200ms ease; }
-.dashboard-v4 .view-all-v4:hover i { transform: translateX(3px); }
 
-/* ──────────────────────────────────────────────────────────────────────
-   LIVE DOT & BADGES
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── LIVE DOT & BADGES ─── */
 .dashboard-v4 .live-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
   background: var(--db-red-bright);
   display: inline-block;
   animation: db-live-breathe 2s ease-in-out infinite;
-  box-shadow: 0 0 8px var(--db-red);
 }
 @keyframes db-live-breathe {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -279,7 +216,6 @@
   padding: 4px 10px;
   border-radius: var(--db-r-full);
   border: 1px solid rgba(239, 68, 68, 0.10);
-  backdrop-filter: blur(8px);
   letter-spacing: 0.04em;
 }
 
@@ -292,7 +228,6 @@
   padding: 5px 12px;
   border-radius: var(--db-r-full);
   border: 1px solid;
-  backdrop-filter: blur(12px);
   line-height: 1;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -314,9 +249,7 @@
 }
 .dashboard-v4 .zeno-badge-prize i { font-size: 9px; }
 
-/* ──────────────────────────────────────────────────────────────────────
-   BUTTONS — Tactile Press Feel
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── BUTTONS ─── */
 .dashboard-v4 .btn-zeno {
   display: inline-flex;
   align-items: center;
@@ -324,39 +257,33 @@
   gap: 6px;
   font-family: var(--db-font-body);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   border: none;
   cursor: pointer;
-  transition: all 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 200ms ease;
   outline: none;
   position: relative;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Primary Button */
 .dashboard-v4 .btn-zeno-primary {
   background: linear-gradient(135deg, var(--db-violet) 0%, var(--db-indigo) 100%);
   color: white;
   padding: 12px 28px;
   border-radius: var(--db-r-md);
-  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.25), inset 0 1px 0 rgba(255,255,255,0.06);
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.2);
 }
-.dashboard-v4 .btn-zeno-primary::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent 40%);
-  pointer-events: none;
-}
-.dashboard-v4 .btn-zeno-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(124, 58, 237, 0.35), inset 0 1px 0 rgba(255,255,255,0.10);
+@media (hover: hover) {
+  .dashboard-v4 .btn-zeno-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+  }
 }
 .dashboard-v4 .btn-zeno-primary:active:not(:disabled) {
   transform: translateY(0) scale(0.98);
-  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.20);
+  box-shadow: 0 1px 6px rgba(124, 58, 237, 0.2);
 }
 .dashboard-v4 .btn-zeno-primary:disabled {
   opacity: 0.4;
@@ -364,7 +291,6 @@
   filter: grayscale(0.4);
 }
 
-/* Secondary Button */
 .dashboard-v4 .btn-zeno-secondary {
   background: var(--db-bg-nested);
   color: var(--db-text);
@@ -373,12 +299,13 @@
   border: 1px solid var(--db-border-light);
   box-shadow: var(--db-shadow-inner);
 }
-.dashboard-v4 .btn-zeno-secondary:hover {
-  background: var(--db-bg-hover);
-  border-color: rgba(124, 58, 237, 0.08);
+@media (hover: hover) {
+  .dashboard-v4 .btn-zeno-secondary:hover {
+    background: var(--db-bg-hover);
+    border-color: rgba(124, 58, 237, 0.08);
+  }
 }
 
-/* Ghost Button */
 .dashboard-v4 .btn-zeno-ghost {
   background: rgba(255,255,255,0.02);
   color: var(--db-text);
@@ -387,57 +314,40 @@
   border: 1px solid var(--db-border-light);
   padding: 0;
   font-size: 14px;
-  backdrop-filter: blur(8px);
 }
-.dashboard-v4 .btn-zeno-ghost:hover {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(124, 58, 237, 0.10);
+@media (hover: hover) {
+  .dashboard-v4 .btn-zeno-ghost:hover {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(124, 58, 237, 0.10);
+  }
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   HERO BANNER — Void Tournament Card
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── HERO BANNER ─── */
 .dashboard-v4 .hero-banner-v4 {
   position: relative;
   border-radius: var(--db-r-xl);
   overflow: hidden;
   margin: var(--db-space-4) 0 var(--db-space-5);
   cursor: pointer;
-  background:
-    linear-gradient(145deg, rgba(124,58,237,0.06) 0%, rgba(79,70,229,0.03) 50%, transparent 100%),
-    var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid rgba(124, 58, 237, 0.08);
-  border-top: 1px solid rgba(124, 58, 237, 0.10);
   padding: 22px;
-  transition: all 300ms ease;
+  transition: all 200ms ease;
   box-shadow: var(--db-shadow-lg);
+  contain: layout style paint;
+  -webkit-tap-highlight-color: transparent;
 }
-.dashboard-v4 .hero-banner-v4:hover {
-  border-color: rgba(124, 58, 237, 0.15);
-  box-shadow: var(--db-shadow-xl), var(--db-glow-violet);
-  transform: translateY(-2px);
-}
-.dashboard-v4 .hero-banner-v4::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.2), transparent);
-}
-
-/* Ambient glow behind card */
-.dashboard-v4 .hero-banner-ambient {
-  position: absolute;
-  top: -30%; left: -10%;
-  width: 120%; height: 60%;
-  background: radial-gradient(ellipse at center, rgba(124,58,237,0.04), transparent 70%);
-  pointer-events: none;
+@media (hover: hover) {
+  .dashboard-v4 .hero-banner-v4:hover {
+    border-color: rgba(124, 58, 237, 0.15);
+    transform: translateY(-2px);
+  }
 }
 .dashboard-v4 .hero-banner-glow {
   position: absolute;
   top: -40%; right: -20%;
   width: 280px; height: 280px;
-  background: radial-gradient(circle, rgba(124,58,237,0.08), transparent 60%);
+  background: radial-gradient(circle, rgba(124,58,237,0.06), transparent 60%);
   pointer-events: none;
   filter: blur(30px);
 }
@@ -451,7 +361,6 @@
   z-index: 2;
 }
 
-/* GAMING FONT — ALL CAPS, BOLD, TRACKING */
 .dashboard-v4 .hero-title-v4 {
   font-family: var(--db-font-display);
   font-size: 24px;
@@ -494,7 +403,6 @@
   padding: 5px 11px;
   border-radius: var(--db-r-full);
   border: 1px solid rgba(255,255,255,0.03);
-  backdrop-filter: blur(4px);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -526,7 +434,6 @@
   font-weight: 800;
   color: var(--db-text);
   line-height: 1;
-  text-shadow: 0 0 10px rgba(255,255,255,0.04);
 }
 .dashboard-v4 .countdown-item label {
   font-size: 8px;
@@ -550,30 +457,20 @@
   z-index: 2;
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   STATS ROW — Circular Progress Indicators
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── STATS ROW ─── */
 .dashboard-v4 .stats-row-v4 {
   display: flex;
   justify-content: space-around;
   padding: 18px 8px;
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border-radius: var(--db-r-lg);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
-  box-shadow: var(--db-shadow-md), 0 0 0 1px rgba(0,0,0,0.25);
+  box-shadow: var(--db-shadow-md);
   position: relative;
   overflow: hidden;
-}
-.dashboard-v4 .stats-row-v4::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.1), transparent);
+  contain: layout style paint;
 }
 
-/* Circular Stat */
 .dashboard-v4 .circular-stat-v4 {
   display: flex;
   flex-direction: column;
@@ -606,18 +503,15 @@
   color: var(--db-text-muted);
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   QUICK ACTIONS — Navigation Shortcuts
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── QUICK ACTIONS ─── */
 .dashboard-v4 .quick-actions-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
 }
 .dashboard-v4 .quick-action-card {
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
   border-radius: var(--db-r-md);
   padding: 14px 8px;
   display: flex;
@@ -625,22 +519,18 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 200ms ease;
   outline: none;
   position: relative;
   overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
-.dashboard-v4 .quick-action-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.1), transparent);
-}
-.dashboard-v4 .quick-action-card:hover {
-  transform: translateY(-3px);
-  border-color: rgba(124, 58, 237, 0.1);
-  box-shadow: var(--db-shadow-md);
+@media (hover: hover) {
+  .dashboard-v4 .quick-action-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(124, 58, 237, 0.1);
+    box-shadow: var(--db-shadow-md);
+  }
 }
 .dashboard-v4 .quick-action-icon {
   width: 38px; height: 38px;
@@ -663,9 +553,7 @@
   text-transform: uppercase;
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   WALLET — Balance Display
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── WALLET ─── */
 .dashboard-v4 .wallet-header-v4 {
   display: flex;
   justify-content: space-between;
@@ -711,7 +599,6 @@
   color: var(--db-text);
   letter-spacing: -0.04em;
   line-height: 1;
-  text-shadow: 0 2px 20px rgba(255,255,255,0.03);
 }
 .dashboard-v4 .wallet-currency {
   font-family: var(--db-font-display);
@@ -727,9 +614,7 @@
 }
 .dashboard-v4 .wallet-actions-v4 .btn-zeno { flex: 1; }
 
-/* ──────────────────────────────────────────────────────────────────────
-   AGENTS — Character Showcase
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── AGENTS (kept for compatibility) ─── */
 .dashboard-v4 .agents-scroll-v4 {
   display: flex;
   gap: 10px;
@@ -743,32 +628,26 @@
 .dashboard-v4 .agents-scroll-v4::-webkit-scrollbar { display: none; }
 .dashboard-v4 .agent-card-v4 {
   flex: 0 0 130px;
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
   border-radius: var(--db-r-md);
   overflow: hidden;
   cursor: pointer;
-  transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 200ms ease;
   scroll-snap-align: start;
   position: relative;
+  -webkit-tap-highlight-color: transparent;
 }
-.dashboard-v4 .agent-card-v4::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.1), transparent);
-  z-index: 3;
-}
-.dashboard-v4 .agent-card-v4:hover {
-  transform: translateY(-4px);
-  border-color: rgba(124, 58, 237, 0.12);
-  box-shadow: var(--db-glow-violet);
+@media (hover: hover) {
+  .dashboard-v4 .agent-card-v4:hover {
+    transform: translateY(-3px);
+    border-color: rgba(124, 58, 237, 0.12);
+    box-shadow: var(--db-shadow-md);
+  }
 }
 .dashboard-v4 .agent-card-v4.selected {
   border-color: var(--db-violet-bright);
-  box-shadow: 0 0 0 1px rgba(124,58,237,0.2), var(--db-glow-violet);
+  box-shadow: 0 0 0 1px rgba(124,58,237,0.2);
 }
 .dashboard-v4 .agent-image-wrap-v4 {
   position: relative;
@@ -778,13 +657,15 @@
 .dashboard-v4 .agent-image-v4 {
   width: 100%; height: 100%;
   object-fit: cover;
-  transition: transform 400ms ease;
+  transition: transform 300ms ease;
 }
-.dashboard-v4 .agent-card-v4:hover .agent-image-v4 { transform: scale(1.08); }
+@media (hover: hover) {
+  .dashboard-v4 .agent-card-v4:hover .agent-image-v4 { transform: scale(1.05); }
+}
 .dashboard-v4 .agent-image-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, var(--db-surface) 15%, transparent 55%);
+  background: linear-gradient(to top, var(--db-bg-elevated) 15%, transparent 55%);
 }
 .dashboard-v4 .agent-info-v4 { padding: 10px 12px 12px; position: relative; z-index: 2; }
 .dashboard-v4 .agent-name-v4 {
@@ -823,9 +704,7 @@
   color: var(--db-text-muted);
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   CHANNELS — Streamer Cards
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── CHANNELS ─── */
 .dashboard-v4 .channels-scroll-v4 {
   display: flex;
   gap: 10px;
@@ -839,28 +718,22 @@
 .dashboard-v4 .channels-scroll-v4::-webkit-scrollbar { display: none; }
 .dashboard-v4 .channel-card-v4 {
   flex: 0 0 240px;
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
   border-radius: var(--db-r-md);
   overflow: hidden;
   scroll-snap-align: start;
   cursor: pointer;
-  transition: all 300ms ease;
+  transition: all 200ms ease;
   position: relative;
+  -webkit-tap-highlight-color: transparent;
 }
-.dashboard-v4 .channel-card-v4::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.1), transparent);
-  z-index: 3;
-}
-.dashboard-v4 .channel-card-v4:hover {
-  transform: translateY(-3px);
-  border-color: rgba(124, 58, 237, 0.08);
-  box-shadow: var(--db-shadow-lg);
+@media (hover: hover) {
+  .dashboard-v4 .channel-card-v4:hover {
+    transform: translateY(-2px);
+    border-color: rgba(124, 58, 237, 0.08);
+    box-shadow: var(--db-shadow-lg);
+  }
 }
 .dashboard-v4 .channel-thumbnail-v4 {
   position: relative;
@@ -870,9 +743,11 @@
 .dashboard-v4 .channel-thumbnail-v4 img {
   width: 100%; height: 100%;
   object-fit: cover;
-  transition: transform 400ms ease;
+  transition: transform 300ms ease;
 }
-.dashboard-v4 .channel-card-v4:hover .channel-thumbnail-v4 img { transform: scale(1.06); }
+@media (hover: hover) {
+  .dashboard-v4 .channel-card-v4:hover .channel-thumbnail-v4 img { transform: scale(1.04); }
+}
 .dashboard-v4 .channel-overlay-v4 {
   position: absolute;
   inset: 0;
@@ -889,7 +764,6 @@
   font-weight: 800;
   color: white;
   background: rgba(0,0,0,0.5);
-  backdrop-filter: blur(10px);
   padding: 4px 10px;
   border-radius: var(--db-r-full);
   border: 1px solid rgba(255,255,255,0.05);
@@ -935,9 +809,7 @@
   font-weight: 600;
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   STATS META — Ranked List
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── STATS META ─── */
 .dashboard-v4 .stats-header-v4 {
   display: flex;
   justify-content: space-between;
@@ -1018,7 +890,7 @@
   height: 100%;
   background: linear-gradient(90deg, var(--db-violet), var(--db-violet-glow));
   border-radius: var(--db-r-full);
-  transition: width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: width 1s ease-out;
 }
 .dashboard-v4 .stat-percentage-v4 {
   font-family: var(--db-font-mono);
@@ -1030,9 +902,7 @@
   text-align: right;
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   NEWS — Article Cards
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── NEWS ─── */
 .dashboard-v4 .news-scroll-v4 {
   display: flex;
   gap: 10px;
@@ -1046,35 +916,31 @@
 .dashboard-v4 .news-scroll-v4::-webkit-scrollbar { display: none; }
 .dashboard-v4 .news-card-v4 {
   flex: 0 0 240px;
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
   border-radius: var(--db-r-md);
   overflow: hidden;
   scroll-snap-align: start;
   cursor: pointer;
-  transition: all 300ms ease;
+  transition: all 200ms ease;
   position: relative;
+  -webkit-tap-highlight-color: transparent;
 }
-.dashboard-v4 .news-card-v4::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.1), transparent);
-  z-index: 3;
-}
-.dashboard-v4 .news-card-v4:hover {
-  transform: translateY(-3px);
-  border-color: rgba(124, 58, 237, 0.08);
-  box-shadow: var(--db-shadow-lg);
+@media (hover: hover) {
+  .dashboard-v4 .news-card-v4:hover {
+    transform: translateY(-2px);
+    border-color: rgba(124, 58, 237, 0.08);
+    box-shadow: var(--db-shadow-lg);
+  }
 }
 .dashboard-v4 .news-image-v4 {
   width: 100%; height: 120px;
   object-fit: cover;
-  transition: transform 400ms ease;
+  transition: transform 300ms ease;
 }
-.dashboard-v4 .news-card-v4:hover .news-image-v4 { transform: scale(1.06); }
+@media (hover: hover) {
+  .dashboard-v4 .news-card-v4:hover .news-image-v4 { transform: scale(1.04); }
+}
 .dashboard-v4 .news-content-v4 { padding: 12px; position: relative; z-index: 2; }
 .dashboard-v4 .news-tag-v4 {
   display: inline-block;
@@ -1109,87 +975,30 @@
   letter-spacing: 0.02em;
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   MATCHES STACK
-   ────────────────────────────────────────────────────────────────────── */
+/* ─── MATCHES STACK ─── */
 .dashboard-v4 .matches-stack-v4 {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 .dashboard-v4 .matches-stack-v4 .match-card {
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
   border-radius: var(--db-r-md);
-  transition: all 300ms ease;
+  transition: all 200ms ease;
   position: relative;
   overflow: hidden;
+  contain: layout style paint;
 }
-.dashboard-v4 .matches-stack-v4 .match-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 8%; right: 8%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.08), transparent);
-}
-.dashboard-v4 .matches-stack-v4 .match-card:hover {
-  border-color: rgba(124, 58, 237, 0.08);
-  transform: translateX(3px);
-  box-shadow: var(--db-shadow-sm);
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   ACCESSIBILITY — Reduced Motion
-   ────────────────────────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-v4 *,
-  .dashboard-v4 *::before,
-  .dashboard-v4 *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+@media (hover: hover) {
+  .dashboard-v4 .matches-stack-v4 .match-card:hover {
+    border-color: rgba(124, 58, 237, 0.08);
+    transform: translateX(2px);
+    box-shadow: var(--db-shadow-sm);
   }
-  .dashboard-v4 .bg-particles .particle { display: none; }
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   SELECTION
-   ────────────────────────────────────────────────────────────────────── */
-.dashboard-v4 ::selection {
-  background: var(--db-violet-bright);
-  color: white;
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   RESPONSIVE
-   ────────────────────────────────────────────────────────────────────── */
-@media (min-width: 768px) {
-  .dashboard-v4 .dashboard-content { max-width: 540px; padding: 0 var(--db-space-6) 100px; }
-  .dashboard-v4 .agents-scroll-v4,
-  .dashboard-v4 .channels-scroll-v4,
-  .dashboard-v4 .news-scroll-v4 {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    overflow-x: visible;
-    margin: 0;
-    padding-left: 0;
-  }
-  .dashboard-v4 .agent-card-v4,
-  .dashboard-v4 .channel-card-v4,
-  .dashboard-v4 .news-card-v4 { flex: none; scroll-snap-align: none; }
-}
-@media (min-width: 1024px) {
-  .dashboard-v4 .dashboard-content { max-width: 640px; }
-  .dashboard-v4 .agents-scroll-v4 { grid-template-columns: repeat(4, 1fr); }
-  .dashboard-v4 .channels-scroll-v4,
-  .dashboard-v4 .news-scroll-v4 { grid-template-columns: repeat(3, 1fr); }
-}
-/* ═══════════════════════════════════════════════════════════════════════
-   V6.0: SQUAD CARDS — Top Squads Section Styles
-   ═══════════════════════════════════════════════════════════════════════ */
-
+/* ─── SQUADS ─── */
 .dashboard-v4 .squads-scroll-v4 {
   display: flex;
   gap: 10px;
@@ -1204,13 +1013,12 @@
 
 .dashboard-v4 .squad-card-v4 {
   flex: 0 0 160px;
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
   border-radius: var(--db-r-md);
   overflow: hidden;
   cursor: pointer;
-  transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 200ms ease;
   scroll-snap-align: start;
   position: relative;
   padding: 14px;
@@ -1218,19 +1026,14 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  -webkit-tap-highlight-color: transparent;
 }
-.dashboard-v4 .squad-card-v4::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.1), transparent);
-  z-index: 3;
-}
-.dashboard-v4 .squad-card-v4:hover {
-  transform: translateY(-4px);
-  border-color: rgba(124, 58, 237, 0.12);
-  box-shadow: var(--db-glow-violet);
+@media (hover: hover) {
+  .dashboard-v4 .squad-card-v4:hover {
+    transform: translateY(-3px);
+    border-color: rgba(124, 58, 237, 0.12);
+    box-shadow: var(--db-shadow-md);
+  }
 }
 
 .dashboard-v4 .squad-rank-ring {
@@ -1246,7 +1049,6 @@
   top: 8px;
   left: 8px;
   background: rgba(0,0,0,0.3);
-  backdrop-filter: blur(4px);
 }
 
 .dashboard-v4 .squad-logo-wrap {
@@ -1320,7 +1122,6 @@
   color: var(--db-text-muted);
 }
 
-/* Win Rate Ring */
 .dashboard-v4 .squad-win-ring {
   position: relative;
   width: 44px;
@@ -1335,26 +1136,15 @@
   justify-content: center;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   V6.0: COMMUNITY HUB — Empty State & Content Cards
-   ═══════════════════════════════════════════════════════════════════════ */
-
+/* ─── COMMUNITY HUB ─── */
 .dashboard-v4 .community-empty-v4 {
-  background: var(--db-surface);
+  background: var(--db-bg-elevated);
   border: 1px solid var(--db-border);
-  border-top: 1px solid var(--db-border-top);
   border-radius: var(--db-r-lg);
   padding: 32px 24px;
   text-align: center;
   position: relative;
   overflow: hidden;
-}
-.dashboard-v4 .community-empty-v4::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 10%; right: 10%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.1), transparent);
 }
 .dashboard-v4 .community-empty-icon {
   width: 56px;
@@ -1390,4 +1180,49 @@
   max-width: 280px;
   margin: 0 auto;
   line-height: 1.5;
+}
+
+/* ─── ACCESSIBILITY ─── */
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-v4 *,
+  .dashboard-v4 *::before,
+  .dashboard-v4 *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .dashboard-v4 .bg-particles .particle { display: none; }
+}
+
+/* ─── SELECTION ─── */
+.dashboard-v4 ::selection {
+  background: var(--db-violet-bright);
+  color: white;
+}
+
+/* ─── RESPONSIVE ─── */
+@media (min-width: 768px) {
+  .dashboard-v4 .dashboard-content { max-width: 540px; padding: 0 var(--db-space-6) 100px; }
+  .dashboard-v4 .agents-scroll-v4,
+  .dashboard-v4 .channels-scroll-v4,
+  .dashboard-v4 .news-scroll-v4,
+  .dashboard-v4 .squads-scroll-v4 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    overflow-x: visible;
+    margin: 0;
+    padding-left: 0;
+  }
+  .dashboard-v4 .agent-card-v4,
+  .dashboard-v4 .channel-card-v4,
+  .dashboard-v4 .news-card-v4,
+  .dashboard-v4 .squad-card-v4 { flex: none; scroll-snap-align: none; }
+}
+@media (min-width: 1024px) {
+  .dashboard-v4 .dashboard-content { max-width: 640px; }
+  .dashboard-v4 .agents-scroll-v4 { grid-template-columns: repeat(4, 1fr); }
+  .dashboard-v4 .channels-scroll-v4,
+  .dashboard-v4 .news-scroll-v4 { grid-template-columns: repeat(3, 1fr); }
+  .dashboard-v4 .squads-scroll-v4 { grid-template-columns: repeat(3, 1fr); }
 }

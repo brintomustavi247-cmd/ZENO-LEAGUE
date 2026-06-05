@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { useApp } from '../context'
 import { useLanguage } from '../hooks/useLanguage'
 import MatchCard from '../components/MatchCard'
@@ -26,15 +26,27 @@ function cdFormat(ms) {
   return `${pad(h)}:${pad(m)}:${pad(s)}`
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  ANIMATED COUNTER
-// ═══════════════════════════════════════════════════════════════════════
+// ─── OPTIONAL REDUCED MOTION (graceful fallback) ───
+let useReducedMotion = () => false
+try {
+  const mod = await import('../hooks/useReducedMotion.js')
+  if (mod.useReducedMotion) useReducedMotion = mod.useReducedMotion
+} catch (e) {
+  /* hook doesn't exist, default to false */
+}
+
+// ─── ANIMATED COUNTER (Reduced Motion Aware) ───
 function useAnimatedCounter(target, duration = 1200) {
-  const [count, setCount] = useState(0)
+  const prefersReducedMotion = useReducedMotion()
+  const [count, setCount] = useState(prefersReducedMotion ? target : 0)
   const startRef = useRef(null)
   const fromRef = useRef(0)
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      setCount(target)
+      return
+    }
     fromRef.current = count
     startRef.current = null
     let raf
@@ -48,26 +60,34 @@ function useAnimatedCounter(target, duration = 1200) {
     }
     raf = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(raf)
-  }, [target, duration])
+  }, [target, duration, prefersReducedMotion])
 
   return count
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  BACKGROUND PARTICLES
-// ═══════════════════════════════════════════════════════════════════════
-function BackgroundParticles() {
-  const particles = Array.from({ length: 30 }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    delay: Math.random() * 25,
-    duration: 18 + Math.random() * 12,
-    size: 1.5 + Math.random() * 2,
-    opacity: 0.15 + Math.random() * 0.25,
-  }))
+// ─── BACKGROUND PARTICLES (Lightweight, 8 max, memoized) ───
+const BackgroundParticles = memo(function BackgroundParticles() {
+  // Simple device check — skip on low memory or touch-only low-end
+  const isLowEnd = typeof navigator !== 'undefined' && (
+    navigator.hardwareConcurrency <= 4 ||
+    /Android [4-6]|Opera Mini|Nokia/i.test(navigator.userAgent)
+  )
+
+  if (isLowEnd) return null
+
+  const particles = useMemo(() =>
+    Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 20,
+      duration: 20 + Math.random() * 10,
+      size: 2 + Math.random() * 2,
+      opacity: 0.1 + Math.random() * 0.15,
+    })), []
+  )
 
   return (
-    <div className="bg-particles">
+    <div className="bg-particles" aria-hidden="true">
       {particles.map(p => (
         <div
           key={p.id}
@@ -84,19 +104,15 @@ function BackgroundParticles() {
       ))}
     </div>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  NOISE OVERLAY
-// ═══════════════════════════════════════════════════════════════════════
-function NoiseOverlay() {
-  return <div className="noise-overlay" aria-hidden="true" />
-}
+// ─── NOISE OVERLAY (Removed for mobile GPU health) ───
+const NoiseOverlay = memo(function NoiseOverlay() {
+  return null
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  HERO BANNER — Premium Dark
-// ═══════════════════════════════════════════════════════════════════════
-function HeroBannerV4({ hero, heroPhase, heroCountdown, heroJoined, heroTime, onJoin, onNavigate, t }) {
+// ─── HERO BANNER ───
+const HeroBannerV4 = memo(function HeroBannerV4({ hero, heroPhase, heroCountdown, heroJoined, heroTime, onJoin, onNavigate, t }) {
   const [countdown, setCountdown] = useState(heroCountdown)
 
   useEffect(() => {
@@ -113,7 +129,7 @@ function HeroBannerV4({ hero, heroPhase, heroCountdown, heroJoined, heroTime, on
 
   return (
     <div className="hero-banner-v4" onClick={() => onNavigate(`match-detail/${hero.id}`)}>
-      <div className="hero-banner-glow" />
+      <div className="hero-banner-glow" aria-hidden="true" />
 
       <div className="hero-content-v4">
         <div className="hero-badge-row-v4">
@@ -172,12 +188,10 @@ function HeroBannerV4({ hero, heroPhase, heroCountdown, heroJoined, heroTime, on
       </div>
     </div>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  CIRCULAR STAT
-// ═══════════════════════════════════════════════════════════════════════
-function CircularStatV4({ value, label, color, icon, suffix = '' }) {
+// ─── CIRCULAR STAT ───
+const CircularStatV4 = memo(function CircularStatV4({ value, label, color, icon, suffix = '' }) {
   const size = 68
   const stroke = 3.5
   const radius = (size - stroke) / 2
@@ -197,7 +211,7 @@ function CircularStatV4({ value, label, color, icon, suffix = '' }) {
             cx={size/2} cy={size/2} r={radius} strokeWidth={stroke}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
-            style={{ stroke: color, transition: 'stroke-dashoffset 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+            style={{ stroke: color, transition: 'stroke-dashoffset 1s ease-out' }}
           />
         </svg>
         <div className="circular-stat-center">
@@ -210,18 +224,16 @@ function CircularStatV4({ value, label, color, icon, suffix = '' }) {
       <span className="circular-stat-label">{label}</span>
     </div>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  WALLET — Premium Dark
-// ═══════════════════════════════════════════════════════════════════════
-function WalletVaultV4({ balance, lockedBalance, onDeposit, onWithdraw, onNavigate, t }) {
+// ─── WALLET ───
+const WalletVaultV4 = memo(function WalletVaultV4({ balance, lockedBalance, onDeposit, onWithdraw, onNavigate, t }) {
   const animatedBalance = useAnimatedCounter(balance, 1500)
   const animatedLocked = useAnimatedCounter(lockedBalance, 1500)
 
   return (
     <div className="zeno-card zeno-card-interactive" onClick={() => onNavigate('wallet')}>
-      <div className="zeno-card-shine" />
+      <div className="zeno-card-shine" aria-hidden="true" />
 
       <div className="wallet-header-v4">
         <div className="wallet-label">
@@ -247,12 +259,10 @@ function WalletVaultV4({ balance, lockedBalance, onDeposit, onWithdraw, onNaviga
       </div>
     </div>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  V6.0: TOP SQUADS — Squad Win Rate Leaderboard (Replaces Top Characters)
-// ═══════════════════════════════════════════════════════════════════════
-function SquadCardV4({ squad, rank, onNavigate }) {
+// ─── SQUAD CARD ───
+const SquadCardV4 = memo(function SquadCardV4({ squad, rank, onNavigate }) {
   const rankColors = ['#fbbf24', '#c0c0c0', '#cd7f32', '#06d6f0', '#a78bfa']
   const rankColor = rankColors[rank] || '#6c8cff'
 
@@ -265,7 +275,7 @@ function SquadCardV4({ squad, rank, onNavigate }) {
       </div>
       <div className="squad-logo-wrap">
         {squad.logo ? (
-          <img src={squad.logo} alt={squad.name} className="squad-logo-img" />
+          <img src={squad.logo} alt={squad.name} className="squad-logo-img" loading="lazy" />
         ) : (
           <div className="squad-logo-fallback" style={{ background: `linear-gradient(135deg, ${rankColor}30, ${rankColor}10)` }}>
             <span style={{ color: rankColor, fontSize: 18, fontWeight: 800 }}>{(squad.name || '?').charAt(0)}</span>
@@ -286,7 +296,6 @@ function SquadCardV4({ squad, rank, onNavigate }) {
           </div>
         </div>
       </div>
-      {/* Win Rate Ring */}
       <div className="squad-win-ring">
         <svg width="44" height="44" style={{ transform: 'rotate(-90deg)' }}>
           <circle fill="none" stroke="rgba(255,255,255,0.04)" cx="22" cy="22" r="18" strokeWidth="3" />
@@ -296,7 +305,7 @@ function SquadCardV4({ squad, rank, onNavigate }) {
             cx="22" cy="22" r="18" strokeWidth="3"
             strokeDasharray={2 * Math.PI * 18}
             strokeDashoffset={2 * Math.PI * 18 * (1 - Math.min((squad.winRate || 0) / 100, 1))}
-            style={{ stroke: rankColor, transition: 'stroke-dashoffset 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+            style={{ stroke: rankColor, transition: 'stroke-dashoffset 1s ease-out' }}
           />
         </svg>
         <div className="squad-win-ring-center">
@@ -305,15 +314,13 @@ function SquadCardV4({ squad, rank, onNavigate }) {
       </div>
     </div>
   )
-}
+})
 
-function TopSquadsSectionV4({ t, squads, onNavigate }) {
-  // Sort by win rate descending, take top 5
+const TopSquadsSectionV4 = memo(function TopSquadsSectionV4({ t, squads, onNavigate }) {
   const topSquads = (squads || [])
     .sort((a, b) => (b.winRate || 0) - (a.winRate || 0))
     .slice(0, 5)
 
-  // Fallback demo squads if none exist
   const demoSquads = topSquads.length > 0 ? topSquads : [
     { id: 's1', name: 'Zenith', tag: 'ZEN', winRate: 78, matchesPlayed: 24, logo: '' },
     { id: 's2', name: 'Phoenix', tag: 'PHX', winRate: 65, matchesPlayed: 31, logo: '' },
@@ -335,12 +342,10 @@ function TopSquadsSectionV4({ t, squads, onNavigate }) {
       </div>
     </section>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  V6.0: COMMUNITY HUB — Replaces Live Streams
-// ═══════════════════════════════════════════════════════════════════════
-function CommunityHubSectionV4({ t, content, onNavigate }) {
+// ─── COMMUNITY HUB ───
+const CommunityHubSectionV4 = memo(function CommunityHubSectionV4({ t, content, onNavigate }) {
   const hasContent = content && content.length > 0
 
   return (
@@ -368,7 +373,7 @@ function CommunityHubSectionV4({ t, content, onNavigate }) {
           {content.slice(0, 3).map(item => (
             <div key={item.id} className="channel-card-v4" onClick={() => window.open(item.videoUrl, '_blank')}>
               <div className="channel-thumbnail-v4">
-                <img src={item.thumbnailUrl} alt={item.title} />
+                <img src={item.thumbnailUrl} alt={item.title} loading="lazy" />
                 <div className="channel-overlay-v4">
                   <div className="channel-live-badge">
                     <i className="fa-solid fa-play" /> {item.type === 'highlight' ? 'Highlight' : item.type === 'reel' ? 'Reel' : 'Video'}
@@ -387,11 +392,9 @@ function CommunityHubSectionV4({ t, content, onNavigate }) {
       )}
     </section>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  STATS META — Ranked List
-// ═══════════════════════════════════════════════════════════════════════
+// ─── STATS META ───
 const ZENO_META = [
   { rank: 1, name: 'Alok', role: 'Most Picked', roleIcon: 'fa-solid fa-crown', percentage: 24.5, avatar: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=100&h=100&fit=crop' },
   { rank: 2, name: 'Kelly', role: 'Speed King', roleIcon: 'fa-solid fa-bolt', percentage: 19.2, avatar: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=100&h=100&fit=crop' },
@@ -399,7 +402,7 @@ const ZENO_META = [
   { rank: 4, name: 'Chronos', role: 'Tactical', roleIcon: 'fa-solid fa-clock', percentage: 12.3, avatar: 'https://images.unsplash.com/photo-1552820728-8b83bb6b2b0a?w=100&h=100&fit=crop' },
 ]
 
-function StatsSectionV4({ t }) {
+const StatsSectionV4 = memo(function StatsSectionV4({ t }) {
   return (
     <section className="dashboard-section">
       <div className="section-header-v4">
@@ -414,7 +417,7 @@ function StatsSectionV4({ t }) {
         {ZENO_META.map(stat => (
           <div key={stat.rank} className="stat-row-v4">
             <span className="stat-rank-v4">{stat.rank}</span>
-            <img src={stat.avatar} alt={stat.name} className="stat-avatar-v4" />
+            <img src={stat.avatar} alt={stat.name} className="stat-avatar-v4" loading="lazy" />
             <div className="stat-details-v4">
               <div className="stat-name-v4">{stat.name}</div>
               <div className="stat-role-v4"><i className={stat.roleIcon} /> {stat.role}</div>
@@ -428,18 +431,16 @@ function StatsSectionV4({ t }) {
       </div>
     </section>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  NEWS
-// ═══════════════════════════════════════════════════════════════════════
+// ─── NEWS ───
 const ZENO_NEWS = [
   { id: 1, title: '🏆 New Champion Crowned in ZENO Weekly Finals!', date: 'July 19, 2025', image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&h=400&fit=crop', tag: 'Tournament' },
   { id: 2, title: '🎮 Free Fire MAX: New Character "Maya" Coming!', date: 'July 18, 2025', image: 'https://images.unsplash.com/photo-1511882150382-421056c89033?w=600&h=400&fit=crop', tag: 'Update' },
   { id: 3, title: '💰 Referral System Live — Earn up to 1500 TK!', date: 'July 17, 2025', image: 'https://images.unsplash.com/photo-1560253023-3ec5d502959f?w=600&h=400&fit=crop', tag: 'Feature' },
 ]
 
-function NewsSectionV4({ t }) {
+const NewsSectionV4 = memo(function NewsSectionV4({ t }) {
   return (
     <section className="dashboard-section">
       <div className="section-header-v4">
@@ -449,7 +450,7 @@ function NewsSectionV4({ t }) {
       <div className="news-scroll-v4">
         {ZENO_NEWS.map(news => (
           <div key={news.id} className="news-card-v4">
-            <img src={news.image} alt={news.title} className="news-image-v4" />
+            <img src={news.image} alt={news.title} className="news-image-v4" loading="lazy" />
             <div className="news-content-v4">
               <div className="news-tag-v4">{news.tag}</div>
               <div className="news-title-v4">{news.title}</div>
@@ -460,12 +461,10 @@ function NewsSectionV4({ t }) {
       </div>
     </section>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  QUICK ACTIONS
-// ═══════════════════════════════════════════════════════════════════════
-function QuickActionsV4({ onNavigate, t }) {
+// ─── QUICK ACTIONS ───
+const QuickActionsV4 = memo(function QuickActionsV4({ onNavigate, t }) {
   const actions = [
     { icon: 'fa-solid fa-trophy', label: 'Tournaments', color: '#6366F1', path: 'matches' },
     { icon: 'fa-solid fa-chart-line', label: 'Leaderboard', color: '#22C55E', path: 'leaderboard' },
@@ -487,11 +486,9 @@ function QuickActionsV4({ onNavigate, t }) {
       </div>
     </section>
   )
-}
+})
 
-// ═══════════════════════════════════════════════════════════════════════
-//  MAIN DASHBOARD — Uses your existing MobileNav.jsx
-// ═══════════════════════════════════════════════════════════════════════
+// ─── MAIN DASHBOARD ───
 export default function Dashboard() {
   const { state, dispatch, navigate } = useApp()
   const { t } = useLanguage()
@@ -523,7 +520,6 @@ export default function Dashboard() {
       <NoiseOverlay />
 
       <div className="dashboard-content">
-        {/* HERO BANNER */}
         <HeroBannerV4
           hero={hero}
           heroPhase={heroPhase}
@@ -535,7 +531,6 @@ export default function Dashboard() {
           t={t}
         />
 
-        {/* CIRCULAR STATS */}
         <section className="dashboard-section stats-row-v4">
           <CircularStatV4 value={liveCount} label="Live" color="#6366F1" icon="fa-solid fa-circle-play" />
           <CircularStatV4 value={myJoinedCount} label="My Matches" color="#8B5CF6" icon="fa-solid fa-user-check" />
@@ -543,10 +538,8 @@ export default function Dashboard() {
           <CircularStatV4 value={level} label="Level" color="#F59E0B" icon="fa-solid fa-military-tech" />
         </section>
 
-        {/* QUICK ACTIONS */}
         <QuickActionsV4 onNavigate={navigate} t={t} />
 
-        {/* WALLET */}
         <WalletVaultV4
           balance={currentUser.balance || 0}
           lockedBalance={currentUser.lockedBalance || 0}
@@ -556,7 +549,6 @@ export default function Dashboard() {
           t={t}
         />
 
-        {/* LIVE MATCHES */}
         {matches.filter(m => m.status === 'live').length > 0 && (
           <section className="dashboard-section">
             <div className="section-header-v4">
@@ -571,20 +563,11 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* V6.0: TOP SQUADS (Replaces Top Characters) */}
         <TopSquadsSectionV4 t={t} squads={squads} onNavigate={navigate} />
-
-        {/* V6.0: COMMUNITY HUB (Replaces Live Streams) */}
         <CommunityHubSectionV4 t={t} content={communityContent} onNavigate={navigate} />
-
-        {/* STATS */}
         <StatsSectionV4 t={t} />
-
-        {/* NEWS */}
         <NewsSectionV4 t={t} />
       </div>
-
-      {/* NOTE: Bottom nav is handled by your existing MobileNav.jsx in App.jsx */}
     </div>
   )
 }
